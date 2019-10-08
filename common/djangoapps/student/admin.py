@@ -5,7 +5,11 @@ from django.contrib import admin
 from django.contrib.admin.sites import NotRegistered
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.contrib.auth.forms import ReadOnlyPasswordHashField, UserChangeForm as BaseUserChangeForm
+from django.contrib.auth.forms import (
+    ReadOnlyPasswordHashField,
+    UserChangeForm as BaseUserChangeForm,
+    UserCreationForm as BaseUserCreationForm,
+)
 from django.db import models
 from django.http.request import QueryDict
 from django.utils.translation import ugettext_lazy as _
@@ -264,7 +268,21 @@ class AccountRecoveryInline(admin.StackedInline):
     verbose_name_plural = _('Account recovery')
 
 
-class UserChangeForm(BaseUserChangeForm):
+class EmailRequiredMixin(object):
+    def __init__(self, *args, **kwargs):
+        super(EmailRequiredMixin, self).__init__(*args, **kwargs)
+        # make user email field required
+        self.fields['email'].required = True
+
+
+class UserCreationForm(EmailRequiredMixin, BaseUserCreationForm):
+    """
+    Override the default UserCreationForm so that we can also provide email.
+    """
+    pass
+
+
+class UserChangeForm(EmailRequiredMixin, BaseUserChangeForm):
     """
     Override the default UserChangeForm such that the password field
     does not contain a link to a 'change password' form.
@@ -282,6 +300,31 @@ class UserAdmin(BaseUserAdmin):
     """ Admin interface for the User model. """
     inlines = (UserProfileInline, AccountRecoveryInline)
     form = UserChangeForm
+    add_form = UserCreationForm
+
+    fieldsets = (
+        (
+            None,
+            {
+                'fields': ('username', 'email', 'password')
+            }
+        ),
+        (
+            _('Personal info'), {
+                'fields': ('first_name', 'last_name',)
+            }
+        ),
+    )
+
+    add_fieldsets = (
+        (
+            None,
+            {
+                'classes': ('wide',),
+                'fields': ('username', 'email', 'password1', 'password2')
+            }
+        ),
+    )
 
     def get_readonly_fields(self, request, obj=None):
         """
