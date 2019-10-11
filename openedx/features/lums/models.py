@@ -11,7 +11,6 @@ class UserProfileExtension(models.Model):
     This model is used to store additional custom profile fields.
     """
 
-    empty = 'punjab'
     PUNAJB = 'punjab'
     SINDH = 'sindh'
     KPK = 'kpk'
@@ -25,7 +24,7 @@ class UserProfileExtension(models.Model):
     )
 
     user = models.OneToOneField(
-        User, unique=True, db_index=True, related_name='profile_extension', on_delete=models.CASCADE
+        User, related_name='profile_extension', on_delete=models.CASCADE
     )
     province = models.CharField(
         max_length=50, choices=PROVINCE_CHOICES, null=False, blank=False
