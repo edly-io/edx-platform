@@ -71,6 +71,13 @@ CELERYD_PREFETCH_MULTIPLIER = 1
 
 QUEUE_VARIANT = CONFIG_PREFIX.lower()
 
+
+############# NON-SECURE ENV CONFIG ##############################
+# Things like server locations, ports, etc.
+with open(CONFIG_ROOT / CONFIG_PREFIX + "env.json") as env_file:
+    ENV_TOKENS = json.load(env_file)
+
+
 # Append Customer Name identifier in all celery queues names and celery default exchange
 ENV_CUSTOMER_NAME = ENV_TOKENS.get('CUSTOMER_NAME_IDENTIFIER', None)
 CUSTOMER_NAME = ENV_CUSTOMER_NAME + "." if ENV_CUSTOMER_NAME else "".lower()
@@ -91,10 +98,7 @@ CELERY_QUEUES = {
 
 CELERY_ROUTES = "{}celery.Router".format(QUEUE_VARIANT)
 
-############# NON-SECURE ENV CONFIG ##############################
-# Things like server locations, ports, etc.
-with open(CONFIG_ROOT / CONFIG_PREFIX + "env.json") as env_file:
-    ENV_TOKENS = json.load(env_file)
+
 
 # Do NOT calculate this dynamically at startup with git because it's *slow*.
 EDX_PLATFORM_REVISION = ENV_TOKENS.get('EDX_PLATFORM_REVISION', EDX_PLATFORM_REVISION)

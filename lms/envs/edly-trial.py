@@ -86,6 +86,13 @@ CELERYD_PREFETCH_MULTIPLIER = 1
 
 QUEUE_VARIANT = CONFIG_PREFIX.lower()
 
+########################## NON-SECURE ENV CONFIG ##############################
+# Things like server locations, ports, etc.
+
+with open(CONFIG_ROOT / CONFIG_PREFIX + "env.json") as env_file:
+    ENV_TOKENS = json.load(env_file)
+
+
 # Append Customer Name identifier in all celery queues names and celery default exchange
 ENV_CUSTOMER_NAME = ENV_TOKENS.get('CUSTOMER_NAME_IDENTIFIER', None)
 CUSTOMER_NAME = ENV_CUSTOMER_NAME + "." if ENV_CUSTOMER_NAME else "".lower()
@@ -107,12 +114,6 @@ CELERY_QUEUES = {
 
 CELERY_ROUTES = "{}celery.Router".format(QUEUE_VARIANT)
 CELERYBEAT_SCHEDULE = {}  # For scheduling tasks, entries can be added to this dict
-
-########################## NON-SECURE ENV CONFIG ##############################
-# Things like server locations, ports, etc.
-
-with open(CONFIG_ROOT / CONFIG_PREFIX + "env.json") as env_file:
-    ENV_TOKENS = json.load(env_file)
 
 # Authorizenet payment processor set a cookie for dashboard to show pending course purchased dashoard
 # notification. This cookie domain will be used to set and delete that cookie.
