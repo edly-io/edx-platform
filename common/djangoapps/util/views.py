@@ -22,6 +22,7 @@ import track.views
 from edxmako.shortcuts import render_to_response, render_to_string
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.features.enterprise_support import api as enterprise_api
+from organizations.models import OrganizationCourse
 from student.models import CourseEnrollment
 from student.roles import GlobalStaff
 
@@ -31,7 +32,8 @@ DATADOG_FEEDBACK_METRIC = "lms_feedback_submissions"
 SUPPORT_BACKEND_ZENDESK = "support_ticket"
 SUPPORT_BACKEND_EMAIL = "email"
 
-
+# [COLARAZ_CUSTOM]
+# Ensure that the user is authorized to view the course
 def ensure_valid_course_key(view_func):
     """
     This decorator should only be used with views which have argument course_key_string (studio) or course_id (lms).
@@ -43,6 +45,12 @@ def ensure_valid_course_key(view_func):
         if course_key is not None:
             try:
                 CourseKey.from_string(course_key)
+                site_orgs = configuration_helpers.get_current_site_orgs()
+                linked_courses = OrganizationCourse.objects.filter(course_id=course_key, 
+                                                                   organization__name__in=site_orgs,
+                                                                   active=True)
+                if not linked_courses:
+                    raise Http404
             except InvalidKeyError:
                 raise Http404
 
