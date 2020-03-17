@@ -51,6 +51,7 @@ from shoppingcart.api import order_history
 from shoppingcart.models import CourseRegistrationCode, DonationConfiguration
 from openedx.core.djangoapps.user_authn.cookies import set_logged_in_cookies
 from student.helpers import cert_info, check_verify_status_by_course
+from organizations.models import OrganizationCourse
 from student.models import (
     AccountRecovery,
     CourseEnrollment,
@@ -222,18 +223,28 @@ def get_course_enrollments(user, org_whitelist, org_blacklist):
                 enrollment.course_id
             )
             continue
-
-        # Filter out anything that is not in the whitelist.
-        if org_whitelist and course_overview.location.org not in org_whitelist:
-            continue
-
-        # Conversely, filter out any enrollments in the blacklist.
-        elif org_blacklist and course_overview.location.org in org_blacklist:
-            continue
-
-        # Else, include the enrollment.
+    
+        # [COLARAZ_CUSTOM]
+        # To restrict users from viewing unallowed courses. 
+        if settings.FEATURES.get('ORGANIZATIONS_APP', False):
+            if org_whitelist and OrganizationCourse.objects.filter(course_id=str(course_overview), 
+                                                                   organization__name__in=org_whitelist, 
+                                                                   active=True):
+                yield enrollment
+            else:
+                continue
         else:
-            yield enrollment
+            # Filter out anything that is not in the whitelist.
+            if org_whitelist and course_overview.location.org not in org_whitelist:
+                continue
+
+            # Conversely, filter out any enrollments in the blacklist.
+            elif org_blacklist and course_overview.location.org in org_blacklist:
+                continue
+
+            # Else, include the enrollment.
+            else:
+                yield enrollment
 
 
 def get_filtered_course_entitlements(user, org_whitelist, org_blacklist):

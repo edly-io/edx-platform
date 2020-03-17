@@ -241,7 +241,6 @@ def inline_discussion(request, course_key, discussion_id):
         'course_settings': make_course_settings(course, request.user, False)
     })
 
-
 @login_required
 @use_bulk_ops
 def forum_form_discussion(request, course_key):

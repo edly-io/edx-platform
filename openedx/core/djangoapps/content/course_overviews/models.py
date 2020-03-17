@@ -13,6 +13,7 @@ from django.template import defaultfilters
 
 from ccx_keys.locator import CCXLocator
 from model_utils.models import TimeStampedModel
+from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.django.models import CourseKeyField, UsageKeyField
 from six import text_type
 
@@ -21,6 +22,7 @@ from lms.djangoapps import django_comment_client
 from openedx.core.djangoapps.catalog.models import CatalogIntegration
 from openedx.core.djangoapps.lang_pref.api import get_closest_released_language
 from openedx.core.djangoapps.models.course_details import CourseDetails
+from organizations.models import OrganizationCourse
 from static_replace.models import AssetBaseUrlConfig
 from xmodule import course_metadata_utils, block_metadata_utils
 from xmodule.course_module import CourseDescriptor, DEFAULT_START_DATE
@@ -576,7 +578,18 @@ class CourseOverview(TimeStampedModel):
             # In rare cases, courses belonging to the same org may be accidentally assigned
             # an org code with a different casing (e.g., Harvardx as opposed to HarvardX).
             # Case-insensitive matching allows us to deal with this kind of dirty data.
-            course_overviews = course_overviews.filter(org__iregex=r'(' + '|'.join(orgs) + ')')
+
+            # [COLARAZ_CUSTOM]
+            # This method is being used at most of the places for course listing
+            # So, here we can filter-out courses on the basis of organizations
+            if settings.FEATURES.get('ORGANIZATIONS_APP', False):
+                linked_courses = OrganizationCourse.objects.filter(
+                    organization__name__iregex=r'(' + '|'.join(orgs) + ')', active=True
+                    ).values_list('course_id', flat=True)
+                course_keys = [CourseKey.from_string(index) for index in linked_courses]
+                course_overviews = course_overviews.filter(id__in=course_keys)
+            else:
+                course_overviews = course_overviews.filter(org__iregex=r'(' + '|'.join(orgs) + ')')
 
         if filter_:
             course_overviews = course_overviews.filter(**filter_)
