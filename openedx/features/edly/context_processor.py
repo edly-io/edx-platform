@@ -1,7 +1,6 @@
 from math import floor
 
 from django.core.cache import cache
-
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 
 CACHE_NAME = 'context_processor.dynamic_theming'
@@ -22,6 +21,7 @@ DEFAULT_BRANDING_DICT = {
 }
 
 DEFAULT_SERVICES_NOTIFICATIONS_URL = 'https://staging.staging.panel.backend.edly.io/api/v1/all_services_notifications/'
+DEFAULT_SERVICES_NOTIFICATIONS_COOKIE_DOMAIN = '.edly.io'
 
 
 def dynamic_theming_context(request):  # pylint: disable=unused-argument
@@ -53,8 +53,19 @@ def edly_app_context(request):  # pylint: disable=unused-argument
     if not edly_app_context:
         edly_app_context = {}
         edly_app_context.update(
-            {'services_notifications_url': configuration_helpers.get_value('SERVICES_NOTIFICATIONS_URL',
-                                                                           DEFAULT_SERVICES_NOTIFICATIONS_URL)}
+            {
+                'services_notifications_url': configuration_helpers.get_value(
+                    'SERVICES_NOTIFICATIONS_URL', DEFAULT_SERVICES_NOTIFICATIONS_URL
+                )
+            }
+        )
+
+        edly_app_context.update(
+            {
+                'services_notifications_cookie_domain': configuration_helpers.get_value(
+                    'SERVICES_NOTIFICATIONS_COOKIE_DOMAIN', DEFAULT_SERVICES_NOTIFICATIONS_COOKIE_DOMAIN
+                )
+            }
         )
         cache.set(EDLY_CACHE_NAME, edly_app_context, CACHE_TIMEOUT)
 
