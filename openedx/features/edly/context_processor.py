@@ -5,6 +5,7 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 
 CACHE_NAME = 'context_processor.dynamic_theming'
 EDLY_CACHE_NAME = 'context_processor.edly_app'
+DEFAULT_SERVICES_COOKIE_EXPIRY = 180
 CACHE_TIMEOUT = 60
 DEFAULT_COLOR_DICT = {
     'primary': '#3E99D4',
@@ -64,6 +65,14 @@ def edly_app_context(request):  # pylint: disable=unused-argument
             {
                 'services_notifications_cookie_domain': configuration_helpers.get_value(
                     'SERVICES_NOTIFICATIONS_COOKIE_DOMAIN', DEFAULT_SERVICES_NOTIFICATIONS_COOKIE_DOMAIN
+                )
+            }
+        )
+
+        edly_app_context.update(
+            {
+                'services_cookie_expiry': configuration_helpers.get_value(
+                    'SERVICES_COOKIE_EXPIRY', DEFAULT_SERVICES_COOKIE_EXPIRY
                 )
             }
         )
