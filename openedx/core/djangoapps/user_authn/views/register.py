@@ -105,6 +105,11 @@ def create_account_with_params(request, params):
     # params is request.POST, that results in a dict containing lists of values
     params = dict(params.items())
 
+    # [COLARAZ_CUSTOM]
+    # To restrict user creation from open edX registeration flow while 
+    # allowing social_auth to create them.
+    req_via_social_auth = params.has_key('social_auth_provider')
+    
     # allow to define custom set of required/optional/hidden fields via configuration
     extra_fields = configuration_helpers.get_value(
         'REGISTRATION_EXTRA_FIELDS',
@@ -159,7 +164,7 @@ def create_account_with_params(request, params):
     # Perform operations within a transaction that are critical to account creation
     with outer_atomic(read_committed=True):
         # first, create the account
-        (user, profile, registration) = do_create_account(form, custom_form)
+        (user, profile, registration) = do_create_account(form, custom_form, req_via_social_auth)
 
         third_party_provider, running_pipeline = _link_user_to_third_party_provider(
             is_third_party_auth_enabled, third_party_auth_credentials_in_api, user, request, params,

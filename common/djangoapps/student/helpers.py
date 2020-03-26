@@ -425,6 +425,7 @@ class AccountValidationError(Exception):
     """
     Used in account creation views to raise exceptions with details about specific invalid fields
     """
+
     def __init__(self, message, field):
         super(AccountValidationError, self).__init__(message)
         self.field = field
@@ -583,7 +584,10 @@ def process_survey_link(survey_link, user):
     return survey_link.format(UNIQUE_ID=unique_id_for_user(user))
 
 
-def do_create_account(form, custom_form=None):
+# [COLARAZ_CUSTOM]
+# To restrict user creation from open edX registeration flow while
+# allowing social_auth to create them.
+def do_create_account(form, custom_form=None, req_via_social_auth=False):
     """
     Given cleaned post variables, create the User and UserProfile objects, as well as the
     registration for this user.
@@ -593,7 +597,7 @@ def do_create_account(form, custom_form=None):
     Note: this function is also used for creating test users.
     """
     # Check if ALLOW_PUBLIC_ACCOUNT_CREATION flag turned off to restrict user account creation
-    if not configuration_helpers.get_value(
+    if not req_via_social_auth and not configuration_helpers.get_value(
             'ALLOW_PUBLIC_ACCOUNT_CREATION',
             settings.FEATURES.get('ALLOW_PUBLIC_ACCOUNT_CREATION', True)
     ):
