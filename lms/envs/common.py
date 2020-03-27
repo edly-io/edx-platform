@@ -285,7 +285,7 @@ FEATURES = {
     'MILESTONES_APP': False,
 
     # Organizations application flag
-    'ORGANIZATIONS_APP': True,
+    'ORGANIZATIONS_APP': False,
 
     # Prerequisite courses feature flag
     'ENABLE_PREREQUISITE_COURSES': False,
