@@ -455,6 +455,14 @@ def get_courses(user, org=None, filter_=None):
     Returns a list of courses available, sorted by course.number and optionally
     filtered by org code (case-insensitive).
     """
+    # [COLARAZ_CUSTOM]
+    # Manage course visibility to anonymous users
+    if (not user or not user.is_authenticated) and not configuration_helpers.get_value(
+            'SHOW_COURSES_TO_ANONYMOUS_USERS',
+            settings.SHOW_COURSES_TO_ANONYMOUS_USERS
+        ):
+        return []
+
     courses = branding.get_visible_courses(org=org, filter_=filter_)
 
     permission_name = configuration_helpers.get_value(

@@ -41,6 +41,11 @@ def ensure_valid_course_key(view_func):
     """
     @wraps(view_func)
     def inner(request, *args, **kwargs):
+        if not request.user.is_authenticated and not configuration_helpers.get_value(
+                'SHOW_COURSES_TO_ANONYMOUS_USERS',
+                settings.SHOW_COURSES_TO_ANONYMOUS_USERS
+            ):
+            raise Http404
         course_key = kwargs.get('course_key_string') or kwargs.get('course_id')
         if course_key is not None:
             try:
