@@ -505,6 +505,9 @@ MIDDLEWARE_CLASSES = [
     # Instead of AuthenticationMiddleware, we use a cache-backed version
     'openedx.core.djangoapps.cache_toolbox.middleware.CacheBackedAuthenticationMiddleware',
 
+    # [COLARAZ_CUSTOM]
+    'openedx.features.colaraz_features.middlewares.ColarazAuthenticationMiddleware',
+
     'student.middleware.UserStandingMiddleware',
     'openedx.core.djangoapps.contentserver.middleware.StaticContentServer',
 
@@ -1178,6 +1181,8 @@ INSTALLED_APPS = [
     'openedx.features.course_duration_limits',
     'openedx.features.content_type_gating',
     'experiments',
+
+    'openedx.features.colaraz_features',
 ]
 
 
@@ -1561,6 +1566,14 @@ ZENDESK_CUSTOM_FIELDS = {}
 # (0.0 = 0%, 1.0 = 100%)
 COMPLETION_VIDEO_COMPLETE_PERCENTAGE = 0.95
 
+############## Settings for colaraz_features app ##############
+# [COLARAZ_CUSTOM]
+
+# These variables are used in ColarazAuthenticationMiddleware
+COLARAZ_ENABLE_AUTH_MIDDLEWARE = False
+COLARAZ_AUTH_PROVIDER_BACKEND_NAME = None
+COLARAZ_BLOCKED_SUB_PATHS = ['/course', '/home']
+COLARAZ_BLOCKED_FULL_PATHS = ['/']
 
 ############## Installed Django Apps #########################
 

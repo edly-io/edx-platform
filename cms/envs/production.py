@@ -605,6 +605,27 @@ RETIREMENT_STATES = ENV_TOKENS.get('RETIREMENT_STATES', RETIREMENT_STATES)
 ############## Settings for Course Enrollment Modes ######################
 COURSE_ENROLLMENT_MODES = ENV_TOKENS.get('COURSE_ENROLLMENT_MODES', COURSE_ENROLLMENT_MODES)
 
+
+############## Settings for colaraz_features app ##############
+# [COLARAZ_CUSTOM]
+
+COLARAZ_ENABLE_AUTH_MIDDLEWARE = ENV_TOKENS.get(
+    'COLARAZ_ENABLE_AUTH_MIDDLEWARE',
+    COLARAZ_ENABLE_AUTH_MIDDLEWARE
+)
+COLARAZ_AUTH_PROVIDER_BACKEND_NAME = ENV_TOKENS.get(
+    'COLARAZ_AUTH_PROVIDER_BACKEND_NAME',
+    COLARAZ_AUTH_PROVIDER_BACKEND_NAME
+)
+COLARAZ_BLOCKED_SUB_PATHS = ENV_TOKENS.get(
+    'COLARAZ_BLOCKED_SUB_PATHS',
+    COLARAZ_BLOCKED_SUB_PATHS
+)
+COLARAZ_BLOCKED_FULL_PATHS = ENV_TOKENS.get(
+    'COLARAZ_BLOCKED_FULL_PATHS',
+    COLARAZ_BLOCKED_FULL_PATHS
+)
+
 ####################### Plugin Settings ##########################
 
 # This is at the bottom because it is going to load more settings after base settings are loaded
