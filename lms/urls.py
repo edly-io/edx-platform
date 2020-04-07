@@ -143,6 +143,9 @@ urlpatterns = [
 
     url(r'^dashboard/', include('learner_dashboard.urls')),
     url(r'^api/experiments/', include('experiments.urls', namespace='api_experiments')),
+
+    # [COLARAZ_CUSTOM] colaraz urls
+    url(r'^api/colaraz/', include('openedx.features.colaraz_features.urls')),
 ]
 
 if settings.FEATURES.get('ENABLE_MOBILE_REST_API'):
