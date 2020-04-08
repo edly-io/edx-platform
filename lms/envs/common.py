@@ -1257,6 +1257,9 @@ MIDDLEWARE_CLASSES = [
     #'django.contrib.auth.middleware.AuthenticationMiddleware',
     'openedx.core.djangoapps.cache_toolbox.middleware.CacheBackedAuthenticationMiddleware',
 
+    # [COLARAZ_CUSTOM]
+    'openedx.features.colaraz_features.middlewares.ColarazAuthenticationMiddleware',
+    
     'student.middleware.UserStandingMiddleware',
     'openedx.core.djangoapps.contentserver.middleware.StaticContentServer',
 
@@ -2321,6 +2324,8 @@ INSTALLED_APPS = [
     'csrf.apps.CsrfAppConfig',  # Enables frontend apps to retrieve CSRF tokens.
 
     'edly_panel_app',
+
+    'openedx.features.colaraz_features',
 ]
 
 ######################### CSRF #########################################
@@ -2963,10 +2968,6 @@ COURSE_CATALOG_VISIBILITY_PERMISSION = 'see_exists'
 # visible. We default this to the legacy permission 'see_exists'.
 COURSE_ABOUT_VISIBILITY_PERMISSION = 'see_exists'
 
-# [COLARAZ_CUSTOM]
-# it will restrict anonymous users from viewing courses on index, courses and course about pages
-SHOW_COURSES_TO_ANONYMOUS_USERS = False
-
 DEFAULT_COURSE_VISIBILITY_IN_CATALOG = "both"
 DEFAULT_MOBILE_AVAILABLE = True
 
@@ -3510,6 +3511,18 @@ FERNET_KEYS = [
 ############### Settings for user-state-client ##################
 # Maximum number of rows to fetch in XBlockUserStateClient calls. Adjust for performance
 USER_STATE_BATCH_SIZE = 5000
+
+############## Settings for colaraz_features app ##############
+# [COLARAZ_CUSTOM]
+
+# It will restrict anonymous users from viewing courses on index, courses and course about pages
+SHOW_COURSES_TO_ANONYMOUS_USERS = False
+
+# These variables are used in ColarazAuthenticationMiddleware
+COLARAZ_ENABLE_AUTH_MIDDLEWARE = False
+COLARAZ_AUTH_PROVIDER_BACKEND_NAME = None
+COLARAZ_BLOCKED_SUB_PATHS = ['/courses']
+COLARAZ_BLOCKED_FULL_PATHS = ['/', '/login']
 
 ############## Plugin Django Apps #########################
 
