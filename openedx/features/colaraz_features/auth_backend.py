@@ -1,6 +1,7 @@
+import logging
+
 from django.utils.functional import cached_property
 from social_core.exceptions import AuthException
-import logging
 
 from openedx.core.djangoapps.theming.helpers import get_current_request
 from third_party_auth.identityserver3 import IdentityServer3
@@ -48,7 +49,7 @@ class ColarazIdentityServer(IdentityServer3):
         if not domain:
             LOGGER.exception("Domain not found in request attributes")
             raise AuthException("Colaraz", "Error while authentication")
-        elif not domain.startswith(user_site_domain.lower()):
+        elif user_site_domain.lower() not in domain:
             LOGGER.exception("User can only login through {} site".format(user_site_domain))
             raise AuthException("Colaraz", "Your account belongs to {}".format(user_site_domain))
 
