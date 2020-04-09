@@ -685,12 +685,12 @@ X_FRAME_OPTIONS = ENV_TOKENS.get('X_FRAME_OPTIONS', X_FRAME_OPTIONS)
 ##### Third-party auth options ################################################
 if FEATURES.get('ENABLE_THIRD_PARTY_AUTH'):
     tmp_backends = ENV_TOKENS.get('THIRD_PARTY_AUTH_BACKENDS', [
+        'openedx.features.colaraz_features.auth_backend.ColarazIdentityServer',
         'social_core.backends.google.GoogleOAuth2',
         'social_core.backends.linkedin.LinkedinOAuth2',
         'social_core.backends.facebook.FacebookOAuth2',
         'social_core.backends.azuread.AzureADOAuth2',
         'third_party_auth.identityserver3.IdentityServer3',
-        'third_party_auth.colaraz.ColarazIdentityServer',
         'third_party_auth.saml.SAMLAuthBackend',
         'third_party_auth.lti.LTIAuthBackend',
     ])
