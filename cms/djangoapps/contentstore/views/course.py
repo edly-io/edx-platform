@@ -28,6 +28,7 @@ from openedx.core.djangoapps.content.course_overviews.models import CourseOvervi
 from openedx.core.djangoapps.waffle_utils import WaffleSwitchNamespace
 from openedx.features.course_experience.waffle import waffle as course_experience_waffle
 from openedx.features.course_experience.waffle import ENABLE_COURSE_ABOUT_SIDEBAR_HTML
+from organizations.models import OrganizationCourse
 from six import text_type
 
 from contentstore.course_group_config import (
@@ -82,7 +83,13 @@ from util.milestones_helpers import (
     remove_prerequisite_course,
     set_prerequisite_courses
 )
-from util.organizations_helpers import add_organization_course, get_organization_by_short_name, organizations_enabled
+from util.organizations_helpers import (
+    add_organization_course,
+    get_organizations,
+    get_organization_by_short_name,
+    get_secondary_org_names_of_course,
+    organizations_enabled,
+)
 from util.string_utils import _has_non_ascii_characters
 from xblock_django.api import deprecated_xblocks
 from xmodule.contentstore.content import StaticContent
@@ -824,6 +831,14 @@ def _create_or_rerun_course(request):
         else:
             try:
                 new_course = create_new_course(request.user, org, course, run, fields)
+
+                # [COLARAZ_CUSTOM]
+                # Link courses with all selected secondary organiztaions
+                secondary_organizations = request.json.get('secondary_orgs') or []
+                for org in secondary_organizations:
+                    org_data = get_organization_by_short_name(org)
+                    add_organization_course(org_data, new_course.id)
+
                 return JsonResponse({
                     'url': reverse_course_url('course_handler', new_course.id),
                     'course_key': unicode(new_course.id),
@@ -857,7 +872,7 @@ def create_new_course(user, org, number, run, fields):
     Raises:
         DuplicateCourseError: Course run already exists.
     """
-    # [COLARAZ_CUSTOM] 
+    # [COLARAZ_CUSTOM]
     # Restrict user from creating courses with non-authorized organizations
     site_orgs = configuration_helpers.get_current_site_orgs()
     org_data = get_organization_by_short_name(org)
@@ -1048,6 +1063,10 @@ def settings_handler(request, course_key_string):
         if 'text/html' in request.META.get('HTTP_ACCEPT', '') and request.method == 'GET':
             upload_asset_url = reverse_course_url('assets_handler', course_key)
 
+            # [COLARAZ_CUSTOM]
+            # exclude primary organization from all organizations to get available options of secondary organizations
+            available_secondary_orgs = [org['name'] for org in get_organizations() if not (org['name'] == course_module.location.org)]
+
             # see if the ORG of this course can be attributed to a defined configuration . In that case, the
             # course about page should be editable in Studio
             marketing_site_enabled = configuration_helpers.get_value_for_org(
@@ -1070,7 +1089,6 @@ def settings_handler(request, course_key_string):
             )
             sidebar_html_enabled = course_experience_waffle().is_enabled(ENABLE_COURSE_ABOUT_SIDEBAR_HTML)
             # self_paced_enabled = SelfPacedConfiguration.current().enabled
-
             settings_context = {
                 'context_course': course_module,
                 'course_locator': course_key,
@@ -1085,6 +1103,7 @@ def settings_handler(request, course_key_string):
                 'upload_asset_url': upload_asset_url,
                 'course_handler_url': reverse_course_url('course_handler', course_key),
                 'language_options': settings.ALL_LANGUAGES,
+                'available_secondary_organizations': available_secondary_orgs,
                 'credit_eligibility_enabled': credit_eligibility_enabled,
                 'is_credit_course': False,
                 'show_min_grade_warning': False,
@@ -1126,11 +1145,12 @@ def settings_handler(request, course_key_string):
         elif 'application/json' in request.META.get('HTTP_ACCEPT', ''):
             if request.method == 'GET':
                 course_details = CourseDetails.fetch(course_key)
-                return JsonResponse(
-                    course_details,
-                    # encoder serializes dates, old locations, and instances
-                    encoder=CourseSettingsEncoder
-                )
+                # [COLARAZ_CUSTOM]
+                # Return secondary_organizations list along with other course details.
+                data = course_details.__dict__
+                secondary_organizations = get_secondary_org_names_of_course(course_key_string, course_module.location.org)
+                data.update({'secondary_organizations': secondary_organizations})
+                return JsonResponse(data)
             # For every other possible method type submitted by the caller...
             else:
                 # if pre-requisite course feature is enabled set pre-requisite course
@@ -1176,6 +1196,19 @@ def settings_handler(request, course_key_string):
                     # and the course has an entrance exam attached...
                     elif not entrance_exam_enabled and course_entrance_exam_present:
                         delete_entrance_exam(request, course_key)
+
+                # [COLARAZ_CUSTOM]
+                # Update course links woth secondary organizations.
+                new_values = request.json.get('secondary_organizations') or []
+                old_values = get_secondary_org_names_of_course(course_key_string, course_module.location.org)
+                newly_added = list(set(new_values) - set(old_values))
+                old_deleted = list(set(old_values) - set(new_values))
+
+                # update course links with secondary organizations by deleting old links and adding new one.
+                OrganizationCourse.objects.filter(course_id=course_key_string, organization__short_name__in=old_deleted).delete()
+                for org in newly_added:
+                    org_data = get_organization_by_short_name(org)
+                    add_organization_course(org_data, course_key_string)
 
                 # Perform the normal update workflow for the CourseDetails model
                 return JsonResponse(

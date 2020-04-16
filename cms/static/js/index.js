@@ -5,6 +5,7 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
         var CreateCourseUtils = new CreateCourseUtilsFactory({
             name: '.new-course-name',
             org: '.new-course-org',
+            secondaryOrg: '.new-course-secondary-org',
             number: '.new-course-number',
             run: '.new-course-run',
             save: '.new-course-save',
@@ -42,7 +43,7 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
         var saveNewCourse = function(e) {
             e.preventDefault();
 
-            if (CreateCourseUtils.hasInvalidRequiredFields()) {
+	        if (CreateCourseUtils.hasInvalidRequiredFields()) {
                 return;
             }
 
@@ -51,12 +52,14 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
             var org = $newCourseForm.find('.new-course-org').val();
             var number = $newCourseForm.find('.new-course-number').val();
             var run = $newCourseForm.find('.new-course-run').val();
+            var secondary_org_list = $newCourseForm.find('.new-course-secondary-org').val();
 
             var course_info = {
                 org: org,
                 number: number,
                 display_name: display_name,
-                run: run
+                run: run,
+                secondary_orgs: secondary_org_list
             };
 
             analytics.track('Created a Course', course_info);
@@ -87,6 +90,8 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
         var makeCancelHandler = function(addType) {
             return function(e) {
                 e.preventDefault();
+                $('.new-course-org').val('').find('option').not(':first').remove();
+                $('.new-course-secondary-org').empty();
                 $('.new-' + addType + '-button').removeClass('is-disabled').attr('aria-disabled', false);
                 $('.wrapper-create-' + addType).removeClass('is-shown');
                 // Clear out existing fields and errors
@@ -169,7 +174,22 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
             };
         };
 
+        var setupSecondaryOrgAutocomplete = function(e) {
+            $('.new-course-secondary-org').empty();
+            $.each(e.target.options, function(i, option) {
+                if (e.target.value && option.value && e.target.value !== option.value) {
+                    $('.new-course-secondary-org').append(
+                        $('<option>', {
+                            value: option.value,
+                            text: option.text
+                      })
+                    );
+                }
+            });
+        };
+
         var onReady = function() {
+            $('.new-course-org').bind('change', setupSecondaryOrgAutocomplete);
             $('.new-course-button').bind('click', addNewCourse);
             $('.new-library-button').bind('click', addNewLibrary);
 

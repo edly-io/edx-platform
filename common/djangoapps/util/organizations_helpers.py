@@ -103,3 +103,17 @@ def organizations_enabled():
     Returns boolean indication if organizations app is enabled on not.
     """
     return settings.FEATURES.get('ORGANIZATIONS_APP', False)
+
+
+def get_secondary_org_names_of_course(course_id, primary_org_name):
+    """
+    Returns list of all secondary organizations names linked with the course.
+    """
+    if not organizations_enabled():
+        return []
+    from organizations import api as organizations_api
+    all_organizations = organizations_api.get_course_organizations(course_id)
+
+    # exclude primary organization from the list
+    secondary_organizations = [org['name'] for org in all_organizations if not (org['name'] == primary_org_name)]
+    return secondary_organizations
