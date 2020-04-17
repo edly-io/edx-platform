@@ -3,7 +3,6 @@ import logging
 from django.conf import settings
 from django.contrib.auth import logout
 from django.http import HttpResponseRedirect, Http404
-from django.urls import reverse
 from six.moves.urllib.parse import urlencode
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
