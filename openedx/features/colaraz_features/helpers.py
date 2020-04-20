@@ -138,7 +138,8 @@ def create_site_configurations(sites, organization, university_name, platform_na
                 PLATFORM_NAME=platform_name,
                 platform_name=platform_name,
                 site_domain=site.domain,
-                site_name=university_name,
+                SITE_NAME=site.domain,
+                university=university_name,
                 course_org_filters=remove_duplicates(organizations + [organization.short_name]),
                 **(
                     {
