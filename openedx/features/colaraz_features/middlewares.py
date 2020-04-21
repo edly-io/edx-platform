@@ -43,7 +43,7 @@ class ColarazAuthenticationMiddleware(object):
                 if not user_site_domain or not request_site_domain:
                     LOGGER.error('User site or request site domains are not configured properly')
                 elif user_site_domain not in request_site_domain:
-                    LOGGER.error('User "{}" can only login through {}'.format(user.username, user_site))
+                    LOGGER.error('User "{}" can only login through {}'.format(user.username, user_site_domain))
                     logout(request)
                     return self._redirect_to_login(request)
         return
