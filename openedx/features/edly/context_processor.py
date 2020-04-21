@@ -1,5 +1,4 @@
 from math import floor
-from datetime import datetime
 
 from django.core.cache import cache
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
