@@ -25,7 +25,6 @@ DEFAULT_BRANDING_DICT = {
     'logo': "https://edly-edx-theme-files.s3.amazonaws.com/st-lutherx-logo.png",
     'favicon': "https://edly-edx-theme-files.s3.amazonaws.com/favicon.ico",
 }
-DEFAULT_EDLY_COPYRIGHT_TEXT = 'Edly 2020. All rights reserved.'
 
 
 def get_base_template_context(site):
@@ -52,7 +51,7 @@ def get_base_template_context(site):
         'contact_email': get_config_value_from_site_or_settings(
             'CONTACT_EMAIL', site=site, site_config_name='contact_email'),
         'contact_mailing_address': get_config_value_from_site_or_settings(
-            'CONTACT_MAILING_ADDRESS', site=site, site_config_name='contact_mailing_address'),
+            'CONTACT_MAILING_ADDRESS', site=site, site_config_name='CONTACT_MAILING_ADDRESS'),
         'social_media_urls': get_config_value_from_site_or_settings('SOCIAL_MEDIA_FOOTER_URLS', site=site),
         'mobile_store_urls': get_config_value_from_site_or_settings('MOBILE_STORE_URLS', site=site),
 
@@ -61,5 +60,5 @@ def get_base_template_context(site):
         'edly_fonts_config': configuration_helpers.get_dict('FONTS', DEFAULT_FONTS_DICT),
         'edly_branding_config': configuration_helpers.get_dict('BRANDING', DEFAULT_BRANDING_DICT),
         # Context processor value for edly app
-        'edly_copyright_text': configuration_helpers.get_value('EDLY_COPYRIGHT_TEXT', DEFAULT_EDLY_COPYRIGHT_TEXT)
+        'edly_copyright_text': configuration_helpers.get_value('EDLY_COPYRIGHT_TEXT')
     }

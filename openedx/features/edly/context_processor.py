@@ -1,4 +1,5 @@
 from math import floor
+from datetime import datetime
 
 from django.core.cache import cache
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
@@ -8,7 +9,6 @@ EDLY_CACHE_NAME = 'context_processor.edly_app'
 DEFAULT_SERVICES_COOKIE_EXPIRY = 180
 CACHE_TIMEOUT = 60
 
-DEFAULT_EDLY_COPYRIGHT_TEXT = 'Edly 2020. All rights reserved.'
 DEFAULT_COLOR_DICT = {
     'primary': '#3E99D4',
     'secondary': '#1197EA'
@@ -58,9 +58,7 @@ def edly_app_context(request):  # pylint: disable=unused-argument
         edly_app_context = {}
         edly_app_context.update(
             {
-                'edly_copyright_text': configuration_helpers.get_value(
-                    'EDLY_COPYRIGHT_TEXT', DEFAULT_EDLY_COPYRIGHT_TEXT
-                )
+                'edly_copyright_text': configuration_helpers.get_value('EDLY_COPYRIGHT_TEXT')
             }
         )
 
