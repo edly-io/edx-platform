@@ -35,6 +35,12 @@ define(['js/views/validation', 'codemirror', 'underscore', 'jquery', 'jquery.ui'
                    this.$el.find('#course-name').val(this.model.get('run'));
                    this.$el.find('.set-date').datepicker({dateFormat: 'm/d/yy'});
 
+                   var secondary_organizations = this.model.get('secondary_organizations');
+                   $.each(this.$el.find('#secondary-organizations option'), function(i, option) {
+                       if (secondary_organizations.includes(option.value))
+                           option.selected = true;
+                   });
+
         // Avoid showing broken image on mistyped/nonexistent image
                    this.$el.find('img').error(function() {
                        $(this).hide();
@@ -181,7 +187,8 @@ define(['js/views/validation', 'codemirror', 'underscore', 'jquery', 'jquery.ui'
                    course_settings_learning_fields: 'course-settings-learning-fields',
                    add_course_learning_info: 'add-course-learning-info',
                    add_course_instructor_info: 'add-course-instructor-info',
-                   course_learning_info: 'course-learning-info'
+                   course_learning_info: 'course-learning-info',
+                   secondary_organizations: 'secondary-organizations'
                },
 
                addLearningFields: function() {
@@ -231,6 +238,9 @@ define(['js/views/validation', 'codemirror', 'underscore', 'jquery', 'jquery.ui'
                        var learningInfo = this.model.get('learning_info');
                        learningInfo[index] = value;
                        this.showNotificationBar();
+                       break;
+                   case 'secondary-organizations':
+                       this.model.set('secondary_organizations', this.$el.find('#secondary-organizations').val())
                        break;
                    case 'course-instructor-name-' + index:
                    case 'course-instructor-title-' + index:

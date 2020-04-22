@@ -505,6 +505,16 @@
         }
       }
     }
+    // specific fields - course details
+    &.course_details {
+      select {
+        width: 100%;
+      }
+
+      #secondary-organizations {
+        height: ($baseline*6)
+      }
+    }
 
     // specific fields - overview
     #field-course-overview,

@@ -203,9 +203,9 @@ CMS.URL.UPLOAD_ASSET = '${upload_asset_url | n, js_escaped_string}'
             </ol>
           </fieldset>
         </div>
-        
+
         <hr class="divide" />
-        
+
         <div id="schedule" class="group-settings schedule">
           <header>
             <h2 class="title-2">${_('Course Schedule')}</h2>
@@ -309,6 +309,15 @@ CMS.URL.UPLOAD_ASSET = '${upload_asset_url | n, js_escaped_string}'
                 % endfor
               </select>
               <span class="tip tip-stacked">${_("Identify the course language here. This is used to assist users find courses that are taught in a specific language. It is also used to localize the 'From:' field in bulk emails.")}</span>
+            </li>
+            <li class="field" id="field-secondary-organizations">
+              <label for="secondary-organizations">${_("Secondary Organizations")}</label>
+              <select id="secondary-organizations" multiple>
+                % for org in available_secondary_organizations:
+                  <option value="${org}">${org}</option>
+                % endfor
+              </select>
+              <span class="tip tip-stacked">${_("Secondary organizations to link this course with multiple organizations.")}</span>
             </li>
           </ol>
         </div>

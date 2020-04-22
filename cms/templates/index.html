@@ -91,6 +91,18 @@ from openedx.core.djangolib.js_utils import (
                   <span class="tip tip-error is-hiding" id="tip-error-new-course-org"></span>
                 </li>
 
+                 <li class="field text required">
+                  <label for="new-course-secondary-org">${_("Secondary Organizations")}</label>
+                  <select class="new-course-secondary-org" id="new-course-secondary-org" type="text" name="new-course-secondary-org" aria-describedby="tip-new-course-secondary-org tip-error-new-course-secondary-org" multiple>
+                  </select>
+
+                  <span class="tip" id="tip-new-course-secondary-org">${Text(_("Link this course with multiple organizations.{strong_start} Note: It is not required, you can edit it later.{strong_end}")).format(
+                      strong_start=HTML('<strong>'),
+                      strong_end=HTML('</strong>'),
+                  )}</span>
+                  <span class="tip tip-error is-hiding" id="tip-error-new-course-secondary-org"></span>
+                </li>
+
                 <li class="field text required" id="field-course-number">
                   <label for="new-course-number">${_("Course Number")}</label>
                   ## Translators: This is an example for the number used to identify a course,
