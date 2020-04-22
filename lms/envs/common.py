@@ -555,6 +555,9 @@ MAKO_TEMPLATE_DIRS_BASE = [
     OPENEDX_ROOT / 'core' / 'djangoapps' / 'dark_lang' / 'templates',
     OPENEDX_ROOT / 'core' / 'lib' / 'license' / 'templates',
     OPENEDX_ROOT / 'features' / 'course_experience' / 'templates',
+
+    # [COLARAZ_CUSTOM]
+    OPENEDX_ROOT / 'features' / 'colaraz_features' / 'templates',
 ]
 
 
@@ -1259,7 +1262,7 @@ MIDDLEWARE_CLASSES = [
 
     # [COLARAZ_CUSTOM]
     'openedx.features.colaraz_features.middlewares.ColarazAuthenticationMiddleware',
-    
+
     'student.middleware.UserStandingMiddleware',
     'openedx.core.djangoapps.contentserver.middleware.StaticContentServer',
 
