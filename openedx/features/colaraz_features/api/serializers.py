@@ -14,12 +14,12 @@ from openedx.features.colaraz_features.helpers import (
 
 class SiteOrgSerializer(serializers.Serializer):
     site_domain = DomainField(max_length=90)
-    site_name = serializers.CharField(max_length=40)
+    site_name = serializers.CharField(max_length=40, required=False, default='')
     site_theme = serializers.CharField(max_length=255, default=settings.DEFAULT_SITE_THEME)
     org_name = serializers.CharField(max_length=255)
     org_short_name = serializers.SlugField(max_length=255)
     platform_name = serializers.CharField(max_length=255)
-    university_name = serializers.CharField(max_length=255, required=False)
+    university_name = serializers.CharField(max_length=255, required=False, default='')
     organizations = serializers.ListField(
         child=serializers.SlugField(max_length=255)
     )
