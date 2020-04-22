@@ -105,7 +105,7 @@ def organizations_enabled():
     return settings.FEATURES.get('ORGANIZATIONS_APP', False)
 
 
-def get_secondary_org_names_of_course(course_id, primary_org_name):
+def get_secondary_org_names_of_course(course_id, primary_org_short_name):
     """
     Returns list of all secondary organizations names linked with the course.
     """
@@ -115,5 +115,5 @@ def get_secondary_org_names_of_course(course_id, primary_org_name):
     all_organizations = organizations_api.get_course_organizations(course_id)
 
     # exclude primary organization from the list
-    secondary_organizations = [org['name'] for org in all_organizations if not (org['name'] == primary_org_name)]
+    secondary_organizations = [org['short_name'] for org in all_organizations if not (org['short_name'] == primary_org_short_name)]
     return secondary_organizations

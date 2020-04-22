@@ -1065,7 +1065,7 @@ def settings_handler(request, course_key_string):
 
             # [COLARAZ_CUSTOM]
             # exclude primary organization from all organizations to get available options of secondary organizations
-            available_secondary_orgs = [org['name'] for org in get_organizations() if not (org['name'] == course_module.location.org)]
+            available_secondary_orgs = [org['short_name'] for org in get_organizations() if not (org['short_name'] == course_module.location.org)]
 
             # see if the ORG of this course can be attributed to a defined configuration . In that case, the
             # course about page should be editable in Studio
