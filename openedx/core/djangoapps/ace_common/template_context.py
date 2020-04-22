@@ -38,7 +38,7 @@ def get_base_template_context(site):
     except NoReverseMatch:
         dashboard_url = reverse('home')
 
-    contact_mailing_address = configuration_helpers.get_value('CONTACT_MAILING_ADDRESS1')
+    contact_mailing_address = configuration_helpers.get_value('CONTACT_MAILING_ADDRESS')
 
     if not contact_mailing_address:
         contact_mailing_address = get_config_value_from_site_or_settings(
