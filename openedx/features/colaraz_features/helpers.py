@@ -150,3 +150,30 @@ def create_site_configurations(sites, organization, university_name, platform_na
         ) for site in sites
     )
     return Pair(*site_configurations)
+
+
+def get_request_schema(request):
+    """
+    Returns schema of request
+    """
+    environ = getattr(request, "environ", {})
+    return environ.get("wsgi.url_scheme", "http")
+
+
+def get_site_base_url(request):
+    """
+    Returns current request's complete url
+    """
+    schema = get_request_schema(request)
+    domain = get_request_site_domain(request)
+
+    return '{}://{}'.format(schema, domain)
+
+
+def get_request_site_domain(request):
+    """
+    Returns domain of site being requested by the User.
+    """
+    site = getattr(request, 'site', None)
+    domain = getattr(site, 'domain', None)
+    return domain
