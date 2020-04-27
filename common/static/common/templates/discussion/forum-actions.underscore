@@ -5,7 +5,7 @@
             <div class="more-wrapper">
                 <button class="btn-link action-button action-more" aria-label="<%- gettext('More') %>" aria-haspopup="true" aria-controls="action-menu-<%- contentType %>-<%- contentId %>">
                     <span class="action-label"><%- gettext('More') %></span>
-                    <span class="action-icon"><span class="icon fa fa-ellipsis-h" aria-hidden="true"></span></span>
+                    <span class="action-icon"><span class="icon fa fa-ellipsis-v" aria-hidden="true"></span></span>
                 </button>
                 <div class="actions-dropdown" id="action-menu-<%- contentType %>-<%- contentId %>" aria-expanded="false">
                   <ul class="actions-dropdown-list">

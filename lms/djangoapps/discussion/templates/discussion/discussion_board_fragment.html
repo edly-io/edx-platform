@@ -14,53 +14,138 @@ from django_comment_client.permissions import has_permission
 from openedx.core.djangolib.js_utils import dump_js_escaped_json, js_escaped_string
 from openedx.core.djangolib.markup import HTML
 %>
-
-<section class="discussion discussion-board page-content-container" id="discussion-container"
-         data-course-id="${course.id}"
-         data-user-create-comment="${json.dumps(can_create_comment)}"
-         data-user-create-subcomment="${json.dumps(can_create_subcomment)}"
-         data-read-only="false"
-         data-sort-preference="${sort_preference}"
-         data-flag-moderator="${json.dumps(flag_moderator)}"
-         data-user-group-id="${user_group_id}">
-    <header class="page-header has-secondary">
-        ## Breadcrumb navigation
-        <div class="page-header-main">
-            <nav aria-label="${_('Discussions')}" class="sr-is-focusable" tabindex="-1">
-                <div class="has-breadcrumbs"></div>
-            </nav>
-        </div>
-        <div class="page-header-secondary">
-            ## Add Post button
-            % if has_permission(user, 'create_thread', course.id):
-            <div class="forum-actions">
-                <button class="btn btn-outline-primary btn-small new-post-btn">${_("Add a Post")}</button>
+<div class="cz-discussion-container">
+    <section class="discussion discussion-board page-content-container" id="discussion-container"
+             data-course-id="${course.id}"
+             data-user-create-comment="${json.dumps(can_create_comment)}"
+             data-user-create-subcomment="${json.dumps(can_create_subcomment)}"
+             data-read-only="false"
+             data-sort-preference="${sort_preference}"
+             data-flag-moderator="${json.dumps(flag_moderator)}"
+             data-user-group-id="${user_group_id}">
+        <header class="page-info-header">
+            <div class="image-frame">
+                <img src="${static.url('images/img01.jpg')}" alt="Autodesk Maya">
             </div>
-            % endif
-            ## Search box
-            <div class="forum-search"></div>
+            <div class="content-area">
+                <h2>Autodesk Maya</h2>
+                <h3>Organisation Name Placeholder</h3>
+                <div class="control-block">
+                    <a href="#" id="courseInfoControl" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <span class="fa fa-cog"></span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="courseInfoControl">
+                        <a class="dropdown-item" href="#"><span class="fa fa-plus"></span> Add</a>
+                        <a class="dropdown-item" href="#"><span class="fa fa-pencil"></span> Edit</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <header class="page-header has-secondary">
+            ## Breadcrumb navigation
+            <div class="page-header-main">
+                <nav aria-label="${_('Discussions')}" class="sr-is-focusable" tabindex="-1">
+                    <div class="has-breadcrumbs"></div>
+                    <div class="select-box">
+                      <select class="cz-custom-select">
+                        <option value="">All Topics</option>
+                      </select>
+                    </div>
+                    <div class="select-box">
+                      <select class="cz-custom-select">
+                        <option value="">All Discussions</option>
+                      </select>
+                    </div>
+                    <div class="select-box">
+                      <select class="cz-custom-select">
+                        <option value="">Posts I am Following</option>
+                      </select>
+                    </div>
+                </nav>
+            </div>
+            <div class="page-header-secondary">
+                ## Add Post button
+                % if has_permission(user, 'create_thread', course.id):
+                <div class="forum-actions">
+                    <button class="btn btn-outline-primary btn-small new-post-btn">${_("Add a Post")}</button>
+                </div>
+                % endif
+                ## Search box
+                <div class="search-box">
+                  <button type="button" class="search-opener"><span class="fa fa-search"></span></button>
+                  <div class="forum-search"></div>
+                </div>
+            </div>
+        </header>
+        % if course_expiration_fragment:
+            ${HTML(course_expiration_fragment.content)}
+        % endif
+        <div class="page-content"
+          % if getattr(course, 'language'):
+            lang="${course.language}"
+          % endif
+        >
+            <div class="discussion-body">
+                <main id="main" class="discussion-column" aria-label="Content" tabindex="-1">
+                    <article class="new-post-article is-hidden" style="display: none" tabindex="-1" aria-label="${_("New topic form")}"></article>
+                    <div class="forum-content"></div>
+                </main>
+                <aside class="forum-nav" role="complementary" aria-label="${_("Discussion thread list")}">
+                    <%include file="_filter_dropdown.html" />
+                    <div class="discussion-thread-list-container"></div>
+                </aside>
+            </div>
         </div>
-    </header>
-    % if course_expiration_fragment:
-        ${HTML(course_expiration_fragment.content)}
-    % endif
-    <div class="page-content"
-      % if getattr(course, 'language'):
-        lang="${course.language}"
-      % endif
-    >
-        <div class="discussion-body">
-            <main id="main" class="discussion-column" aria-label="Content" tabindex="-1">
-                <article class="new-post-article is-hidden" style="display: none" tabindex="-1" aria-label="${_("New topic form")}"></article>
-                <div class="forum-content"></div>
-            </main>
-            <aside class="forum-nav" role="complementary" aria-label="${_("Discussion thread list")}">
-                <%include file="_filter_dropdown.html" />
-                <div class="discussion-thread-list-container"></div>
-            </aside>
-        </div>
+    </section>
+    <div class="discussion-sidebar">
+        <section class="discussion-widget">
+            <h3>Course Specifics</h3>
+            <ul class="course-specifics-list">
+                <li>
+                    <strong class="title">Starts</strong>
+                    <p>April 19, 2020 09:00 AM EST</p>
+                </li>
+                <li>
+                    <strong class="title">Duration</strong>
+                    <p>2 hours</p>
+                </li>
+                <li>
+                    <strong class="title">Language</strong>
+                    <p>English</p>
+                </li>
+            </ul>
+        </section>
+        <nav class="discussion-widget">
+            <ul class="discussion-share-list">
+                <li>
+                    <a href="#"><span class="fa fa-tag"></span></a>
+                </li>
+                <li>
+                    <a href="#"><span class="fa fa-share-alt"></span></a>
+                </li>
+                <li>
+                    <a href="#"><span class="fa fa-calendar"></span></a>
+                </li>
+            </ul>
+        </nav>
+        <section class="discussion-widget instructor-widget">
+            <h3>Instructor</h3>
+            <div class="btn-group">
+            <a href="#" class="menu-btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="fa fa-ellipsis-v"></span>
+            </a>
+            <div class="dropdown-menu dropdown-menu-right">
+                <button class="dropdown-item" type="button">Action</button>
+            </div>
+            </div>
+            <div class="image-frame">
+                <img src="${static.url('images/instructor.jpg')}" alt="Name Placeholder">
+            </div>
+            <h4 class="instructor-name">Name Placeholder</h4>
+            <span class="instructor-title">Title Placehodler</span>
+        </section>
     </div>
-</section>
+</div>
 
 <%include file="_underscore_templates.html" />
 <%include file="_thread_list_template.html" />
