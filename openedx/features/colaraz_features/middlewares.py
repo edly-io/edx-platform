@@ -6,6 +6,7 @@ from django.http import HttpResponseRedirect, Http404
 from six.moves.urllib.parse import urlencode
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+from openedx.features.colaraz_features.models import ColarazUserProfile
 from student.models import UserAttribute
 import third_party_auth
 from third_party_auth import pipeline
@@ -36,13 +37,13 @@ class ColarazAuthenticationMiddleware(object):
             if not user.is_authenticated and any(is_blocked):
                 LOGGER.info('Requested path "{}" is blocked for anonymous users'.format(request.path))
                 return self._redirect_to_login(request)
-            elif user.is_authenticated:
+            # Superuser is allowed to visit all sites
+            elif user.is_authenticated and not user.is_superuser:
                 request_site_domain = self._get_request_site_domain(request)
-                user_site_domain = self._get_user_site_domain(user, request.session)
-                if not user_site_domain or not request_site_domain:
-                    LOGGER.error('User site or request site domains are not configured properly')
-                elif user_site_domain not in request_site_domain:
-                    LOGGER.error('User "{}" can only login through {}'.format(user.username, user_site_domain))
+                user_site_identifier, is_new_user = self._get_user_site_identifier(user, request.session)
+                if not is_new_user and not (user_site_identifier and request_site_domain and 
+                        request_site_domain.startswith(user_site_identifier)):
+                    LOGGER.error('User "{}" site identifier or request site do not match'.format(user.username))
                     logout(request)
                     return self._redirect_to_login(request)
         return
@@ -93,13 +94,16 @@ class ColarazAuthenticationMiddleware(object):
 
         return '{}://{}{}'.format(schema, domain, request.path)
         
-    def _get_user_site_domain(self, user, session):
+    def _get_user_site_identifier(self, user, session):
         """
         Returns domain of site associated with the User.
         """
-        if not session.get('user_site_domain', None):
-            session['user_site_domain'] = UserAttribute.get_user_attribute(user, 'created_on_site')
-        return session.get('user_site_domain', None)
+        is_new_user = False
+        if not session.get('user_site_identifier', None):
+            profile, is_new_user = ColarazUserProfile.objects.get_or_create(user=user)
+            if not is_new_user:
+                session['user_site_identifier'] = profile[0].site_identifier
+        return session.get('user_site_identifier', None), is_new_user
 
     def _get_request_site_domain(self, request):
         """
