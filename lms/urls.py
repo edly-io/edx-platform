@@ -145,7 +145,7 @@ urlpatterns = [
     url(r'^api/experiments/', include('experiments.urls', namespace='api_experiments')),
 
     # [COLARAZ_CUSTOM] colaraz urls
-    url(r'^api/colaraz/', include('openedx.features.colaraz_features.urls')),
+    url(r'^colaraz/', include('openedx.features.colaraz_features.urls', namespace='colaraz_features')),
 ]
 
 if settings.FEATURES.get('ENABLE_MOBILE_REST_API'):
