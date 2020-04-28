@@ -223,11 +223,11 @@ def get_course_enrollments(user, org_whitelist, org_blacklist):
                 enrollment.course_id
             )
             continue
-    
+
         # [COLARAZ_CUSTOM]
-        # To restrict users from viewing unallowed courses. 
+        # To restrict users from viewing unallowed courses.
         if settings.FEATURES.get('ORGANIZATIONS_APP', False):
-            if org_whitelist and OrganizationCourse.objects.filter(course_id=str(course_overview), 
+            if org_whitelist and OrganizationCourse.objects.filter(course_id=str(course_overview),
                                                                    organization__short_name__in=org_whitelist,
                                                                    active=True):
                 yield enrollment

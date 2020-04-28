@@ -413,3 +413,15 @@ class UserBasedRole(object):
         * role (will be self.role--thus uninteresting)
         """
         return CourseAccessRole.objects.filter(role=self.role, user=self.user)
+
+
+# [COLARAZ_CUSTOM]
+@register_access_role
+class OrgRoleManagerRole(OrgRole):
+    """
+    An organization role manager.
+    """
+    ROLE = 'role_manager'
+
+    def __init__(self, *args, **kwargs):
+        super(OrgRoleManagerRole, self).__init__(self.ROLE, *args, **kwargs)

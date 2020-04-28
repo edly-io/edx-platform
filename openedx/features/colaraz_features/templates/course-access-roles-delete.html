@@ -1,0 +1,45 @@
+<%inherit file="/main.html" />
+<%!
+from django.urls import reverse
+%>
+
+<style>
+    form {
+        color: white;
+    }
+    h1 {
+        color: white;
+    }
+    .breadcrumbs {
+        color: white;
+        padding: 8px 10px;
+        font-weight: bold;
+    }
+</style>
+
+<div class="breadcrumbs">
+    <span class="breadcrumb-item">
+        <a href="${reverse('colaraz_features:course-access-roles-list')}">Course Access Roles</a>
+    </span>
+    &nbsp; › &nbsp;
+    <span class="breadcrumb-item">
+        <a href="${reverse('colaraz_features:course-access-roles-update', args=(object.id ,))}">${object}</a>
+    </span>
+    &nbsp; › &nbsp;
+    <span class="breadcrumb-item"> Delete </span>
+</div>
+
+<section class="container">
+    <h1>Delete Access Roles</h1>
+    <form action="" method="post">
+        <input type="hidden" name="csrfmiddlewaretoken" value="${ csrf_token }" />
+        <h2>Are you sure?</h2>
+        <p>Are you sure you want to delete selected course access roles?</p>
+        <h2>Summary</h2>
+        <ul>
+            <li>Course access Role: ${object}</li>
+        </ul>
+        <br />
+        <input type="submit" class="danger" value="Delete" />
+    </form>
+</section>

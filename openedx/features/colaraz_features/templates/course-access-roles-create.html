@@ -1,0 +1,46 @@
+<%inherit file="/main.html" />
+<%!
+from django.urls import reverse
+%>
+
+<style>
+    form label {
+        display: inline-block;
+        width: 160px;
+        color: white;
+    }
+    .errorlist {
+        color: darkred;
+    }
+    .delete-button {
+        background-color: #b82b1e;
+        padding: 4px 20px;
+        border-radius: 3px;
+        line-height: 2em!important;
+        float: right;
+    }
+    .breadcrumbs {
+        color: white;
+        padding: 8px 10px;
+        font-weight: bold;
+    }
+</style>
+<div class="breadcrumbs">
+    <span class="breadcrumb-item">
+        <a href="${reverse('colaraz_features:course-access-roles-list')}">Course Access Roles</a>
+    </span>
+    &nbsp; › &nbsp;
+    <span class="breadcrumb-item">Create Course Access Roles</span>
+</div>
+
+<section class="container">
+    <h2>Create Access Roles</h2>
+    <form action="" method="post">
+        <input type="hidden" name="csrfmiddlewaretoken" value="${ csrf_token }" />
+        ${form.as_p() | n}
+        <br />
+        <div>
+            <input type="submit" value="Save" />
+        </div>
+    </form>
+</section>

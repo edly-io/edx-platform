@@ -1,0 +1,87 @@
+<%inherit file="/main.html" />
+<%!
+from django.urls import reverse
+%>
+
+<style>
+    table {
+        color: white;
+        width: 100%
+    }
+    th, td {
+        text-align: left;
+        padding: 8px 10px;
+    }
+    th {
+        text-transform: uppercase;
+    }
+    .button {
+        padding: 4px 20px;
+        border-radius: 15px;
+        line-height: 1em!important;
+    }
+    .pagination {
+        color: white;
+        float: right;
+    }
+    .step-links a, .step-links span {
+        margin-left: 10px;
+    }
+
+</style>
+
+<section class="container">
+    <div>
+        <h2 style="float: left">Course Access Roles</h2>
+            <a class="button" style="float: right"
+                href="${reverse('colaraz_features:course-access-roles-create')}"
+            >Create New</a>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Org</th>
+                <th>Course ID</th>
+                <th>Role</th>
+            </tr>
+        </thead>
+        <tbody>
+            %for access_role in object_list:
+                <tr>
+                    <th>
+                        <a
+                            href="${reverse('colaraz_features:course-access-roles-update', args=(access_role.id,))}"
+                        >${access_role.id}</a>
+                    </th>
+                    <td>${access_role.user and access_role.user.email}</td>
+                    <td>${access_role.org or "-"}</td>
+                    <td>${access_role.course_id or "-"}</td>
+                    <td>${access_role.role}</td>
+                </tr>
+            %endfor
+        </tbody>
+    </table>
+
+    <br />
+    %if page_obj:
+        <div class="pagination">
+            <span class="step-links">
+                %if page_obj.has_previous():
+                    <a href="?page=1">&laquo; first</a>
+                    <a href="?page=${ page_obj.previous_page_number() }">previous</a>
+                %endif
+
+                <span class="current">
+                    Page ${ page_obj.number } of ${ page_obj.paginator.num_pages }.
+                </span>
+
+                %if page_obj.has_next():
+                    <a href="?page=${ page_obj.next_page_number() }">next</a>
+                    <a href="?page=${ page_obj.paginator.num_pages }">last &raquo;</a>
+                %endif
+            </span>
+        </div>
+    %endif
+</section>

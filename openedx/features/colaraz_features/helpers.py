@@ -6,6 +6,8 @@ from collections import namedtuple
 from django.contrib.sites.models import Site
 
 from organizations.models import Organization
+from student.roles import OrgRoleManagerRole
+from opaque_keys.edx.django.models import CourseKeyField
 
 from openedx.core.djangoapps.theming.models import SiteTheme
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
@@ -177,3 +179,24 @@ def get_request_site_domain(request):
     site = getattr(request, 'site', None)
     domain = getattr(site, 'domain', None)
     return domain
+
+
+def get_user_organizations(user):
+    """
+    Get a set of all the organizations for which given user has access role of role manager.
+
+    Arguments:
+        user (User): Djnago user object.
+
+    Returns:
+        (set): A set of organizations, given user has role manager access of.
+    """
+
+    return set(
+        user.courseaccessrole_set.filter(
+            role=OrgRoleManagerRole.ROLE,
+            course_id=CourseKeyField.Empty
+        ).exclude(
+            org__exact=''
+        ).values_list('org', flat=True)
+    )
