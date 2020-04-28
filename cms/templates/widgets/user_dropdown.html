@@ -5,6 +5,10 @@
   from django.urls import reverse
   from django.utils.translation import ugettext as _
   from student.roles import GlobalStaff
+
+  # [COLARAZ_CUSTOM] TODO: Place this in theme
+  from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+  lms_logout_url = configuration_helpers.get_value('LMS_BASE') + reverse('colaraz_features:auth_logout_redirect')
 %>
 
 % if uses_pattern_library:
@@ -26,7 +30,7 @@
               </li>
           </%block>
           <li class="dropdown-item item has-block-link">
-            <a class="action action-signout" href="${reverse('auth_logout_redirect')}">${_("Sign Out")}</a>
+            <a class="action action-signout" href="${lms_logout_url}">${_("Sign Out")}</a>
           </li>
       </ul>
   </div>
@@ -51,7 +55,7 @@
         </li>
         % endif
         <li class="nav-item nav-account-signout">
-          <a class="action action-signout" href="${settings.FRONTEND_LOGOUT_URL}">${_("Sign Out")}</a>
+          <a class="action action-signout" href="${lms_logout_url}">${_("Sign Out")}</a>
         </li>
       </ul>
     </div>

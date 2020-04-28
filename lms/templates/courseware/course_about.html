@@ -56,13 +56,14 @@ from six import string_types
     % endif
 
     ## making the conditional around this entire JS block for sanity
+    # [COLARAZ_CUSTOM] TODO: Place this in theme
     %if settings.FEATURES.get('RESTRICT_ENROLL_BY_REG_METHOD') and course.enrollment_domain:
       <%
         perms_error = Text(_('The currently logged-in user account does not have permission to enroll in this course. '
                         'You may need to {start_logout_tag}log out{end_tag} then try the enroll button again. '
                         'Please visit the {start_help_tag}help page{end_tag} for a possible solution.')).format(
                           start_help_tag=HTML("<a href='{url}'>").format(url=marketing_link('FAQ')), end_tag=HTML('</a>'),
-                          start_logout_tag=HTML("<a href='{url}'>").format(url=reverse('auth_logout_redirect'))
+                          start_logout_tag=HTML("<a href='{url}'>").format(url=reverse('colaraz_features:auth_logout_redirect'))
                           )
       %>
     $('#class_enroll_form').on('ajax:complete', function(event, xhr) {

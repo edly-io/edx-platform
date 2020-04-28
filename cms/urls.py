@@ -173,6 +173,9 @@ urlpatterns = [
     url(r'^api/val/v0/', include('edxval.urls')),
     url(r'^api/tasks/v0/', include('user_tasks.urls')),
     url(r'^accessibility$', contentstore.views.accessibility, name='accessibility'),
+
+    # [COLARAZ_CUSTOM] colaraz urls
+    url(r'^colaraz/', include('openedx.features.colaraz_features.urls', namespace='colaraz_features')),
 ]
 
 JS_INFO_DICT = {
