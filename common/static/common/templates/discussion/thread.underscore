@@ -7,15 +7,47 @@
             </div>
         </div>
         <div class="post-extended-content thread-responses-wrapper">
-            <div class="response-btn-count-wrapper">
-                <% if (!readOnly) { %>
-                <div class="add-response">
-                    <button class="btn btn-outline-primary btn-small add-response-btn">
-                        <%- gettext("Add a Response") %>
-                    </button>
-                </div>
-                <% } %>
-                <div class="response-count"></div>
+            <% if (!readOnly) { %>
+            <div class="add-response">
+                <button class="btn btn-small add-response-btn">
+                    <%- gettext("Add a Response") %>
+                </button>
+            </div>
+            <% } %>
+            <div class="post-btn-count-wrapper">
+                <ul class="post-info-list">
+                    <li>By <strong>Babar Hameed</strong></li>
+                    <li>4 days ago</li>
+                </ul>
+                <ul class="post-actions-list">
+                    <li class="actions-item is-public">
+                        Public
+                    </li>
+                    <li class="actions-item">
+                        <button class="btn-link action-button action-follow is-checked" role="checkbox" aria-checked="true">
+                            <span class="sr">Follow</span>
+                            <span class="action-icon">
+                                <span class="icon fa fa-star" aria-hidden="true"></span>
+                            </span>
+                        </button>
+                    </li>
+                    <li class="actions-item is-disabled">
+                        <span aria-hidden="true" class="display-vote is-hidden" style="display: none;">
+                            <span class="vote-count">0 Votes</span>
+                        </span>
+                        <button class="btn-link action-button action-vote" role="checkbox" aria-checked="false">
+                            <span class="sr">Vote for this post,&nbsp;</span>
+                            <span class="sr js-sr-vote-count">there are currently 0 votes</span>
+                            <span class="action-icon" aria-hidden="true">
+                                <span class="icon fa fa-check" aria-hidden="true"></span>
+                            </span>
+                            <span class="action-label" aria-hidden="true">
+                                <span class="vote-count">0 Votes</span>
+                            </span>
+                        </button>
+                    </li>
+                    <li class="response-count"></li>
+                </ul>
             </div>
             <ol class="responses js-response-list"></ol>
             <div class="response-pagination"></div>
