@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import logout
+from django.contrib.sites.models import Site
 from django.http import HttpResponseRedirect, Http404
 from six.moves.urllib.parse import urlencode
 
@@ -44,8 +45,7 @@ class ColarazAuthenticationMiddleware(object):
                 if not is_new_user and not (user_site_identifier and request_site_domain and 
                         request_site_domain.startswith(user_site_identifier)):
                     LOGGER.error('User "{}" site identifier or request site do not match'.format(user.username))
-                    logout(request)
-                    return self._redirect_to_login(request)
+                    return self._redirect_to_user_lms_domain(request, user_site_identifier)
         return
 
     def _redirect_to_login(self, request):
@@ -59,11 +59,11 @@ class ColarazAuthenticationMiddleware(object):
         if third_party_auth.is_enabled() and backend_name:
             provider = [enabled for enabled in third_party_auth.provider.Registry.enabled()
                         if enabled.backend_name == backend_name]
-
-            if not provider and configuration_helpers.get_value('AUTH_PROVIDER_FALLBACK_URL'):
-                fallback_url = configuration_helpers.get_value('AUTH_PROVIDER_FALLBACK_URL')
+            fallback_url = configuration_helpers.get_value('AUTH_PROVIDER_FALLBACK_URL') \
+                or configuration_helpers.get_value('LMS_BASE')
+            if not provider and fallback_url:
                 next_url = urlencode({'next': self._get_current_url(request)})
-                redirect_url = '{}?{}'.format(fallback_url, next_url)
+                redirect_url = '//{}?{}'.format(fallback_url, next_url)
                 LOGGER.info('No Auth Provider found, redirecting to "{}"'.format(redirect_url))
                 return HttpResponseRedirect(redirect_url)
             elif provider:
@@ -78,12 +78,20 @@ class ColarazAuthenticationMiddleware(object):
         LOGGER.error('Unable to redirect, Auth Provider is not configured properly')
         raise Http404
 
+    def _redirect_to_user_lms_domain(self, request, site_identifier):
+        user_site = Site.objects.filter(domain__startswith='{}.courses.'.format(site_identifier))
+        if user_site:
+            return HttpResponseRedirect('//{}'.format(user_site[0].domain))
+        else:
+            LOGGER.error('Unable to redirect, User site is not configured')
+            raise Http404
+
     def _get_request_schema(self, request):
         """
         Returns schema of request
         """
-        environ = getattr(request, "environ", {})
-        return environ.get("wsgi.url_scheme", "http")
+        environ = getattr(request, 'environ', {})
+        return environ.get('wsgi.url_scheme', 'http')
 
     def _get_current_url(self, request):
         """
