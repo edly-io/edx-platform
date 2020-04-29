@@ -5,7 +5,6 @@ Django models for colaraz_features app.
 from __future__ import unicode_literals
 
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 
@@ -13,6 +12,7 @@ DEFAULT_JOB_TITLE = 'Student'
 DEFAULT_PROFILE_STRENGTH_COLOR = '#A9A9A9' # gray
 DEFAULT_PROFILE_STRENGTH_TITLE = 'Beginner'
 DEFAULT_PROFILE_STRENGTH_WIDTH = '0%'
+
 
 class ColarazUserProfile(models.Model):
     """

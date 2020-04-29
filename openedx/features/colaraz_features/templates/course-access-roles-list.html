@@ -2,10 +2,10 @@
 <%!
 from django.urls import reverse
 %>
+<%namespace name='static' file='/static_content.html'/>
 
 <style>
     table {
-        color: white;
         width: 100%
     }
     th, td {
@@ -21,14 +21,39 @@ from django.urls import reverse
         line-height: 1em!important;
     }
     .pagination {
-        color: white;
         float: right;
     }
     .step-links a, .step-links span {
         margin-left: 10px;
     }
+    #searchbar {
+        margin: 0 10px;
+    }
 
 </style>
+<script>
+    $(document).ready(function(){
+        function getUrlParameter(sParam) {
+            var sPageURL = window.location.search.substring(1),
+                sURLVariables = sPageURL.split('&'),
+                sParameterName,
+                i;
+
+            for (i = 0; i < sURLVariables.length; i++) {
+                sParameterName = sURLVariables[i].split('=');
+
+                if (sParameterName[0] === sParam) {
+                    return sParameterName[1] === undefined ? true : decodeURIComponent(sParameterName[1]);
+                }
+            }
+        }
+
+        let q = getUrlParameter('q');
+        if(q){
+            $('#searchbar').val(q);
+        }
+    });
+</script>
 
 <section class="container">
     <div>
@@ -37,6 +62,17 @@ from django.urls import reverse
                 href="${reverse('colaraz_features:course-access-roles-create')}"
             >Create New</a>
     </div>
+    <br />
+    <br />
+    <br />
+    <div>
+        <form method="GET">
+            <label for="searchbar"><img src="${static.url('admin/img/search.svg')}" alt="Search"></label>
+            <input type="text" size="40" name="q" value="" id="searchbar" autofocus="">
+            <input type="submit" value="Search">
+        </form>
+    </div>
+    <br />
     <table>
         <thead>
             <tr>

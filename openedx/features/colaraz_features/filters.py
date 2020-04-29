@@ -3,7 +3,6 @@ Filters for Colaraz Views.
 """
 from opaque_keys.edx.django.models import CourseKeyField
 from student.roles import OrgRoleManagerRole
-from student.models import CourseAccessRole
 
 
 class CourseAccessRoleFilterMixin(object):
