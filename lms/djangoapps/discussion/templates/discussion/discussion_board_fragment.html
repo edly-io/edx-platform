@@ -131,12 +131,14 @@ from openedx.core.djangolib.markup import HTML
         <section class="discussion-widget instructor-widget">
             <h3>Instructor</h3>
             <div class="btn-group">
-            <a href="#" class="menu-btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="fa fa-ellipsis-v"></span>
-            </a>
-            <div class="dropdown-menu dropdown-menu-right">
-                <button class="dropdown-item" type="button">Action</button>
-            </div>
+                <a href="#" class="menu-btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <span class="fa fa-ellipsis-v"></span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                    <li><a href="#"><span class="fa fa-pencil"></span> Edit</a></li>
+                  </ul>
+                </div>
             </div>
             <div class="image-frame">
                 <img src="${static.url('images/instructor.jpg')}" alt="Name Placeholder">
