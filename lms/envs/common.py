@@ -3517,6 +3517,7 @@ USER_STATE_BATCH_SIZE = 5000
 
 ############## Settings for colaraz_features app ##############
 # [COLARAZ_CUSTOM]
+COLARAZ_PREVIEW_DOMAIN_KEY = 'preview'
 
 # It will restrict anonymous users from viewing courses on index, courses and course about pages
 SHOW_COURSES_TO_ANONYMOUS_USERS = False

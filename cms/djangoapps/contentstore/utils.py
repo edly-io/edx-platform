@@ -123,18 +123,14 @@ def get_lms_link_for_item(location, preview=False):
     if lms_base is None:
         return None
 
-    # [COLARAZ-CUSTOM]
-    # Commenting this code block as for now the preview functionality is not achieveable
-    # because of the current implementation of colaraz middleware and url patterns that
-    # we are using for different organizations
-    # if preview:
-    #     # checks PREVIEW_LMS_BASE value in site configuration for the given course_org_filter(org)
-    #     # if not found returns settings.FEATURES.get('PREVIEW_LMS_BASE')
-    #     lms_base = SiteConfiguration.get_value_for_org(
-    #         location.org,
-    #         "PREVIEW_LMS_BASE",
-    #         settings.FEATURES.get('PREVIEW_LMS_BASE')
-    #     )
+    if preview:
+        # checks PREVIEW_LMS_BASE value in site configuration for the given course_org_filter(org)
+        # if not found returns settings.FEATURES.get('PREVIEW_LMS_BASE')
+        lms_base = SiteConfiguration.get_value_for_org(
+            location.org,
+            "PREVIEW_LMS_BASE",
+            settings.FEATURES.get('PREVIEW_LMS_BASE')
+        )
 
     return u"//{lms_base}/courses/{course_key}/jump_to/{location}".format(
         lms_base=lms_base,

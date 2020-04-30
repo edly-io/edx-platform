@@ -414,6 +414,14 @@ def _get_modulestore_branch_setting():
         branch = None
         hostname = get_current_request_hostname()
         if hostname:
+            # [COLARAZ-CUSTOM]
+            # By default, edX saves preview domain mappings in HOSTNAME_MODULESTORE_DEFAULT_MAPPINGS (in production.py)
+            # using PREVIEW_LMS_BASE. But doing this, the preview functionality works only for single site.
+            # To make this functional for multisites, if our domain contains the preview key, we are returning the
+            # mapping by ourselves.
+            if settings.COLARAZ_PREVIEW_DOMAIN_KEY in hostname:
+                return 'draft-preferred'
+
             # get mapping information which is defined in configurations
             mappings = getattr(settings, 'HOSTNAME_MODULESTORE_DEFAULT_MAPPINGS', None)
 
