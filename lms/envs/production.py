@@ -1137,6 +1137,10 @@ COLARAZ_PREVIEW_DOMAIN_KEY = ENV_TOKENS.get(
     COLARAZ_PREVIEW_DOMAIN_KEY
 )
 
+# Custom urls in navbar
+COLARAZ_NAVIGATION_URLS = ENV_TOKENS.get(
+    'COLARAZ_NAVIGATION_URLS'
+)
 
 ############################### Plugin Settings ###############################
 
