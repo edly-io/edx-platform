@@ -33,9 +33,9 @@ class TestOrganizationListing(TestCase):
             edly_organization=edly_organization
         )
 
-        organization = edly_sub_organization.edx_organization
-        organization.short_name  = 'test-edx-organization'
-        organization.save();
+        edx_organization = edly_sub_organization.edx_organization
+        edx_organization.short_name  = 'test-edx-organization'
+        edx_organization.save();
 
         response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site.domain)
 
