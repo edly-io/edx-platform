@@ -20,10 +20,7 @@ class OrganizationListView(View):
     @method_decorator(login_required)
     def get(self, request, *args, **kwargs):
         """Returns organization list as json."""
-
         current_site = get_current_site(request)
-
         edly_sub_organization = EdlySubOrganization.objects.filter(studio_site=current_site.id)
-
         org_names_list = [(org.edx_organization.short_name ) for org in edly_sub_organization]
         return HttpResponse(dump_js_escaped_json(org_names_list), content_type='application/json; charset=utf-8')
