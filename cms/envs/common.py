@@ -551,7 +551,7 @@ MIDDLEWARE_CLASSES = [
 ]
 
 # Edly Configuration
-ENABLE_EDLY_ORGANIZATIONS = 'enable_edly_organizations'
+ENABLE_EDLY_ORGANIZATIONS_SWITCH = 'enable_edly_organizations'
 
 # Clickjacking protection can be disabled by setting this to 'ALLOW'
 X_FRAME_OPTIONS = 'DENY'

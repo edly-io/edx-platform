@@ -12,7 +12,7 @@ from openedx.features.edly.tests.factories import EdlyOrganizationFactory, EdlyS
 from django.conf import settings
 
 @patch.dict('django.conf.settings.FEATURES', {'ORGANIZATIONS_APP': True})
-@override_switch(settings.ENABLE_EDLY_ORGANIZATIONS, active=False)
+@override_switch(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH, active=False)
 class TestOrganizationListing(TestCase):
     """Verify Organization listing behavior."""
     @patch.dict('django.conf.settings.FEATURES', {'ORGANIZATIONS_APP': True})
@@ -38,9 +38,11 @@ class TestOrganizationListing(TestCase):
 
 
 @patch.dict('django.conf.settings.FEATURES', {'ORGANIZATIONS_APP': True})
-@override_switch(settings.ENABLE_EDLY_ORGANIZATIONS, active=True)
+@override_switch(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH, active=True)
 class TestEdlyOrganizationListing(TestCase):
-    """Verify Organization listing behavior."""
+    """
+    Verify Organization listing behavior.
+    """
     @patch.dict('django.conf.settings.FEATURES', {'ORGANIZATIONS_APP': True})
     def setUp(self):
         super(TestEdlyOrganizationListing, self).setUp()
@@ -58,7 +60,7 @@ class TestEdlyOrganizationListing(TestCase):
 
     def test_organization_list(self):
         """
-        Verify that the organization names list api returns list of organization short names.
+        Verify that the organization names list API only returns Edly's enabled organizations.
         """
 
         studio_site = SiteFactory()
@@ -71,15 +73,17 @@ class TestEdlyOrganizationListing(TestCase):
         )
 
         edx_organization = edly_sub_organization.edx_organization
-        edx_organization.short_name  = 'test-edx-organization'
-        edx_organization.save();
+        edx_organization.short_name = 'test-edx-organization'
+        edx_organization.save()
 
         response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site.domain)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()[0], edly_sub_organization.edx_organization.short_name)
 
-
+        """
+        Now verify that if there is no "EdlySubOrganization" linked to a studio site the organization names list API returns empty response.
+        """
         studio_site_2 = SiteFactory()
         response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site_2.domain)
 
