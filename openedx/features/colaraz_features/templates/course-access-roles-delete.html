@@ -4,14 +4,7 @@ from django.urls import reverse
 %>
 
 <style>
-    form {
-        color: white;
-    }
-    h1 {
-        color: white;
-    }
     .breadcrumbs {
-        color: white;
         padding: 8px 10px;
         font-weight: bold;
     }
@@ -37,7 +30,9 @@ from django.urls import reverse
         <p>Are you sure you want to delete selected course access roles?</p>
         <h2>Summary</h2>
         <ul>
-            <li>Course access Role: ${object}</li>
+            %for obj in objects:
+                <li>Course access Role: ${obj}</li>
+            %endfor
         </ul>
         <br />
         <input type="submit" class="danger" value="Delete" />

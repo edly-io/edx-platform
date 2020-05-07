@@ -35,6 +35,9 @@ class CourseCreator(models.Model):
         (DENIED, _(u'denied')),
     )
 
+    class Meta(object):
+        app_label = "course_creators"
+
     user = models.OneToOneField(User, help_text=_("Studio user"), on_delete=models.CASCADE)
     state_changed = models.DateTimeField('state last updated', auto_now_add=True,
                                          help_text=_("The date when state was last updated"))

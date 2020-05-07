@@ -3,11 +3,13 @@
 from django.urls import reverse
 %>
 
+<link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
 <style>
     form label {
         display: inline-block;
         width: 160px;
-        color: white;
     }
     .errorlist {
         color: darkred;
@@ -20,11 +22,49 @@ from django.urls import reverse
         float: right;
     }
     .breadcrumbs {
-        color: white;
         padding: 8px 10px;
         font-weight: bold;
     }
+    #id_roles li {
+        display: inline;
+    }
+    form label {
+        width: 200px;
+    }
+    input[disabled] {
+        background-color: grey;
+    }
+    #id_org {
+        width: 50%;
+    }
+
 </style>
+<script>
+    $(document).ready(function() {
+        $('select#id_user').select2({
+             width: "50%",
+             placeholder: "Select a user",
+             ajax: {
+                 url: "${reverse('colaraz_features:user-list-api-view')}",
+                 delay: 1000,
+                 data: function (params) {
+                     return  {
+                         search: params.term,
+                         page: params.page || 1
+                     }
+                 }
+             }
+        });
+    });
+    $(document).ready(function() {
+        $('select#id_course_ids').select2({
+            tags: true,
+            tokenSeparators: [',', ' '],
+            width: "50%",
+            placeholder: "Add Course identifiers separated by a comma or space."
+        });
+    });
+</script>
 <div class="breadcrumbs">
     <span class="breadcrumb-item">
         <a href="${reverse('colaraz_features:course-access-roles-list')}">Course Access Roles</a>
