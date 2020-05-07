@@ -66,19 +66,14 @@ class TestEdlyOrganizationListing(TestCase):
         studio_site = SiteFactory()
         edly_organization = EdlyOrganizationFactory(name='Test Edly Organization Name')
         edly_sub_organization = EdlySubOrganizationFactory(
-            name='Test Edly Sub Organization Name',
-            slug='test-edly-sub-organization-name',
             studio_site=studio_site,
             edly_organization=edly_organization
         )
 
-        edx_organization = edly_sub_organization.edx_organization
-        edx_organization.short_name = 'test-edx-organization'
-        edx_organization.save()
-
         response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site.domain)
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 1)
         self.assertEqual(response.json()[0], edly_sub_organization.edx_organization.short_name)
 
         """

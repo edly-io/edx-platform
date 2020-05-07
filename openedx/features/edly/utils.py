@@ -43,8 +43,9 @@ def get_enabled_organization(request):
     if not waffle.switch_is_active(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH):
         organizations = get_organizations()
     else:
-        current_site = get_current_site(request)
-        edly_organizations = EdlySubOrganization.objects.filter(studio_site=current_site.id)
-        organizations = [(org.edx_organization.__dict__) for org in edly_organizations]
+        try:
+          organizations = [request.site.studio_site.edx_organization.__dict__]
+        except EdlySubOrganization.DoesNotExist:
+          organizations = []
 
     return organizations
