@@ -85,9 +85,10 @@ from util.milestones_helpers import (
 )
 from util.organizations_helpers import (
     add_organization_course,
+    filter_authorized_organizations_from_list,
     get_organizations,
     get_organization_by_short_name,
-    get_secondary_org_names_of_course,
+    get_secondary_orgs_of_course,
     organizations_enabled,
 )
 from util.string_utils import _has_non_ascii_characters
@@ -1065,8 +1066,10 @@ def settings_handler(request, course_key_string):
 
             # [COLARAZ_CUSTOM]
             # exclude primary organization from all organizations to get available options of secondary organizations
-            available_secondary_orgs = [org['short_name'] for org in get_organizations() if not (org['short_name'] == course_module.location.org)]
+            organizations = [org for org in get_organizations() if not (org['short_name'] == course_module.location.org)]
 
+            # show user only authorized organizations
+            available_secondary_orgs = filter_authorized_organizations_from_list(organizations, request.user.is_superuser)
             # see if the ORG of this course can be attributed to a defined configuration . In that case, the
             # course about page should be editable in Studio
             marketing_site_enabled = configuration_helpers.get_value_for_org(
@@ -1148,7 +1151,8 @@ def settings_handler(request, course_key_string):
                 # [COLARAZ_CUSTOM]
                 # Return secondary_organizations list along with other course details.
                 data = course_details.__dict__
-                secondary_organizations = get_secondary_org_names_of_course(course_key_string, course_module.location.org)
+                secondary_organizations = get_secondary_orgs_of_course(
+                    course_key_string, course_module.location.org, True)
                 data.update({'secondary_organizations': secondary_organizations})
                 return JsonResponse(data)
             # For every other possible method type submitted by the caller...
@@ -1198,14 +1202,21 @@ def settings_handler(request, course_key_string):
                         delete_entrance_exam(request, course_key)
 
                 # [COLARAZ_CUSTOM]
-                # Update course links woth secondary organizations.
+                # Update course links with secondary organizations.
                 new_values = request.json.get('secondary_organizations') or []
-                old_values = get_secondary_org_names_of_course(course_key_string, course_module.location.org)
+                current_course_organizations = get_secondary_orgs_of_course(
+                    course_key_string, course_module.location.org)
+
+                # Restrict usr from updating un-authorized organizations
+                old_values = filter_authorized_organizations_from_list(
+                    current_course_organizations, request.user.is_superuser)
+
                 newly_added = list(set(new_values) - set(old_values))
                 old_deleted = list(set(old_values) - set(new_values))
 
                 # update course links with secondary organizations by deleting old links and adding new one.
-                OrganizationCourse.objects.filter(course_id=course_key_string, organization__short_name__in=old_deleted).delete()
+                OrganizationCourse.objects.filter(
+                    course_id=course_key_string, organization__short_name__in=old_deleted).delete()
                 for org in newly_added:
                     org_data = get_organization_by_short_name(org)
                     add_organization_course(org_data, course_key_string)
