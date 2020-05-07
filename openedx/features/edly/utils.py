@@ -1,7 +1,6 @@
 import jwt
 import waffle
 from django.conf import settings
-from django.contrib.sites.shortcuts import get_current_site
 from openedx.features.edly.models import EdlySubOrganization
 from util.organizations_helpers import get_organizations
 
