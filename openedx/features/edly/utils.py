@@ -1,22 +1,50 @@
+import jwt
 import waffle
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from openedx.features.edly.models import EdlySubOrganization
 from util.organizations_helpers import get_organizations
 
+
+def encode_edly_user_info_cookie(cookie_data):
+    """
+    Encode edly_user_info cookie data into JWT string.
+
+    Arguments:
+        cookie_data (dict): Edly user info cookie dict.
+
+    Returns:
+        string
+    """
+    return jwt.encode(cookie_data, settings.EDLY_COOKIE_SECRET_KEY, algorithm=settings.EDLY_JWT_ALGORITHM)
+
+
+def decode_edly_user_info_cookie(encoded_cookie_data):
+    """
+    Decode edly_user_info cookie data from JWT string.
+
+    Arguments:
+        encoded_cookie_data (dict): Edly user info cookie JWT encoded string.
+
+    Returns:
+        dict
+    """
+    return jwt.decode(encoded_cookie_data, settings.EDLY_COOKIE_SECRET_KEY, algorithms=[settings.EDLY_JWT_ALGORITHM])
+
+
 def get_enabled_organization(request):
-  """
-  Helper method to get linked organizations for request site.
+    """
+    Helper method to get linked organizations for request site.
 
-  Returns:
-      list: List of linked organizations for request site
-  """
+    Returns:
+        list: List of linked organizations for request site
+    """
 
-  if not waffle.switch_is_active(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH):
-      organizations = get_organizations()
-  else:
-      current_site = get_current_site(request)
-      edly_organizations = EdlySubOrganization.objects.filter(studio_site=current_site.id)
-      organizations = [(org.edx_organization.__dict__) for org in edly_organizations]
+    if not waffle.switch_is_active(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH):
+        organizations = get_organizations()
+    else:
+        current_site = get_current_site(request)
+        edly_organizations = EdlySubOrganization.objects.filter(studio_site=current_site.id)
+        organizations = [(org.edx_organization.__dict__) for org in edly_organizations]
 
-  return organizations
+    return organizations
