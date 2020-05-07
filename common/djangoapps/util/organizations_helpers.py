@@ -5,6 +5,8 @@ Utility library for working with the edx-organizations app
 from django.conf import settings
 from django.db.utils import DatabaseError
 
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+
 
 def add_organization(organization_data):
     """
@@ -105,9 +107,11 @@ def organizations_enabled():
     return settings.FEATURES.get('ORGANIZATIONS_APP', False)
 
 
-def get_secondary_org_names_of_course(course_id, primary_org_short_name):
+def get_secondary_orgs_of_course(course_id, primary_org_short_name, return_short_name=False):
     """
-    Returns list of all secondary organizations names linked with the course.
+    Returns list of all secondary organizations linked with the course.
+    It will return list of organizations short names if return_short_name is True otherwise it will send
+    organizations list.
     """
     if not organizations_enabled():
         return []
@@ -115,5 +119,23 @@ def get_secondary_org_names_of_course(course_id, primary_org_short_name):
     all_organizations = organizations_api.get_course_organizations(course_id)
 
     # exclude primary organization from the list
-    secondary_organizations = [org['short_name'] for org in all_organizations if not (org['short_name'] == primary_org_short_name)]
+    secondary_organizations = [org for org in all_organizations if not (org['short_name'] == primary_org_short_name)]
+    if return_short_name:
+        secondary_organizations = [org['short_name'] for org in secondary_organizations]
     return secondary_organizations
+
+
+def filter_authorized_organizations_from_list(organizations, is_super_user):
+    """
+    Filter organizations list on the basis of configured site organizations.
+    """
+    if not is_super_user:
+        site_orgs = configuration_helpers.get_current_site_orgs()
+        org_names_list = []
+        for org in organizations:
+            if (org["name"] in site_orgs) or (org["short_name"] in site_orgs):
+                org_names_list.append(org["short_name"])
+    else:
+        org_names_list = [org["short_name"] for org in organizations]
+
+    return org_names_list
