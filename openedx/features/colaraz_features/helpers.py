@@ -366,7 +366,7 @@ def notify_access_role_deleted(role, actor):
         revoke_course_creator_access(role.user, actor)
 
 
-def mak_user_lms_admin(user, org):
+def make_user_lms_admin(user, org):
     """
     This function is meant to map users with respect to their lms_admin role
     sent by Colaraz's IdP

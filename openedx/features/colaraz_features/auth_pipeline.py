@@ -3,7 +3,7 @@ Authenitcation and Social Auth Pipeline methods for Colaraz's customizations
 """
 import logging
 
-from openedx.features.colaraz_features.helpers import mak_user_lms_admin
+from openedx.features.colaraz_features.helpers import make_user_lms_admin
 from openedx.features.colaraz_features.models import (
     ColarazUserProfile,
     DEFAULT_JOB_TITLE,
@@ -25,10 +25,9 @@ def store_id_token(request, response, user=None, *args, **kwargs):
 
 
 def update_site_admin(response, user=None, *args, **kwargs):
-    if user and response.get('role'):
-        # TODO: pass the correct second argument, i.e. user's organizations
-        # TODO: only call the function when you want to make the user lms admin, skip otherwise.
-        mak_user_lms_admin(user, response.get('role'))
+    if user and response.get('role') == 'Company Admin':
+        primary_org = str(response.get('companyInfo', {}).get('url', '')).lower()
+        make_user_lms_admin(user, primary_org)
 
 
 def update_colaraz_profile(request, response, user=None, *args, **kargs):
