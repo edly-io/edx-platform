@@ -8,6 +8,7 @@ from django.urls import reverse
 from mock import patch
 from testfixtures import LogCapture
 from waffle.testutils import override_switch
+
 from openedx.features.edly.tests.factories import (EdlyOrganizationFactory,
                                                    EdlySubOrganizationFactory,
                                                    SiteFactory,)
@@ -68,7 +69,6 @@ class TestEdlyOrganizationListing(TestCase):
         """
         Verify that the organization names list API only returns Edly's enabled organizations.
         """
-
         studio_site = SiteFactory()
         edly_organization = EdlyOrganizationFactory(name='Test Edly Organization Name')
         edly_sub_organization = EdlySubOrganizationFactory(
@@ -84,7 +84,8 @@ class TestEdlyOrganizationListing(TestCase):
 
     def test_organization_list_without_linked_edly_sub_organization(self):
         """
-        Verify that if there is no "EdlySubOrganization" linked to a studio site the organization names list API returns empty response.
+        The organization names list API returns empty response when there is no
+        linked "EdlySubOrganization" with the studio site.
         """
         studio_site = SiteFactory()
         with LogCapture(LOGGER_NAME) as logger:

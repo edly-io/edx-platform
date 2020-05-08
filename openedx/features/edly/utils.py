@@ -45,9 +45,9 @@ def get_enabled_organizations(request):
         return get_organizations()
     else:
         try:
-          studio_site_edx_organization = [model_to_dict(request.site.studio_site.edx_organization)]
+          studio_site_edx_organization = model_to_dict(request.site.studio_site.edx_organization)
         except EdlySubOrganization.DoesNotExist:
           LOGGER.exception('No EdlySubOrganization found for site %s', request.site)
-          studio_site_edx_organization = []
+          return []
 
-    return studio_site_edx_organization
+    return [studio_site_edx_organization]
