@@ -379,6 +379,9 @@ def make_user_lms_admin(user, org):
     Returns:
         (bool): True for success, False for failure.
     """
+    if not org:
+        return False
+
     queryset = user.courseaccessrole_set.filter(
         role__in=ROLES_FOR_LMS_ADMIN,
         org=org,
