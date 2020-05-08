@@ -364,3 +364,11 @@ def notify_access_role_deleted(role, actor):
     """
     if role.role == CourseCreatorRole.ROLE:
         revoke_course_creator_access(role.user, actor)
+
+
+def update_user_roles(user, role):
+    """
+    This function is meant to map users with respect to their lms_admin role
+    sent by Colaraz's IdP
+    """
+    pass

@@ -58,6 +58,7 @@ def apply_settings(django_settings):
         'social_core.pipeline.user.user_details',
         'third_party_auth.pipeline.user_details_force_sync',
         'openedx.features.colaraz_features.auth_pipeline.store_id_token',
+        'openedx.features.colaraz_features.auth_pipeline.update_site_admin',
         'openedx.features.colaraz_features.auth_pipeline.update_colaraz_profile',
         'third_party_auth.pipeline.set_id_verification_status',
         'third_party_auth.pipeline.set_logged_in_cookies',

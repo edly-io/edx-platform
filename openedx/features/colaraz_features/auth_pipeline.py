@@ -3,6 +3,7 @@ Authenitcation and Social Auth Pipeline methods for Colaraz's customizations
 """
 import logging
 
+from openedx.features.colaraz_features.helpers import update_user_roles
 from openedx.features.colaraz_features.models import (
     ColarazUserProfile,
     DEFAULT_JOB_TITLE,
@@ -20,6 +21,11 @@ def store_id_token(request, response, user=None, *args, **kwargs):
     """
     if user and response.has_key('id_token'):
         request.session['id_token'] = response['id_token']
+
+
+def update_site_admin(response, user=None, *args, **kwargs):
+    if user and response.get('role'):
+        update_user_roles(user, response.get('role'))
 
 
 def update_colaraz_profile(request, response, user=None, *args, **kargs):
