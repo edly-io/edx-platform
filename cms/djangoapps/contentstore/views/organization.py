@@ -19,5 +19,4 @@ class OrganizationListView(View):
         """Returns organization list as json."""
         organizations = get_enabled_organizations(request)
         org_names_list = [(org["short_name"]) for org in organizations]
-
         return HttpResponse(dump_js_escaped_json(org_names_list), content_type='application/json; charset=utf-8')

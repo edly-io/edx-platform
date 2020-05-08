@@ -21,7 +21,6 @@ def encode_edly_user_info_cookie(cookie_data):
     """
     return jwt.encode(cookie_data, settings.EDLY_COOKIE_SECRET_KEY, algorithm=settings.EDLY_JWT_ALGORITHM)
 
-
 def decode_edly_user_info_cookie(encoded_cookie_data):
     """
     Decode edly_user_info cookie data from JWT string.
@@ -33,7 +32,6 @@ def decode_edly_user_info_cookie(encoded_cookie_data):
         dict
     """
     return jwt.decode(encoded_cookie_data, settings.EDLY_COOKIE_SECRET_KEY, algorithms=[settings.EDLY_JWT_ALGORITHM])
-
 
 def get_enabled_organizations(request):
     """
