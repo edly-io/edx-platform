@@ -1,15 +1,15 @@
 """Tests covering the Organizations listing on the Studio home."""
 import json
+import logging
 
-from django.urls import reverse
+from django.conf import settings
 from django.test import TestCase
+from django.urls import reverse
 from mock import patch
-from waffle.testutils import override_switch
-
+from openedx.features.edly.tests.factories import EdlyOrganizationFactory, EdlySubOrganizationFactory, SiteFactory
 from student.tests.factories import UserFactory
 from util.organizations_helpers import add_organization
-from openedx.features.edly.tests.factories import EdlyOrganizationFactory, EdlySubOrganizationFactory, SiteFactory
-from django.conf import settings
+from waffle.testutils import override_switch
 
 @patch.dict('django.conf.settings.FEATURES', {'ORGANIZATIONS_APP': True})
 @override_switch(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH, active=False)
@@ -56,7 +56,7 @@ class TestEdlyOrganizationListing(TestCase):
         """
         self.client.logout()
         response = self.client.get(self.org_names_listing_url)
-        self.assertEqual(response.status_code, 302)
+        assert response.status_code == 302
 
     def test_organization_list(self):
         """
@@ -72,9 +72,9 @@ class TestEdlyOrganizationListing(TestCase):
 
         response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site.domain)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()), 1)
-        self.assertEqual(response.json()[0], edly_sub_organization.edx_organization.short_name)
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+        assert response.json()[0] == edly_sub_organization.edx_organization.short_name
 
         """
         Now verify that if there is no "EdlySubOrganization" linked to a studio site the organization names list API returns empty response.
@@ -82,5 +82,5 @@ class TestEdlyOrganizationListing(TestCase):
         studio_site_2 = SiteFactory()
         response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site_2.domain)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), [])
+        assert response.status_code == 200
+        assert response.json() == []

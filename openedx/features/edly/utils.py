@@ -1,3 +1,5 @@
+import logging
+
 import jwt
 import waffle
 from django.conf import settings
@@ -5,6 +7,7 @@ from django.forms.models import model_to_dict
 from openedx.features.edly.models import EdlySubOrganization
 from util.organizations_helpers import get_organizations
 
+LOGGER = logging.getLogger(__name__)
 
 def encode_edly_user_info_cookie(cookie_data):
     """
@@ -32,7 +35,7 @@ def decode_edly_user_info_cookie(encoded_cookie_data):
     return jwt.decode(encoded_cookie_data, settings.EDLY_COOKIE_SECRET_KEY, algorithms=[settings.EDLY_JWT_ALGORITHM])
 
 
-def get_enabled_organization(request):
+def get_enabled_organizations(request):
     """
     Helper method to get linked organizations for request site.
 
@@ -41,11 +44,12 @@ def get_enabled_organization(request):
     """
 
     if not waffle.switch_is_active(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH):
-        organizations = get_organizations()
+        return get_organizations()
     else:
         try:
-          organizations = [model_to_dict(request.site.studio_site.edx_organization)]
+          studio_site_edx_organization = [model_to_dict(request.site.studio_site.edx_organization)]
         except EdlySubOrganization.DoesNotExist:
-          organizations = []
+          LOGGER.exception('No EdlySubOrganization found for site %s', request.site)
+          studio_site_edx_organization = []
 
-    return organizations
+    return studio_site_edx_organization
