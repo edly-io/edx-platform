@@ -8,9 +8,11 @@ from mock import patch
 from testfixtures import LogCapture
 from waffle.testutils import override_switch
 
-from openedx.features.edly.tests.factories import (EdlyOrganizationFactory,
-                                                   EdlySubOrganizationFactory,
-                                                   SiteFactory,)
+from openedx.features.edly.tests.factories import (
+  EdlyOrganizationFactory,
+  EdlySubOrganizationFactory,
+  SiteFactory,
+)
 from student.tests.factories import UserFactory
 from util.organizations_helpers import add_organization
 
@@ -57,6 +59,8 @@ class TestEdlyOrganizationListing(TestCase):
 
     def test_organization_list_without_linked_edly_sub_organization(self):
         """
+        Verify that organization list API returns empty response without enabled organizations.
+
         The organization names list API returns empty response when there is no
         linked "EdlySubOrganization" with the studio site.
         """

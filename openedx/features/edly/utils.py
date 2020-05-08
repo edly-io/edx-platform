@@ -4,6 +4,7 @@ import jwt
 import waffle
 from django.conf import settings
 from django.forms.models import model_to_dict
+
 from openedx.features.edly.models import EdlySubOrganization
 from util.organizations_helpers import get_organizations
 
@@ -43,11 +44,11 @@ def get_enabled_organizations(request):
 
     if not waffle.switch_is_active(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH):
         return get_organizations()
-    else:
-        try:
-          studio_site_edx_organization = model_to_dict(request.site.studio_site.edx_organization)
-        except EdlySubOrganization.DoesNotExist:
-          LOGGER.exception('No EdlySubOrganization found for site %s', request.site)
-          return []
+
+    try:
+        studio_site_edx_organization = request.site.studio_site.edx_organization
+    except EdlySubOrganization.DoesNotExist:
+        LOGGER.exception('No EdlySubOrganization found for site %s', request.site)
+        return []
 
     return [studio_site_edx_organization]
