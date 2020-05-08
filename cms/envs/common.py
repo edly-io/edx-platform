@@ -1569,6 +1569,7 @@ COMPLETION_VIDEO_COMPLETE_PERCENTAGE = 0.95
 ############## Settings for colaraz_features app ##############
 # [COLARAZ_CUSTOM]
 COLARAZ_PREVIEW_DOMAIN_KEY = 'preview'
+COLARAZ_SUB_DOMAIN = 'colaraz.com'
 
 # These variables are used in ColarazAuthenticationMiddleware
 COLARAZ_ENABLE_AUTH_MIDDLEWARE = False

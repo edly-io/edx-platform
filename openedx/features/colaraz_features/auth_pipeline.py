@@ -3,7 +3,10 @@ Authenitcation and Social Auth Pipeline methods for Colaraz's customizations
 """
 import logging
 
-from openedx.features.colaraz_features.helpers import make_user_lms_admin
+from openedx.features.colaraz_features.helpers import (
+    make_user_lms_admin,
+    get_role_based_urls,
+)
 from openedx.features.colaraz_features.models import (
     ColarazUserProfile,
     DEFAULT_JOB_TITLE,
@@ -45,6 +48,7 @@ def update_colaraz_profile(request, response, user=None, *args, **kargs):
                 'profile_strength_color': profile_strength.get('color', DEFAULT_PROFILE_STRENGTH_COLOR),
                 'profile_strength_width': profile_strength.get('width', DEFAULT_PROFILE_STRENGTH_WIDTH),
                 'site_identifier': str(response.get('companyInfo', {}).get('url', '')).lower(),
+                'role_based_urls': get_role_based_urls(response),
             })
             request.session['user_site_identifier'] = instance.site_identifier
         except AttributeError:

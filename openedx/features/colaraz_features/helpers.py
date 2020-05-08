@@ -2,6 +2,9 @@
 Helper functions for colaraz app.
 """
 from collections import namedtuple
+import json
+import requests
+import logging
 
 from django import forms
 from django.conf import settings
@@ -10,6 +13,7 @@ from django.contrib.auth.models import User
 from django.http import QueryDict
 
 from six import text_type
+from six.moves.urllib.parse import urlencode
 
 from organizations.models import Organization
 from student.roles import OrgRoleManagerRole, CourseCreatorRole
@@ -32,7 +36,7 @@ else:
 # This named tuple can be used for sites, site themes, organizations etc.
 Pair = namedtuple('Pair', 'lms studio')
 LMS_AND_STUDIO_SITE_PREFIXES = ('courses', 'studio')
-
+LOGGER = logging.getLogger(__name__)
 
 def do_sites_exists(domain):
     """
@@ -427,3 +431,18 @@ def get_query_dict(_dict):
         else:
             q[key] = value
     return q
+
+
+def get_role_based_urls(response):
+    email = response.get('email')
+    access_token = response.get('access_token')
+    if email and access_token and hasattr(settings, 'COLARAZ_APP_LINKS_API_URL'):
+        api_url = '{}?{}'.format(settings.COLARAZ_APP_LINKS_API_URL, urlencode({'email': email}))
+        resp = requests.get(api_url, headers={'Authorization': 'Bearer {}'.format(access_token)})
+        if resp.status_code == 200:
+            return json.loads(resp.content)
+        else:
+            LOGGER.error('Colaraz app links api responded with status code: {}'.format(resp.status_code))
+    else:
+        LOGGER.error('Parameters required to call Colaraz app links api were not complete')
+    return {}

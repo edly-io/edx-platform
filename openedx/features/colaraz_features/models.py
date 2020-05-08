@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 
 from django.contrib.auth.models import User
 from django.db import models
+from jsonfield.fields import JSONField
 
 
 DEFAULT_JOB_TITLE = 'Student'
@@ -28,6 +29,7 @@ class ColarazUserProfile(models.Model):
         profile_strength_width: Profile progress-bar width/percentage
         site_identifier: It represents the starting part of domain which identifies domain e.g: in
             'abc.courses.colaraz.com' the identifier will be 'abc'
+        role_based_urls: Contains navigation urls for user
     """
     class Meta:
         app_label = 'colaraz_features'
@@ -42,3 +44,4 @@ class ColarazUserProfile(models.Model):
     profile_strength_color = models.CharField(max_length=20, default=DEFAULT_PROFILE_STRENGTH_COLOR)
     profile_strength_width = models.CharField(max_length=5, default=DEFAULT_PROFILE_STRENGTH_WIDTH)
     site_identifier = models.CharField(max_length=100)
+    role_based_urls = JSONField(null=True, blank=True)

@@ -16,6 +16,7 @@ class ColarazUserProfileAdmin(admin.ModelAdmin):
         'profile_strength_color',
         'profile_strength_width',
         'site_identifier',
+        'role_based_urls',
     ]
 
 admin.site.register(ColarazUserProfile, ColarazUserProfileAdmin)
