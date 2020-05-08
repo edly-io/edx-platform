@@ -6,10 +6,16 @@ from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 from mock import patch
-from openedx.features.edly.tests.factories import EdlyOrganizationFactory, EdlySubOrganizationFactory, SiteFactory
+from testfixtures import LogCapture
+from waffle.testutils import override_switch
+from openedx.features.edly.tests.factories import (EdlyOrganizationFactory,
+                                                   EdlySubOrganizationFactory,
+                                                   SiteFactory)
 from student.tests.factories import UserFactory
 from util.organizations_helpers import add_organization
-from waffle.testutils import override_switch
+
+LOGGER_NAME = 'openedx.features.edly.utils'
+
 
 @patch.dict('django.conf.settings.FEATURES', {'ORGANIZATIONS_APP': True})
 @override_switch(settings.ENABLE_EDLY_ORGANIZATIONS_SWITCH, active=False)
@@ -76,11 +82,21 @@ class TestEdlyOrganizationListing(TestCase):
         assert len(response.json()) == 1
         assert response.json()[0] == edly_sub_organization.edx_organization.short_name
 
+    def test_organization_list_without_linked_edly_sub_organization(self):
         """
-        Now verify that if there is no "EdlySubOrganization" linked to a studio site the organization names list API returns empty response.
+        Verify that if there is no "EdlySubOrganization" linked to a studio site the organization names list API returns empty response.
         """
-        studio_site_2 = SiteFactory()
-        response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site_2.domain)
+        studio_site = SiteFactory()
+        with LogCapture(LOGGER_NAME) as logger:
+            response = self.client.get(self.org_names_listing_url, HTTP_ACCEPT='application/json', SERVER_NAME=studio_site.domain)
 
-        assert response.status_code == 200
-        assert response.json() == []
+            logger.check(
+                (
+                    LOGGER_NAME,
+                    'ERROR',
+                    'No EdlySubOrganization found for site {}'.format(studio_site)
+                )
+            )
+
+            assert response.status_code == 200
+            assert response.json() == []
