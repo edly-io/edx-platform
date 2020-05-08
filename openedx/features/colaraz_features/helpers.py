@@ -20,7 +20,7 @@ from xmodule.modulestore.django import modulestore
 
 from openedx.core.djangoapps.theming.models import SiteTheme
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
-from openedx.features.colaraz_features.constants import ALL_ORGANIZATIONS_MARKER
+from openedx.features.colaraz_features.constants import ALL_ORGANIZATIONS_MARKER, ROLES_FOR_LMS_ADMIN
 
 if settings.ROOT_URLCONF == 'lms.urls':
     from cms.djangoapps.course_creators.models import CourseCreator
@@ -366,9 +366,47 @@ def notify_access_role_deleted(role, actor):
         revoke_course_creator_access(role.user, actor)
 
 
-def update_user_roles(user, role):
+def mak_user_lms_admin(user, org):
     """
     This function is meant to map users with respect to their lms_admin role
     sent by Colaraz's IdP
+
+    Arguments:
+        user (User): Django user for which to assign roles
+        org (str): Organization of the user
+
+    Returns:
+        (bool): True for success, False for failure.
     """
-    pass
+    queryset = user.courseaccessrole_set.filter(
+        role__in=ROLES_FOR_LMS_ADMIN,
+        org=org,
+    )
+
+    if queryset.count() == len(ROLES_FOR_LMS_ADMIN):
+        # Nothing to do, user is already an lms admin for given organization.
+        return True
+
+    # If any of the lms admin role already exist then make an update and assign other roles.
+    instance = user.courseaccessrole_set.filter(
+        role__in=ROLES_FOR_LMS_ADMIN,
+        org=org,
+    ).first()
+
+    # Import is placed here to avoid cicular import
+    from openedx.features.colaraz_features.forms import ColarazCourseAccessRoleForm
+    kwargs = {
+        'user': user,
+        'instance': instance,
+        'data': {
+            'user': user.id,
+            'org': org,
+            'roles': ROLES_FOR_LMS_ADMIN,
+            'course_ids': [],
+        },
+    }
+    form = ColarazCourseAccessRoleForm(**kwargs)
+    if form.is_valid():
+        form.save()
+        return True
+    return False
