@@ -7,6 +7,7 @@ from django.views.generic import View
 from openedx.core.djangolib.js_utils import dump_js_escaped_json
 from openedx.features.edly.utils import get_enabled_organizations
 
+
 class OrganizationListView(View):
     """View rendering organization list as json.
 
