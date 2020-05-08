@@ -110,7 +110,7 @@ class ColarazAuthenticationMiddleware(object):
         if not session.get('user_site_identifier', None):
             profile, is_new_user = ColarazUserProfile.objects.get_or_create(user=user)
             if not is_new_user:
-                session['user_site_identifier'] = profile[0].site_identifier
+                session['user_site_identifier'] = profile.site_identifier
         return session.get('user_site_identifier', None), is_new_user
 
     def _get_request_site_domain(self, request):
