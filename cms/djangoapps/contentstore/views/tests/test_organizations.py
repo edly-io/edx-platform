@@ -10,7 +10,7 @@ from testfixtures import LogCapture
 from waffle.testutils import override_switch
 from openedx.features.edly.tests.factories import (EdlyOrganizationFactory,
                                                    EdlySubOrganizationFactory,
-                                                   SiteFactory)
+                                                   SiteFactory,)
 from student.tests.factories import UserFactory
 from util.organizations_helpers import add_organization
 
