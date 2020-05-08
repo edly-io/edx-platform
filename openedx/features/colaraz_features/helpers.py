@@ -7,6 +7,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.contrib.auth.models import User
+from django.http import QueryDict
 
 from six import text_type
 
@@ -398,15 +399,28 @@ def make_user_lms_admin(user, org):
     kwargs = {
         'user': user,
         'instance': instance,
-        'data': {
+        'data': get_query_dict({
             'user': user.id,
             'org': org,
             'roles': ROLES_FOR_LMS_ADMIN,
             'course_ids': [],
-        },
+        }),
     }
     form = ColarazCourseAccessRoleForm(**kwargs)
     if form.is_valid():
         form.save()
         return True
     return False
+
+
+def get_query_dict(_dict):
+    """
+    Create QueryDict object from the given dict.
+    """
+    q = QueryDict(mutable=True)
+    for key, value in _dict.items():
+        if isinstance(value, (list, set)):
+            q.setlist(key, value)
+        else:
+            q[key] = value
+    return q
