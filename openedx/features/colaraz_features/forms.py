@@ -48,6 +48,7 @@ class ColarazCourseAccessRoleForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user')
         self.instance = kwargs.pop('instance')
+        self.is_through_social_auth = kwargs.pop('is_through_social_auth')
         self.instances = None
         self.populate_instances()
 
@@ -216,6 +217,9 @@ class ColarazCourseAccessRoleForm(forms.Form):
         Clean and validate organization in the payload.
         """
         org = self.cleaned_data['org']
+
+        if self.is_through_social_auth:
+            return org
 
         if not self.user.is_staff:
             if org not in self.user_organizations:
