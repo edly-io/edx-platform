@@ -3,6 +3,7 @@ Authenitcation and Social Auth Pipeline methods for Colaraz's customizations
 """
 import logging
 
+from openedx.features.colaraz_features.constants import ROLES_FOR_LMS_ADMIN
 from openedx.features.colaraz_features.helpers import (
     make_user_lms_admin,
     get_role_based_urls,
@@ -14,6 +15,7 @@ from openedx.features.colaraz_features.models import (
     DEFAULT_PROFILE_STRENGTH_TITLE,
     DEFAULT_PROFILE_STRENGTH_WIDTH,
 )
+from student.models import CourseAccessRole
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +32,13 @@ def store_id_token(request, response, user=None, *args, **kwargs):
 def update_site_admin(response, user=None, *args, **kwargs):
     if user and response.get('role') == 'Company Admin':
         primary_org = str(response.get('companyInfo', {}).get('url', '')).lower()
-        make_user_lms_admin(user, primary_org)
+        for role in ROLES_FOR_LMS_ADMIN:
+            CourseAccessRole.objects.get_or_create(
+                user=user,
+                course_id=None,
+                org=primary_org,
+                role=role,
+            )
 
 
 def update_colaraz_profile(request, response, user=None, *args, **kargs):

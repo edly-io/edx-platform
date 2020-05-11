@@ -201,7 +201,7 @@ if settings.WIKI_ENABLED:
             include(wiki_pattern(app_name='course_wiki_do_not_reverse', namespace='course_wiki_do_not_reverse'))),
 
         # Include edly panel app URL's
-        url(r'^api/edly_panel/', include('edly_panel_app.api.urls', namespace='edly_panel_api')),
+        #url(r'^api/edly_panel/', include('edly_panel_app.api.urls', namespace='edly_panel_api')),
     ]
 
 COURSE_URLS = [
