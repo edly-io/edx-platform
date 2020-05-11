@@ -406,7 +406,6 @@ def make_user_lms_admin(user, org):
     kwargs = {
         'user': user,
         'instance': instance,
-        'is_through_social_auth': True,
         'data': get_query_dict({
             'user': user.id,
             'org': org,
