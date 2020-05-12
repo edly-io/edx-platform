@@ -4,33 +4,6 @@ from django.urls import reverse
 %>
 <%namespace name='static' file='/static_content.html'/>
 
-<style>
-    table {
-        width: 100%
-    }
-    th, td {
-        text-align: left;
-        padding: 8px 10px;
-    }
-    th {
-        text-transform: uppercase;
-    }
-    .button {
-        padding: 4px 20px;
-        border-radius: 15px;
-        line-height: 1em!important;
-    }
-    .pagination {
-        float: right;
-    }
-    .step-links a, .step-links span {
-        margin-left: 10px;
-    }
-    #searchbar {
-        margin: 0 10px;
-    }
-
-</style>
 <script>
     $(document).ready(function(){
         function getUrlParameter(sParam) {
@@ -55,46 +28,39 @@ from django.urls import reverse
     });
 </script>
 
-<section class="container">
-    <div>
-        <h2 style="float: left">Course Access Roles</h2>
-            <a class="button" style="float: right"
-                href="${reverse('colaraz_features:course-access-roles-create')}"
-            >Create New</a>
+<section class="course-privileges">
+    <div class="dashboard-header">
+        <h1>Course Privileges</h1>
+        <a class="btn cz-btn cz-btn-primary" href="${reverse('colaraz_features:course-access-roles-create')}">Create New</a>
+        <div class="privileges-search-bar">
+            <form method="GET">
+                <input type="text" class="search-field" size="40" name="q" value="" id="searchbar" autofocus="">
+                <button type="submit" class="search-button"><span class="fa fa-search"></span></button>
+            </form>
+        </div>
     </div>
-    <br />
-    <br />
-    <br />
-    <div>
-        <form method="GET">
-            <label for="searchbar"><img src="${static.url('admin/img/search.svg')}" alt="Search"></label>
-            <input type="text" size="40" name="q" value="" id="searchbar" autofocus="">
-            <input type="submit" value="Search">
-        </form>
-    </div>
-    <br />
-    <table>
+    <table class="table">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>User</th>
                 <th>Org</th>
                 <th>Course ID</th>
-                <th>Role</th>
+                <th class="role">Role</th>
             </tr>
         </thead>
         <tbody>
             %for access_role in object_list:
                 <tr>
-                    <th>
+                    <td>
                         <a
                             href="${reverse('colaraz_features:course-access-roles-update', args=(access_role.id,))}"
                         >${access_role.id}</a>
-                    </th>
+                    </td>
                     <td>${access_role.user and access_role.user.email}</td>
                     <td>${access_role.org or "-"}</td>
                     <td>${access_role.course_id or "-"}</td>
-                    <td>${access_role.role}</td>
+                    <td class="role">${access_role.role}</td>
                 </tr>
             %endfor
         </tbody>
