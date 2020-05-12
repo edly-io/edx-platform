@@ -1568,6 +1568,7 @@ COMPLETION_VIDEO_COMPLETE_PERCENTAGE = 0.95
 
 ############## Settings for colaraz_features app ##############
 # [COLARAZ_CUSTOM]
+COLARAZ_DOMAIN_PROTOCOL = 'http'
 COLARAZ_PREVIEW_DOMAIN_KEY = 'preview'
 COLARAZ_SUB_DOMAIN = 'colaraz.com'
 
