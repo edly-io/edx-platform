@@ -10,11 +10,26 @@ from django.urls import reverse
     <form action="" method="post">
         <input type="hidden" name="csrfmiddlewaretoken" value="${ csrf_token }" />
         <p>Are you sure you want to delete selected course privileges?</p>
-        <ul>
-            %for obj in objects:
-                <li><p>${obj}</p></li>
-            %endfor
-        </ul>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th class="role">Role</th>
+                    <th>Org</th>
+                    <th>Course</th>
+                </tr>
+            </thead>
+            <tbody>
+                %for obj in objects:
+                <tr>
+                    <td>${obj.user}</td>
+                    <td class="role">${obj.role}</td>
+                    <td>${obj.org}</td>
+                    <td>${obj.course_id}</td>
+                </tr>
+                %endfor
+            </tbody>
+        </table>
         <div class="privileges-footer">
             <button type="submit" class="btn cz-btn cz-btn-danger">Delete</button>
         </div>
