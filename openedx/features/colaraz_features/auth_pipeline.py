@@ -3,10 +3,11 @@ Authenitcation and Social Auth Pipeline methods for Colaraz's customizations
 """
 import logging
 
+from cms.djangoapps.course_creators.models import CourseCreator
 from openedx.features.colaraz_features.constants import ROLES_FOR_LMS_ADMIN
 from openedx.features.colaraz_features.helpers import (
-    make_user_lms_admin,
     get_role_based_urls,
+    make_user_lms_admin,
 )
 from openedx.features.colaraz_features.models import (
     ColarazUserProfile,
@@ -28,9 +29,16 @@ def store_id_token(request, response, user=None, *args, **kwargs):
     if user and response.has_key('id_token'):
         request.session['id_token'] = response['id_token']
 
-
 def update_site_admin(response, user=None, *args, **kwargs):
     if user and response.get('role') == 'Company Admin':
+        try:
+            obj = CourseCreator.objects.get(user=user)
+        except CourseCreator.DoesNotExist:
+            obj = CourseCreator(user=user)
+        obj.state = CourseCreator.GRANTED
+        obj.admin = user
+        obj.save()
+
         primary_org = str(response.get('companyInfo', {}).get('url', '')).lower()
         for role in ROLES_FOR_LMS_ADMIN:
             CourseAccessRole.objects.get_or_create(
