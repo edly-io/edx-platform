@@ -6,39 +6,6 @@ from django.urls import reverse
 <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
 
-<style>
-    form label {
-        display: inline-block;
-        width: 160px;
-    }
-    .errorlist {
-        color: darkred;
-    }
-    .delete-button {
-        background-color: #b82b1e;
-        padding: 4px 20px;
-        border-radius: 3px;
-        line-height: 2em!important;
-        float: right;
-    }
-    .breadcrumbs {
-        padding: 8px 10px;
-        font-weight: bold;
-    }
-    #id_roles li {
-        display: inline;
-    }
-    form label {
-        width: 200px;
-    }
-    input[disabled] {
-        background-color: grey;
-    }
-    #id_org {
-        width: 50%;
-    }
-
-</style>
 <script>
     $(document).ready(function() {
         $('select#id_user').select2({
@@ -65,22 +32,16 @@ from django.urls import reverse
         });
     });
 </script>
-<div class="breadcrumbs">
-    <span class="breadcrumb-item">
-        <a href="${reverse('colaraz_features:course-access-roles-list')}">Course Access Roles</a>
-    </span>
-    &nbsp; › &nbsp;
-    <span class="breadcrumb-item">Create Course Access Roles</span>
-</div>
 
-<section class="container">
-    <h2>Create Access Roles</h2>
+<section class="course-privileges">
+    <div class="dashboard-header">
+        <h1>Course Privileges</h1>
+    </div>
     <form action="" method="post">
         <input type="hidden" name="csrfmiddlewaretoken" value="${ csrf_token }" />
         ${form.as_p() | n}
-        <br />
-        <div>
-            <input type="submit" value="Save" />
+        <div class="privileges-footer">
+            <button type="submit" class="btn cz-btn cz-btn-primary">Save</button>
         </div>
     </form>
 </section>
