@@ -27,7 +27,7 @@ import django_comment_client.utils as utils
 from lms.djangoapps.experiments.utils import get_experiment_user_metadata_context
 import lms.lib.comment_client as cc
 from courseware.access import has_access
-from courseware.courses import get_course_with_access
+from courseware.courses import get_course_with_access, get_course_by_id
 from courseware.views.views import CourseTabView
 from django_comment_client.base.views import track_thread_viewed_event
 from django_comment_client.constants import TYPE_ENTRY
@@ -46,6 +46,7 @@ from django_comment_client.utils import (
 from django_comment_common.models import CourseDiscussionSettings
 from django_comment_common.utils import ThreadContext, get_course_discussion_settings, set_course_discussion_settings
 from openedx.core.djangoapps.plugin_api.views import EdxFragmentView
+from openedx.core.lib.courses import course_image_url
 from openedx.features.course_duration_limits.access import generate_course_expired_fragment
 from student.models import CourseEnrollment
 from util.json_request import JsonResponse, expect_json
@@ -701,6 +702,7 @@ class DiscussionBoardFragmentView(EdxFragmentView):
         try:
             course_key = CourseKey.from_string(course_id)
             base_context = _create_base_discussion_view_context(request, course_key)
+            course_object = get_course_by_id(course_key)
             # Note:
             #   After the thread is rendered in this fragment, an AJAX
             #   request is made and the thread is completely loaded again
@@ -722,6 +724,9 @@ class DiscussionBoardFragmentView(EdxFragmentView):
             course_expiration_fragment = generate_course_expired_fragment(request.user, context['course'])
             context.update({
                 'course_expiration_fragment': course_expiration_fragment,
+                'course_image_url': course_image_url(course_object),
+                'course_title': course_object.display_name_with_default,
+                'course_organization': course_object.display_org_with_default,
             })
             if profile_page_context:
                 # EDUCATOR-2119: styles are hard to reconcile if the profile page isn't also a fragment
