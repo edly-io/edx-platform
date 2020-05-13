@@ -25,11 +25,11 @@ from openedx.core.djangolib.markup import HTML
              data-user-group-id="${user_group_id}">
         <header class="page-info-header">
             <div class="image-frame">
-                <img src="${static.url('images/img01.jpg')}" alt="Autodesk Maya">
+                <img src="${course_image_url}" alt="Autodesk Maya">
             </div>
             <div class="content-area">
-                <h2>Autodesk Maya</h2>
-                <h3>Organisation Name Placeholder</h3>
+                <h2>${course_title}</h2>
+                <h3>${course_organization}</h3>
                 <div class="control-block">
                     <a href="#" id="courseInfoControl" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <span class="fa fa-cog"></span>
