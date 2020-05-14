@@ -30,7 +30,7 @@ def store_id_token(request, response, user=None, *args, **kwargs):
         request.session['id_token'] = response['id_token']
 
 def update_site_admin(response, user=None, *args, **kwargs):
-    if user and response.get('role') == 'LMS admin':
+    if user and response.get('role') == 'LMS Admin':
         try:
             obj = CourseCreator.objects.get(user=user)
         except CourseCreator.DoesNotExist:
