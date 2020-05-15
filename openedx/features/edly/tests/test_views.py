@@ -44,3 +44,4 @@ class EdlyUserRegistrationTests(TestCase):
 
         edly_user = User.objects.get(username=username)
         assert hasattr(edly_user, 'edly_profile') == True
+        assert self.site.edly_sub_org_for_lms.slug in edly_user.edly_profile.get_linked_edly_sub_organizations
