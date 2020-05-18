@@ -227,14 +227,13 @@
 }
 
 %ui-btn-rounded {
-  border-radius: ($baseline/2);
+  border-radius: $baseline;
 }
 
 // primary button
 %ui-btn-primary {
   @extend %ui-btn;
-  @extend %ui-btn-pill;
-  @extend %t-strong;
+  @extend %ui-btn-rounded;
 
   padding: ($baseline/2) $baseline;
   border-width: 1px;
@@ -264,7 +263,7 @@
 // secondary button
 %ui-btn-secondary {
   @extend %ui-btn;
-  @extend %ui-btn-pill;
+  @extend %ui-btn-rounded;
 
   border-width: 1px;
   border-style: solid;
@@ -277,11 +276,9 @@
 %ui-btn-flat-outline {
   @include transition(all 0.15s);
 
-  @extend %t-strong;
-  @extend %t-action4;
+  @extend %ui-btn-rounded;
 
   text-align: center;
-  border-radius: ($baseline/4);
   border: 1px solid theme-color("primary");
   padding: 1px ($baseline/2) 2px ($baseline/2);
   background-color: theme-color("inverse");
@@ -291,7 +288,7 @@
   &:focus {
     border: 1px solid $uxpl-blue-hover-active;
     background-color: $uxpl-blue-hover-active;
-    color: theme-color("inverse");
+    color: $black;
   }
 
   &.is-disabled,
@@ -307,7 +304,7 @@
 %ui-btn-non {
   @include transition(all 0.15s);
 
-  @extend %ui-btn-pill;
+  @extend %ui-btn-rounded;
 
   @include transition(all $tmg-f2 linear 0s);
 

@@ -135,7 +135,6 @@
   @include transition(background-color 0.15s, box-shadow 0.15s);
 
   @extend %t-action3;
-  @extend %t-strong;
 
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 0 0 $transparent;
   display: inline-block;
@@ -170,12 +169,12 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset;
   border: 1px solid $uxpl-green-base;
   border-radius: 3px;
-  background-color: $uxpl-green-base;
-  color: $white;
+  background: $uxpl-green-base;
+  color: $black;
 
   &:hover, &:focus {
-    background-color: $uxpl-green-hover-active;
-    color: $white;
+    background: $uxpl-green-hover-active;
+    color: $black;
   }
 
   &.disabled, &.is-disabled {
@@ -188,23 +187,23 @@
 
 @mixin blue-button {
   @include button;
-  @include linear-gradient(top, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
 
   border: 1px solid theme-color("primary");
-  border-radius: 3px;
+  border-radius: $baseline;
   background-color: theme-color("primary");
-  color: $white;
+  color: $black;
+  font-weight: 400;
 
   &:hover, &:focus, &:active {
     background-color: $uxpl-blue-hover-active;
-    color: $white;
+    color: $black;
   }
 
   &.disabled, &.is-disabled {
     box-shadow: none;
     border: 1px solid $blue-l3 !important;
     background: $blue-l3 !important;
-    color: $white !important;
+    color: $black !important;
   }
 }
 
@@ -213,12 +212,12 @@
   @include linear-gradient(top, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
 
   border: 1px solid $red-d1;
-  border-radius: 3px;
-  background-color: $red;
+  border-radius: $baseline;
+  background: $red;
   color: $white;
 
   &:hover, &:focus, &:active {
-    background-color: $red-s1;
+    background: $red-s1;
     color: $white;
   }
 
@@ -281,14 +280,14 @@
 
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset;
   border: 1px solid $mediumGrey;
-  border-radius: 3px;
-  background-color: #dfe5eb;
-  color: rgb(92, 103, 122);
+  border-radius: $baseline;
+  background: #dfe5eb;
+  color: $black;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 
   &:hover, &:focus {
-    background-color: rgb(222, 236, 247);
-    color: rgb(92, 103, 122);
+    background: rgb(222, 236, 247);
+    color: $black;
   }
 }
 
@@ -298,12 +297,12 @@
 
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset;
   border: 1px solid $gray-d2;
-  border-radius: 3px;
-  background-color: #d1dae3;
+  border-radius: $baseline;
+  background: #d1dae3;
   color: #6d788b;
 
   &:hover {
-    background-color: #d9e3ee;
+    background: #d9e3ee;
     color: #6d788b;
   }
 }
@@ -314,13 +313,13 @@
 
   box-shadow: 0 1px 0 $white-t1 inset;
   border: 1px solid $gray-d1;
-  border-radius: 3px;
-  background-color: $gray-d2;
-  color: $gray-l3;
+  border-radius: $baseline;
+  background: $gray-d2;
+  color: $black;
 
   &:hover, &:focus {
-    background-color: $gray-d3;
-    color: $white;
+    background: $gray-d3;
+    color: $black;
   }
 }
 
