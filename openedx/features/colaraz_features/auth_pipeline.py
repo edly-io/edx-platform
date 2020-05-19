@@ -17,6 +17,7 @@ from openedx.features.colaraz_features.models import (
     DEFAULT_PROFILE_STRENGTH_WIDTH,
 )
 from student.models import CourseAccessRole
+from student.roles import CourseCreatorRole
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def update_site_admin(response, user=None, *args, **kwargs):
             CourseAccessRole.objects.get_or_create(
                 user=user,
                 course_id=None,
-                org=primary_org,
+                org=primary_org if role != CourseCreatorRole.ROLE else '',
                 role=role,
             )
 
