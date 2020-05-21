@@ -143,7 +143,7 @@
   &.disabled,
   &.is-disabled {
     border: 1px solid $gray-l1 !important;
-    border-radius: 3px !important;
+    border-radius: $baseline !important;
     background: $gray-l1 !important;
     color: $gray-d1 !important;
     pointer-events: none;
@@ -168,7 +168,7 @@
 
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset;
   border: 1px solid $uxpl-green-base;
-  border-radius: 3px;
+  border-radius: $baseline;
   background: $uxpl-green-base;
   color: $black;
 
@@ -201,8 +201,8 @@
 
   &.disabled, &.is-disabled {
     box-shadow: none;
-    border: 1px solid $blue-l3 !important;
-    background: $blue-l3 !important;
+    border: 1px solid theme-color("primary") !important;
+    background: theme-color("primary") !important;
     color: $black !important;
   }
 }
@@ -234,7 +234,7 @@
   @include linear-gradient(top, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
 
   border: 1px solid $pink-d1;
-  border-radius: 3px;
+  border-radius: $baseline;
   background-color: $pink;
   color: $white;
 
@@ -257,7 +257,7 @@
 
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset;
   border: 1px solid $orange-d1;
-  border-radius: 3px;
+  border-radius: $baseline;
   background-color: $orange;
   color: $gray-d2;
 

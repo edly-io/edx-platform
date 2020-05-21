@@ -208,15 +208,14 @@
 
         @extend %t-action3;
 
-        border-color: $blue-d1;
-        color: $white;
+        color: $black;
       }
 
       a {
-        color: $blue-d2;
+        color: $primary;
 
         &:hover {
-          color: $blue-d4;
+          color: darken($primary, 10%);
         }
       }
     }
