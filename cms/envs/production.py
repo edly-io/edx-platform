@@ -642,6 +642,9 @@ COLARAZ_SUB_DOMAIN = ENV_TOKENS.get(
 COLARAZ_NAVIGATION_URLS = ENV_TOKENS.get(
     'COLARAZ_NAVIGATION_URLS'
 )
+COLARAZ_NOTIFICATIONS = ENV_TOKENS.get(
+    'COLARAZ_NOTIFICATIONS'
+)
 ####################### Plugin Settings ##########################
 
 # This is at the bottom because it is going to load more settings after base settings are loaded
