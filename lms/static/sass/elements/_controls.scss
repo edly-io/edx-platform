@@ -27,7 +27,7 @@
 }
 
 %btn-rounded {
-  border-radius: ($baseline/2);
+  border-radius: $baseline;
 }
 
 %btn-edged {
@@ -87,7 +87,7 @@
 %btn-primary {
   @extend %t-weight3;
   @extend %btn;
-  @extend %btn-edged;
+  @extend %btn-rounded;
 
   border: none;
   padding: ($baseline*0.75) $baseline;
