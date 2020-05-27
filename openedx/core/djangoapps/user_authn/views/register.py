@@ -179,7 +179,7 @@ def create_account_with_params(request, params):
     if skip_email:
         registration.activate()
     else:
-        compose_and_send_activation_email(user, profile, registration)
+        compose_and_send_activation_email(user, profile, registration, request)
 
     # Perform operations that are non-critical parts of account creation
     create_or_set_user_attribute_created_on_site(user, request.site)
