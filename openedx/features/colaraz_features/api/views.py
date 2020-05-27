@@ -9,6 +9,8 @@ from six.moves.urllib.parse import urlencode
 from django.conf import settings
 
 from rest_framework import viewsets, status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -42,6 +44,8 @@ class NotificationHandlerApiView(APIView):
     """
     APIView to fetch notifications and mark them as read.
     """
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (IsAuthenticated,)
 
     def get(self, request, api_method, format=None):
         """
