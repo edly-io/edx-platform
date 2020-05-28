@@ -80,3 +80,58 @@ class NotificationHandlerApiView(APIView):
             {'message': 'Notifications API is not configured properly'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+
+class JobAlertsHandlerApiView(APIView):
+    """
+    APIView to fetch job alerts and mark them as read.
+    """
+    authentication_classes = (SessionAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    API_ENDPOINTS = {
+        'fetch': 'FETCH_URL',
+        'mark': 'MARK_URL'
+    }
+
+    def get(self, request, api_method, format=None):
+        """
+        This method uses Colaraz's Job Alerts API to fetch and mark alerts
+        and returns data sent by API in json format.
+
+        The response we get while fetching job alerts is of the following pattern:
+        {
+            "d": [
+                {
+                    "__type": "<SOME TYPE IDENTIFIER>",
+                    "Heading": "<JOB HEADING>",
+                    "Message": "<JOB MESSAGE>",
+                    "RelativeTime": "<RELATIVE TIME OF ALERT>",
+                    "NotificationType": <NOTIFICATION TYPE IDENTIFIER>
+                }
+            ]
+        }
+        """
+        email_id = request.user.email
+        api_details = getattr(settings, 'COLARAZ_JOB_ALERTS', None)
+        method_key = self.API_ENDPOINTS.get(api_method)
+        api_url = api_details.get(method_key)
+
+        if api_details and email_id and api_url:
+            resp = requests.post(api_url, json={'email': email_id})
+            json_data = json.loads(resp.content)
+            if resp.status_code == status.HTTP_200_OK:
+                return Response(json_data, status=status.HTTP_200_OK)
+            else:
+                LOGGER.error('Job Alerts API returned following error message: "{}" with status: "{}"'.format(
+                        json_data.get('Message'),
+                        resp.status_code,
+                    )
+                )
+        else:
+            LOGGER.error('Job Alerts API parameters are not complete or configured properly')
+
+        return Response(
+            {'message': 'Job Alerts API is not configured properly'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
