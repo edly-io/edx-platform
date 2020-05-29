@@ -54,10 +54,10 @@ class EdlyOrganizationAccessMiddlewareTests(TestCase):
         """
 
         with LogCapture(LOGGER_NAME) as logger:
-            response = self.client.get('/', follow=True)
-            assert response.status_code == 404
+            self.client.get('/', follow=True)
+            assert '_auth_user_id' not in self.client.session
 
-            logger.check(
+            logger.check_present(
                 (
                     LOGGER_NAME,
                     'ERROR',
