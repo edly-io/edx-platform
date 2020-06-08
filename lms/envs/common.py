@@ -3520,6 +3520,8 @@ USER_STATE_BATCH_SIZE = 5000
 COLARAZ_DOMAIN_PROTOCOL = 'http'
 COLARAZ_PREVIEW_DOMAIN_KEY = 'preview'
 COLARAZ_SUB_DOMAIN = 'colaraz.com'
+COLARAZ_NOTIFICATIONS = {}
+COLARAZ_JOB_ALERTS = {}
 
 # It will restrict anonymous users from viewing courses on index, courses and course about pages
 SHOW_COURSES_TO_ANONYMOUS_USERS = False
