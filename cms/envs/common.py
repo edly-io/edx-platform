@@ -1571,6 +1571,7 @@ COMPLETION_VIDEO_COMPLETE_PERCENTAGE = 0.95
 COLARAZ_DOMAIN_PROTOCOL = 'http'
 COLARAZ_PREVIEW_DOMAIN_KEY = 'preview'
 COLARAZ_SUB_DOMAIN = 'colaraz.com'
+COLARAZ_NOTIFICATIONS = {}
 COLARAZ_JOB_ALERTS = {}
 
 # These variables are used in ColarazAuthenticationMiddleware

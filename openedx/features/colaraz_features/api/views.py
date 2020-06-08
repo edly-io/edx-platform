@@ -17,10 +17,6 @@ from rest_framework.views import APIView
 from openedx.features.colaraz_features.api import serializers
 
 LOGGER = logging.getLogger(__name__)
-API_METHODS = {
-    'fetch': 'METHOD_FETCH_NOTIFICATIONS',
-    'mark': 'METHOD_MARK_NOTIFICATIONS',
-}
 
 class SiteOrgViewSet(viewsets.ViewSet):
     """
@@ -47,14 +43,33 @@ class NotificationHandlerApiView(APIView):
     authentication_classes = (SessionAuthentication,)
     permission_classes = (IsAuthenticated,)
 
+    API_METHODS = {
+        'fetch': 'METHOD_FETCH_NOTIFICATIONS',
+        'mark': 'METHOD_MARK_NOTIFICATIONS',
+    }
+
     def get(self, request, api_method, format=None):
         """
         This method uses Colaraz's Notifications API to fetch and mark notifications
         and returns data sent by API in json format.
+
+        The response we get while fetching notifications is of the following pattern:
+        {
+            "status": 0,
+            "result": [
+                {
+                    "from_guid": "<FROM GUID>",
+                    "description": "<SOME HTML CONTENT>",
+                    "time": "<RELATIVE TIME>",
+                    "image": "<IMAGE SRC>",
+                    "read": <STATUS REGARDING ITS READ/UNREAD STATE>
+                }
+            ]
+        }
         """
         elgg_id = request.user.colaraz_profile.elgg_id
         api_details = getattr(settings, 'COLARAZ_NOTIFICATIONS')
-        method_key = API_METHODS.get(api_method, None)
+        method_key = self.API_METHODS.get(api_method, None)
 
         if api_details and elgg_id and method_key:
             api_url = api_details.get('API_URL')
