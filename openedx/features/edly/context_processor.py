@@ -1,11 +1,8 @@
-from logging import getLogger
 from math import floor
 
 from django.conf import settings
 from django.core.cache import cache
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
-
-logger = getLogger(__name__)
 
 CACHE_NAME = 'context_processor.dynamic_theming'
 EDLY_CACHE_NAME = 'context_processor.edly_app'
@@ -32,13 +29,6 @@ def dynamic_theming_context(request):  # pylint: disable=unused-argument
     """
     theming_context = cache.get(CACHE_NAME)
     cache_timeout = configuration_helpers.get_value('EDLY_CACHE_TIMEOUT', DEFAULT_EDLY_CACHE_TIMEOUT)
-
-    logger.exception("-------------------------------------------------------------------------------")
-    logger.exception('Site : %s' % (request.site))
-    logger.exception('Colors : %s' % (configuration_helpers.get_configuration_dict('COLORS')))
-    logger.exception("-------------------------------------------------------------------------------")
-
-
     if not theming_context:
         theming_context = {}
         theming_context.update(
