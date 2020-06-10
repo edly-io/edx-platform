@@ -663,6 +663,7 @@ class CourseTabView(EdxFragmentView):
             page_context = self.create_page_context(request, course=course, tab=tab, **kwargs)
         tab = page_context['tab']
         page_context['fragment'] = fragment
+        page_context['is_user_active'] = request.user.is_active
         if self.uses_bootstrap(request, course, tab=tab):
             return render_to_response('courseware/tab-view.html', page_context)
         else:

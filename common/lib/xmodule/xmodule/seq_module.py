@@ -8,6 +8,7 @@ import json
 import logging
 from datetime import datetime
 
+from django.contrib.auth.models import User
 from lxml import etree
 from opaque_keys.edx.keys import UsageKey
 from pkg_resources import resource_string
@@ -341,6 +342,7 @@ class SequenceModule(SequenceFields, ProctoringFields, XModule):
 
         fragment = Fragment()
         items = self._render_student_view_for_items(context, display_items, fragment, view) if prereq_met else []
+        user = User.objects.get(username=context.get('username'))
         params = {
             'items': items,
             'element_id': self.location.html_id(),
@@ -353,7 +355,8 @@ class SequenceModule(SequenceFields, ProctoringFields, XModule):
             'banner_text': banner_text,
             'save_position': view != PUBLIC_VIEW,
             'show_completion': view != PUBLIC_VIEW,
-            'gated_content': self._get_gated_content_info(prereq_met, prereq_meta_info)
+            'gated_content': self._get_gated_content_info(prereq_met, prereq_meta_info),
+            'is_user_active': user.is_active
         }
         fragment.add_content(self.system.render_template("seq_module.html", params))
 
