@@ -43,6 +43,14 @@
     .page-header {
       border-bottom: 1px solid $border-color;
       padding: 20px;
+
+      .text {
+          display: block;
+          font-weight: 400;
+          font-size: $baseline;
+          line-height: $baseline*1.25;
+          padding-top: $baseline*0.5;
+      }
     }
 
     .page-content {

@@ -28,7 +28,15 @@
     // layout without actions
     .page-header {
       width: flex-grid(12);
-    }
+
+      .text {
+          display: block;
+          font-weight: 400;
+          font-size: $baseline;
+          line-height: $baseline*1.25;
+          padding-top: $baseline*0.5;
+        }
+      }
 
     // layout with actions
     &.has-actions {
