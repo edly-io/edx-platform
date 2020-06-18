@@ -44,7 +44,7 @@ from django.urls import reverse
             <button type="submit" class="btn cz-btn cz-btn-primary">Save</button>
             <a
                 class="btn cz-btn cz-btn-primary"
-                href="${reverse('colaraz_features:course-access-roles-delete', args=[','.join(str(obj.id) for obj in form.instances)])}"
+                href="${reverse('colaraz_features:course-access-roles-delete', args=[','.join(str(obj.id) for obj in form.instances),])}"
             >Delete</a>
         </div>
     </form>

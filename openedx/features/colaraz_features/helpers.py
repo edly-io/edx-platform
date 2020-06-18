@@ -1,31 +1,33 @@
 """
 Helper functions for colaraz app.
 """
-from collections import namedtuple
 import json
-import requests
 import logging
+from collections import namedtuple
 
-from django import forms
-from django.conf import settings
-from django.contrib.sites.models import Site
-from django.contrib.auth.models import User
-from django.http import QueryDict
-
+import requests
 from six import text_type
 from six.moves.urllib.parse import urlencode
 
-from organizations.models import Organization
-from student.roles import OrgRoleManagerRole, CourseCreatorRole
-from student.models import CourseAccessRole
-from opaque_keys.edx.django.models import CourseKeyField
+from django import forms
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.contrib.sites.models import Site
+from django.http import QueryDict
 from opaque_keys import InvalidKeyError
+from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.locator import CourseKey
-from xmodule.modulestore.django import modulestore
-
-from openedx.core.djangoapps.theming.models import SiteTheme
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
-from openedx.features.colaraz_features.constants import ALL_ORGANIZATIONS_MARKER, ROLES_FOR_LMS_ADMIN
+from openedx.core.djangoapps.theming.models import SiteTheme
+from openedx.features.colaraz_features.constants import (
+    ALL_ORGANIZATIONS_MARKER,
+    COURSE_ACCESS_ROLES_DISPLAY_MAPPING,
+    ROLES_FOR_LMS_ADMIN
+)
+from organizations.models import Organization
+from student.models import CourseAccessRole
+from student.roles import CourseCreatorRole, OrgRoleManagerRole
+from xmodule.modulestore.django import modulestore
 
 if settings.ROOT_URLCONF == 'lms.urls':
     from cms.djangoapps.course_creators.models import CourseCreator
@@ -37,6 +39,7 @@ else:
 Pair = namedtuple('Pair', 'lms studio')
 LMS_AND_STUDIO_SITE_PREFIXES = ('courses', 'studio')
 LOGGER = logging.getLogger(__name__)
+
 
 def do_sites_exists(domain):
     """
@@ -295,42 +298,63 @@ def get_or_create_course_access_role(staff, user_id, org, role, course_id=Course
     return instance
 
 
-def bulk_create_course_access_role(staff, user_id, org, roles, course_ids):
+def bulk_create_course_access_role(staff, user_id, org, roles, course_ids, created_roles=[]):
     """
     bulk create `CourseAccessRole` model instances.
 
     This method is placed here to create `CourseCreator` model instances along with newly create course_creator_group
     access roles.
     """
-    access_roles = []
+    def handle_course_creator_group():
+        try:
+            user_account = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return []
+        if CourseCreatorRole.ROLE in roles:
+            instance, _ = CourseAccessRole.objects.get_or_create(
+                course_id=CourseKeyField.Empty,
+                org='',
+                role=CourseCreatorRole.ROLE,
+                user_id=user_id
+            )
+            created_roles.append(instance)
+            update_or_create_course_creator(user_account, staff)
+            roles.remove(CourseCreatorRole.ROLE)
+        return roles
 
-    if not course_ids:
-        # create organization level course access roles
-        access_roles.extend([
-            CourseAccessRole(
-                user_id=user_id,
-                org=org,
-                role=role,
-            ) for role in roles
-        ])
-    else:
-        # Create course level access roles
+    def handle_org_roles():
+        course_roles = []
+        for role in roles:
+            if role.startswith('org_'):
+                org_role = role.replace('org_', '', 1)
+                instance, _ = CourseAccessRole.objects.get_or_create(
+                    course_id=CourseKeyField.Empty,
+                    org=org,
+                    role=org_role,
+                    user_id=user_id,
+                )
+                created_roles.append(instance)
+            else:
+                course_roles.append(role)
+        return course_roles
+
+    def handle_course_roles():
         for course_id in course_ids:
-            access_roles.extend([
-                CourseAccessRole(
+            for role in roles:
+                instance, _ = CourseAccessRole.objects.get_or_create(
                     user_id=user_id,
                     org=org,
                     role=role,
                     course_id=course_id,
-                ) for role in roles
-            ])
-    roles = CourseAccessRole.objects.bulk_create(access_roles)
+                )
+                created_roles.append(instance)
 
-    for role in roles:
-        if role.role == CourseCreatorRole.ROLE:
-            update_or_create_course_creator(role.user, staff)
+    roles = handle_course_creator_group()
+    roles = handle_org_roles()
+    if course_ids:
+        handle_course_roles()
 
-    return roles
+    return created_roles
 
 
 def update_or_create_course_creator(user, staff):
@@ -446,3 +470,8 @@ def get_role_based_urls(response):
     else:
         LOGGER.error('Parameters required to call Colaraz app links api were not complete')
     return {}
+
+def get_course_access_role_display_name(course_access_role):
+    role_name = course_access_role.role if course_access_role.course_id \
+        or course_access_role.role == CourseCreatorRole.ROLE else 'org_{}'.format(course_access_role.role)
+    return COURSE_ACCESS_ROLES_DISPLAY_MAPPING.get(role_name)

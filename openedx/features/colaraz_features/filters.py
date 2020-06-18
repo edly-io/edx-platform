@@ -1,6 +1,7 @@
 """
 Filters for Colaraz Views.
 """
+from django.db.models import Q
 from opaque_keys.edx.django.models import CourseKeyField
 from student.roles import OrgRoleManagerRole
 
@@ -61,7 +62,7 @@ class CourseAccessRoleFilterMixin(object):
              (QuerySet): Django queryset instance for CourseAccessRole model.
         """
         # Staff user can access everything.
-        return queryset
+        return queryset.exclude(role=OrgRoleManagerRole.ROLE)
 
     @staticmethod
     def apply_role_manager_filter(queryset, organizations):
@@ -76,4 +77,5 @@ class CourseAccessRoleFilterMixin(object):
              (QuerySet): Django queryset instance for CourseAccessRole model.
         """
         # Role manager can only maintain its own organization's access roles.
-        return queryset.filter(org__in=organizations)
+        return queryset.filter(user__colaraz_profile__site_identifier__in=organizations) \
+            .exclude(role=OrgRoleManagerRole.ROLE).filter(Q(org='') | Q(org__in=organizations))
