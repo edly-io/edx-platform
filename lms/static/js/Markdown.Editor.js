@@ -1127,7 +1127,11 @@
             cancelButton = document.getElementById('new-link-image-cancel');
 
             okButton.onclick = function() { return close(false); };
-            cancelButton.onclick = function() { return close(true); };
+            cancelButton.onclick = function() {
+                submitButton = document.getElementsByClassName('discussion-submit-post');
+                $(submitButton).attr('disabled', true);
+                return close(true);
+            };
 
             if (imageUploadHandler) {
               var descriptionFieldHasContent,
@@ -1162,6 +1166,8 @@
                       urlAndDescriptionFieldHasContent = (descriptionFieldHasContent && urlFieldHasContent);
 
                       if (imageAndDescriptionFieldHasContent || urlAndDescriptionFieldHasContent) {
+                        submitButton = document.getElementsByClassName('discussion-submit-post');
+                        $(submitButton).removeAttr('disabled');
                         okButton.disabled = false;
                       }
                     }
