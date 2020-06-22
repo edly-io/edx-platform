@@ -1127,50 +1127,17 @@
             cancelButton = document.getElementById('new-link-image-cancel');
 
             okButton.onclick = function() { return close(false); };
-            cancelButton.onclick = function() {
-                submitButton = document.getElementsByClassName('discussion-submit-post');
-                $(submitButton).attr('disabled', true);
-                return close(true);
-            };
+            cancelButton.onclick = function() { return close(true); };
 
             if (imageUploadHandler) {
-              var descriptionFieldHasContent,
-                valueOfUrlField,
-                urlFieldHasContent,
-                uploadFieldHasContent,
-                urlAndDescriptionFieldHasContent,
-                imageAndDescriptionFieldHasContent;
-                okButton.disabled = true;
                 var startUploadHandler = function() {
-                    document.getElementById('file-upload').onchange = function(event) {
+                    document.getElementById('file-upload').onchange = function() {
                         imageUploadHandler(this, urlInput);
                         urlInput.focus();
 
-                        descriptionFieldHasContent = $.trim(descInput.value).length;
-                        okButton.disabled = !(descriptionFieldHasContent && event.target.value.length);
                         // Ensures that a user can update their file choice.
                         startUploadHandler();
                     };
-
-                    urlInput.oninput = toggleSubmitButton;
-
-                    descInput.oninput = toggleSubmitButton;
-
-                    function toggleSubmitButton() {
-                      okButton.disabled=true;
-                      descriptionFieldHasContent = $.trim(descInput.value).length;
-                      valueOfUrlField = $.trim(urlInput.value);
-                      urlFieldHasContent = valueOfUrlField.replace(/^https?:\/\//i, '').length;
-                      uploadFieldHasContent = document.getElementById('file-upload').value.length;
-                      imageAndDescriptionFieldHasContent = (descriptionFieldHasContent && uploadFieldHasContent);
-                      urlAndDescriptionFieldHasContent = (descriptionFieldHasContent && urlFieldHasContent);
-
-                      if (imageAndDescriptionFieldHasContent || urlAndDescriptionFieldHasContent) {
-                        submitButton = document.getElementsByClassName('discussion-submit-post');
-                        $(submitButton).removeAttr('disabled');
-                        okButton.disabled = false;
-                      }
-                    }
                 };
                 startUploadHandler();
                 document.getElementById('file-upload-proxy').onclick = function() {
