@@ -20,6 +20,31 @@ from openedx.features.course_experience import course_home_page_title
 
 <%block name="content">
 <div class="course-view page-content-container" id="course-container">
+
+
+
+
+
+    ## Search box
+    % if settings.FEATURES.get('ENABLE_COURSEWARE_SEARCH'):
+    <div class="search-box main-search active">
+      <button type="button" class="search-opener"><span class="fa fa-search"></span></button>
+      <div class="forum-search">
+        <form class="search-form" role="search">
+            <label class="field-label sr-only" for="search" id="search-hint">${_('Search the course')}</label>
+            <input
+                    class="field-input input-text search-input"
+                    type="search"
+                    name="query"
+                    id="search"
+                    value="${query}"
+                    placeholder="${_('Search the course')}"
+            />
+            <button class="btn btn-small search-button" type="submit">${_('Search')}</button>
+        </form>
+      </div>
+    </div>
+    % endif
     <header class="page-header has-secondary">
         <div class="page-header-main">
             <nav aria-label="${_('Search Results')}" class="sr-is-focusable" tabindex="-1">
@@ -33,22 +58,6 @@ from openedx.features.course_experience import course_home_page_title
                     </div>
                 </div>
             </nav>
-        </div>
-        <div class="page-header-secondary">
-            <div class="page-header-search">
-                <form class="search-form" role="search">
-                    <label class="field-label sr-only" for="search" id="search-hint">${_('Search the course')}</label>
-                    <input
-                            class="field-input input-text search-field"
-                            type="search"
-                            name="query"
-                            id="search"
-                            value="${query}"
-                            placeholder="${_('Search the course')}"
-                    />
-                    <button class="btn btn-small search-button" type="submit">${_('Search')}</button>
-                </form>
-            </div>
         </div>
     </header>
     <div class="page-content">
