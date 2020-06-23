@@ -493,12 +493,13 @@
             };
 
             DiscussionContentShowView.prototype.getAuthorDisplay = function() {
-                return _.template($('#post-user-display-template').html())({
+                var author_link = _.template($('#post-user-display-template').html())({
                     username: this.model.get('username') || null,
-                    user_url: this.model.get('user_url'),
+                    user_url: '#',
                     is_community_ta: this.model.get('community_ta_authored'),
                     is_staff: this.model.get('staff_authored')
                 });
+                return author_link.replace('<a', '<a style="pointer-events: none;"');
             };
 
             DiscussionContentShowView.prototype.getEndorserDisplay = function() {
