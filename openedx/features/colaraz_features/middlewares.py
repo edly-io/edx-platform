@@ -28,10 +28,18 @@ class ColarazAuthenticationMiddleware(object):
         """
         if getattr(settings, 'COLARAZ_ENABLE_AUTH_MIDDLEWARE', False):
             user = request.user
-            
+
             # Blocking all the paths which need to be shown to logged in users only
             blocked_sub_paths = getattr(settings, 'COLARAZ_BLOCKED_SUB_PATHS', [])
             blocked_full_paths = getattr(settings, 'COLARAZ_BLOCKED_FULL_PATHS', [])
+            allowed_paths = getattr(settings, 'COLARAZ_ALLOWED_SUB_PATHS', [])
+
+            # Allow API calls
+            # Allowed URLS will have high priority over blocked URLS.
+            if(any([allowed_path in request.path for allowed_path in allowed_paths])):
+                return
+
+            # Blocking all the paths which need to be shown to logged in users only
             is_blocked = [blocked_path in request.path for blocked_path in blocked_sub_paths]
             is_blocked += [blocked_path == request.path for blocked_path in blocked_full_paths]
 
@@ -42,7 +50,7 @@ class ColarazAuthenticationMiddleware(object):
             elif user.is_authenticated and not user.is_superuser:
                 request_site_domain = self._get_request_site_domain(request)
                 user_site_identifier, is_new_user = self._get_user_site_identifier(user, request.session)
-                if not is_new_user and not (user_site_identifier and request_site_domain and 
+                if not is_new_user and not (user_site_identifier and request_site_domain and
                         request_site_domain.startswith(user_site_identifier)):
                     LOGGER.error('User "{}" site identifier or request site do not match'.format(user.username))
                     return self._redirect_to_user_lms_domain(request, user_site_identifier)
@@ -51,7 +59,7 @@ class ColarazAuthenticationMiddleware(object):
     def _redirect_to_login(self, request):
         """
         Returns HttpResponseRedirect object, redirecting User to third-party-auth
-        identity provider on the basis of 'COLARAZ_AUTH_PROVIDER_BACKEND_NAME' or 
+        identity provider on the basis of 'COLARAZ_AUTH_PROVIDER_BACKEND_NAME' or
         raising Http404 page in-case auth provider isn't configured properly.
         """
         backend_name = getattr(settings, 'COLARAZ_AUTH_PROVIDER_BACKEND_NAME', None)
@@ -101,7 +109,7 @@ class ColarazAuthenticationMiddleware(object):
         domain = self._get_request_site_domain(request)
 
         return '{}://{}{}'.format(schema, domain, request.path)
-        
+
     def _get_user_site_identifier(self, user, session):
         """
         Returns domain of site associated with the User.
