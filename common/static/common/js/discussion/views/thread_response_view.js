@@ -52,7 +52,6 @@
             ThreadResponseView.prototype.events = {
                 'click .discussion-submit-comment': 'submitComment',
                 'focus .wmd-input': 'showEditorChrome',
-                'input .wmd-input': 'toggleCommentSubmitButton'
             };
 
             ThreadResponseView.prototype.$ = function(selector) {
@@ -180,13 +179,6 @@
                 this.focusToTheCommentResponse(view.$el.closest('.forum-response'));
                 DiscussionUtil.typesetMathJax(view.$el.find('.response-body'));
                 return view;
-            };
-
-            ThreadResponseView.prototype.toggleCommentSubmitButton = function(event) {
-              var id = event.target.id.split('-').slice(-1)[0],
-                querySelector = 'form[data-id="' + id + '"] .discussion-submit-comment',
-                commentButton = document.querySelector(querySelector);
-                commentButton.disabled = !($.trim(event.target.value).length);
             };
 
             ThreadResponseView.prototype.submitComment = function(event) {

@@ -65,8 +65,7 @@
                 'click .add-response-btn': 'scrollToAddResponse',
                 'keydown .wmd-button': function(event) {
                     return DiscussionUtil.handleKeypressInToolbar(event);
-                },
-                'input .discussion-reply-new .wmd-input': 'toggleResponseSubmitButton'
+                }
             };
 
             DiscussionThreadView.prototype.$ = function(selector) {
@@ -345,11 +344,6 @@
 
             DiscussionThreadView.prototype.endorseThread = function() {
                 return this.model.set('endorsed', this.$el.find('.action-answer.is-checked').length > 0);
-            };
-
-            DiscussionThreadView.prototype.toggleResponseSubmitButton = function(event) {
-                var postButton = $('.discussion-submit-post');
-                postButton.attr('disabled', !(event.target.value.length));
             };
 
             DiscussionThreadView.prototype.submitComment = function(event) {
