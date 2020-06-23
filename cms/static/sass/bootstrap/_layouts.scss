@@ -183,10 +183,6 @@
         }
       }
 
-      .navigation-link:hover {
-        color: theme-color("primary");
-      }
-
       .navigation-item::before {
         content: " / ";
         margin: ($baseline/4);

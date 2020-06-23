@@ -225,6 +225,9 @@
 
   .handouts-content {
     @extend %t-copy-sub1;
+    img {
+      max-width: 100%;
+    }
   }
 
   .treeview-handoutsnav li {
