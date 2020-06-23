@@ -1579,6 +1579,7 @@ COLARAZ_ENABLE_AUTH_MIDDLEWARE = False
 COLARAZ_AUTH_PROVIDER_BACKEND_NAME = None
 COLARAZ_BLOCKED_SUB_PATHS = ['/course', '/home']
 COLARAZ_BLOCKED_FULL_PATHS = ['/']
+COLARAZ_ALLOWED_SUB_PATHS = ['/api/commerce']
 
 ############## Installed Django Apps #########################
 

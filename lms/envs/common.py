@@ -3531,6 +3531,7 @@ COLARAZ_ENABLE_AUTH_MIDDLEWARE = False
 COLARAZ_AUTH_PROVIDER_BACKEND_NAME = None
 COLARAZ_BLOCKED_SUB_PATHS = ['/courses']
 COLARAZ_BLOCKED_FULL_PATHS = ['/', '/login']
+COLARAZ_ALLOWED_SUB_PATHS = ['/api/commerce']
 
 ############## Plugin Django Apps #########################
 
