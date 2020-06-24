@@ -2,33 +2,37 @@
 Django views for colaraz features application
 """
 import json
+
 from requests.models import PreparedRequest
 
-from django.conf import settings
-from django.urls import reverse, reverse_lazy
-from django.views.generic.base import RedirectView
-from django.views.generic import ListView
-from django.views.generic.edit import CreateView, UpdateView, DeleteView
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect
-from django.http import JsonResponse, HttpResponseBadRequest
-from django.views import View
-
-from student.models import CourseAccessRole
-from student.helpers import get_next_url_for_login_page
-from edxmako.shortcuts import Engines
-
 import third_party_auth
-from openedx.features.colaraz_features.helpers import get_site_base_url
-from openedx.features.colaraz_features.forms import ColarazCourseAccessRoleForm
-from openedx.features.colaraz_features.filters import CourseAccessRoleFilterMixin
-from openedx.features.colaraz_features.permissions import IsAdminOrOrganizationalRoleManager
-from openedx.features.colaraz_features.helpers import (
-    get_user_organizations, get_organization_users, notify_access_role_deleted,
-)
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Count
+from django.http import HttpResponseBadRequest, JsonResponse
+from django.shortcuts import redirect
+from django.urls import reverse, reverse_lazy
+from django.views import View
+from django.views.generic import ListView
+from django.views.generic.base import RedirectView
+from django.views.generic.edit import CreateView, DeleteView, UpdateView
+from edxmako.shortcuts import Engines
 from openedx.features.colaraz_features.constants import ALL_ORGANIZATIONS_MARKER
 from openedx.features.colaraz_features.exceptions import HttpBadRequest
-
+from openedx.features.colaraz_features.filters import CourseAccessRoleFilterMixin
+from openedx.features.colaraz_features.forms import ColarazCourseAccessRoleForm
+from openedx.features.colaraz_features.helpers import (
+    get_course_access_role_display_name,
+    get_organization_users,
+    get_site_base_url,
+    get_user_organizations,
+    notify_access_role_deleted
+)
+from openedx.features.colaraz_features.permissions import IsAdminOrOrganizationalRoleManager
+from student.helpers import get_next_url_for_login_page
+from student.models import CourseAccessRole
+from student.roles import CourseCreatorRole
 
 class AuthProviderLogoutRedirectView(RedirectView):
 
@@ -110,21 +114,84 @@ class ColarazFormViewMixin(object):
         return kwargs
 
 
+
+class CourseAccessRolesPaginator(Paginator):
+
+    def __init__(self, object_list, per_page, orphans=0, allow_empty_first_page=True):
+        records = {}
+        course_creator_roles = {}
+        org_roles = []
+        for obj in object_list:
+            if obj.role == CourseCreatorRole.ROLE:
+                course_creator_roles.update({obj.user.email: obj})
+                continue
+            email_id = obj.user.email
+            course_id = str(obj.course_id) if obj.course_id else '-'
+            key = '{},{},{}'.format(email_id, course_id, obj.org)
+            record = records.get(key, {})
+            role = get_course_access_role_display_name(obj)
+            record['email'] = email_id
+            record['username'] = obj.user.profile.name or obj.user.username
+            record['orgs'] = self._append_list(record.get('orgs', []), obj.org)
+            record['roles'] = self._append_list(record.get('roles', []), role)
+            record['ids'] = self._append_list(record.get('ids', []), str(obj.id))
+            if not obj.course_id:
+                org_roles.append(record)
+
+            records.update({key: record})
+        
+        used_roles_email_ids = []
+        for org_role in org_roles:
+            if course_creator_roles.has_key(org_role.get('email')):
+                creator_role = course_creator_roles.get(org_role.get('email'))
+                used_roles_email_ids.append(org_role.get('email'))
+                role_display_name = get_course_access_role_display_name(creator_role)
+                org_role['roles'] = self._append_list(org_role.get('roles', []), role_display_name)
+                org_role['ids'] = self._append_list(org_role.get('ids', []), str(creator_role.id))
+        
+        for email, role in course_creator_roles.items():
+            if email not in used_roles_email_ids:
+                records.update({
+                    '{},-,-'.format(email): {
+                        'username': role.user.profile.name or role.user.username,
+                        'ids': [str(role.id)],
+                        'roles': [role.role],
+                        'orgs': []
+                    }
+                })
+
+        obj_list = []
+        for key in sorted(records.keys()):
+            obj_list.append({key: records[key]})
+
+        super(CourseAccessRolesPaginator, self).__init__(
+            obj_list, per_page, orphans,
+            allow_empty_first_page
+        )
+
+    @staticmethod
+    def _append_list(record, role):
+        if role and role not in record:
+            record.append(role)
+        return record
+
+
 class CourseAccessRoleListView(BaseViewMixin, CourseAccessRoleFilterMixin, ListView):
     """
     Handle requests to course access role management.
     """
     template_name = 'course-access-roles-list.html'
     model = CourseAccessRole
-    paginate_by = 25
-    ordering = '-id'
+    paginate_by = 20
+    paginator_class = CourseAccessRolesPaginator
+    ordering = ['user', 'course_id']
 
     def get_paginate_by(self, queryset):
         """
         Get the number of items to paginate by, or ``None`` for no pagination.
         """
-        return self.paginate_by if queryset.count() > self.paginate_by else None
-
+        return self.paginate_by
+        
     def get_queryset(self):
         """
         Return the list of items for this view. Apply search on queryset.
@@ -156,6 +223,23 @@ class CourseAccessRoleUpdateView(BaseViewMixin, CourseAccessRoleFilterMixin, Col
 
     success_url = reverse_lazy('colaraz_features:course-access-roles-list')
 
+    def get_object(self):
+        queryset = super(CourseAccessRoleUpdateView, self).get_queryset()
+
+        pk = self.kwargs.get(self.pk_url_kwarg, '')
+        try:
+            ids = [int(key) for key in pk.split(',') if key.strip()]
+        except (TypeError, ValueError):
+            raise HttpBadRequest('Invalid Request URL')
+        
+        if not ids:
+            raise HttpBadRequest('Invalid Request URL')
+
+        queryset = queryset.filter(id__in=ids)
+        if len(queryset) > 0:
+            return queryset
+        
+        raise HttpBadRequest('Invalid Request URL')
 
 class CourseAccessRoleDeleteView(BaseViewMixin, CourseAccessRoleFilterMixin, DeleteView):
     """

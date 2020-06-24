@@ -1,6 +1,7 @@
 <%inherit file="/main.html" />
 <%!
 from django.urls import reverse
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 %>
 <%namespace name='static' file='/static_content.html'/>
 
@@ -40,28 +41,34 @@ from django.urls import reverse
         </div>
     </div>
     <table class="table">
+        <% show_org = configuration_helpers.get_value('SHOW_ORG_IN_COURSE_PRIVILEGES', False) %>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Org</th>
+                <th>User Email</th>
+                <th>Username</th>
+                %if show_org:
+                    <th>Org</th>
+                %endif
                 <th>Course ID</th>
                 <th class="role">Role</th>
             </tr>
         </thead>
         <tbody>
-            %for access_role in object_list:
-                <tr>
-                    <td>
-                        <a
-                            href="${reverse('colaraz_features:course-access-roles-update', args=(access_role.id,))}"
-                        >${access_role.id}</a>
-                    </td>
-                    <td>${access_role.user and access_role.user.email}</td>
-                    <td>${access_role.org or "-"}</td>
-                    <td>${access_role.course_id or "-"}</td>
-                    <td class="role">${access_role.role}</td>
-                </tr>
+            %for formatted_records in object_list:
+                %for key, value  in formatted_records.items():
+                    <% email, course, org = key.split(',') %>
+                    <tr>
+                        <td><a href="${reverse('colaraz_features:course-access-roles-update', args=(','.join(value.get('ids')),))}">${email}</a></td>
+                        <td>${value.get('username')}</td>
+                        %if show_org:
+                            <td>${' , '.join(value.get('orgs')) or '-'}</td>
+                        %endif
+                        <td>${course or '-'}</td>
+                        <td class="role">
+                            ${' , '.join(value.get('roles'))}
+                        </td>
+                    </tr>
+                %endfor
             %endfor
         </tbody>
     </table>

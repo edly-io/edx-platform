@@ -18,12 +18,12 @@ urlpatterns = [
         name='course-access-roles-create'
     ),
     url(
-        r'^course-access-roles/(?P<pk>\d+)/edit/$',
+        r'^course-access-roles/(?P<pk>[\d,]+)/edit/$',
         views.CourseAccessRoleUpdateView.as_view(),
         name='course-access-roles-update'
     ),
     url(
-        r'^course-access-roles/(?P<pk>(\d+,?)+)/delete/$',
+        r'^course-access-roles/(?P<pk>[\d,]+)/delete/$',
         views.CourseAccessRoleDeleteView.as_view(),
         name='course-access-roles-delete'
     ),

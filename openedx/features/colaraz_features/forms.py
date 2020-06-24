@@ -2,23 +2,27 @@
 Serializers for colaraz application.
 """
 from django import forms
-from django.db import transaction
-from django.utils.safestring import mark_safe
-from django.db.models import Count
 from django.contrib.auth.models import User
-
-from student.models import CourseAccessRole
-from student.roles import REGISTERED_ACCESS_ROLES
-
+from django.db import transaction
+from django.db.models import Q
+from django.utils.safestring import mark_safe
 from opaque_keys.edx.django.models import CourseKeyField
-
-from openedx.features.colaraz_features.helpers import (
-    get_user_organizations, get_or_create_course_access_role, bulk_create_course_access_role
-)
 from openedx.features.colaraz_features.constants import (
-    ALL_ORGANIZATIONS_MARKER, EMPTY_OPTION, LMS_ADMIN_ROLE, ROLES_FOR_LMS_ADMIN
+    ALL_ORGANIZATIONS_MARKER,
+    ALL_ROLES,
+    COURSE_ROLES,
+    EMPTY_OPTION,
+    GLOBAL_ROLES,
+    ORG_ROLES
 )
 from openedx.features.colaraz_features.fields import MultipleChoiceCourseIdField
+from openedx.features.colaraz_features.helpers import (
+    bulk_create_course_access_role,
+    get_user_organizations,
+    revoke_course_creator_access
+)
+from student.models import CourseAccessRole
+from student.roles import CourseCreatorRole
 
 
 class ColarazCourseAccessRoleForm(forms.Form):
@@ -39,7 +43,7 @@ class ColarazCourseAccessRoleForm(forms.Form):
     )
 
     roles = forms.MultipleChoiceField(
-        choices=[(role_name, role_name) for role_name in REGISTERED_ACCESS_ROLES.keys()],
+        choices=ALL_ROLES,
         label='Roles',
         label_suffix=' *',
         widget=forms.CheckboxSelectMultiple(),
@@ -47,17 +51,16 @@ class ColarazCourseAccessRoleForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user')
-        self.instance = kwargs.pop('instance')
-        self.instances = None
-        self.populate_instances()
+        self.instances = kwargs.pop('instance')
+        self.instance = self.instances.first() if self.instances else None
 
-        if self.instance is not None and self.instances is not None:
+        if self.instance:
             initial = kwargs.get('kwargs', None)
             model_data = {
                 'user': self.instance.user.id,
-                'org': self.instance.org,
-                'course_ids': list({str(role.course_id) for role in self.instances if role.course_id}),
-                'roles': [role.role for role in self.instances],
+                'org': self._get_selected_user_org(),
+                'course_ids': self._get_selected_course_ids(),
+                'roles': self._get_selected_roles(),
             }
             if initial:
                 model_data.update(initial)
@@ -69,14 +72,33 @@ class ColarazCourseAccessRoleForm(forms.Form):
             self.user_organizations = get_user_organizations(self.user)
 
         # Pre Populate input fields
-        self.__pre_populate_roles()
-        self.__pre_populate_org()
-        self.__pre_populate_course_id(kwargs)
-        self.__pre_populate_user_options(kwargs)
+        self._pre_populate_roles_choices()
+        self._pre_populate_org()
+        self._pre_populate_course_id_choices(kwargs)
+        self._pre_populate_user_options(kwargs)
 
         super(ColarazCourseAccessRoleForm, self).__init__(*args, **kwargs)
 
-    def __pre_populate_user_options(self, init_kwargs):
+    def _get_selected_user_org(self):
+        return self.instance.org or self.instance.user.colaraz_profile.site_identifier
+
+    def _get_selected_roles(self):
+        selected_roles = []
+        for instance in self.instances:
+            if not instance.course_id and instance.role != CourseCreatorRole.ROLE:
+                selected_roles.append('org_{}'.format(instance.role))
+            else:
+                selected_roles.append(instance.role)
+        return selected_roles
+
+    def _get_selected_course_ids(self):
+        selected_course_ids = []
+        for instance in self.instances:
+            if instance.course_id and str(instance.course_id) not in selected_course_ids:
+                selected_course_ids.append(str(instance.course_id))
+        return selected_course_ids
+
+    def _pre_populate_user_options(self, init_kwargs):
         """
         Populate options for user select input.
         """
@@ -95,21 +117,19 @@ class ColarazCourseAccessRoleForm(forms.Form):
 
         # add an empty option to avoid auto selection in the browser.
         self.declared_fields['user'].choices = [EMPTY_OPTION] + user_options
+        self.declared_fields['user'].disabled = True if self.instance else False
 
-    def __pre_populate_roles(self):
+    def _pre_populate_roles_choices(self):
         """
         Populate roles input field.
         """
-        # We need to remove the LMS Admin choice explicitly, otherwise it will appear on update page and
-        # duplicated options on create page.
-        self.declared_fields['roles'].choices = [
-            choice for choice in self.declared_fields['roles'].choices if LMS_ADMIN_ROLE not in choice
-        ]
-        if self.instance is None:
-            # Add LMS Admin role to the option for create page.
-            self.declared_fields['roles'].choices += [(LMS_ADMIN_ROLE, LMS_ADMIN_ROLE)]
+        choices = ALL_ROLES
+        if self.instance:
+            choices = COURSE_ROLES if self.instance.course_id else ORG_ROLES + GLOBAL_ROLES
 
-    def __pre_populate_org(self):
+        self.declared_fields['roles'].choices = choices
+
+    def _pre_populate_org(self):
         """
         Populate org input field.
         """
@@ -117,81 +137,25 @@ class ColarazCourseAccessRoleForm(forms.Form):
             # Disable Org field if user can use only a single organization.
             self.declared_fields['org'].initial = self.user_organizations.copy().pop()
             self.declared_fields['org'].disabled = True
+        elif not self.instance:
+            self.declared_fields['org'].initial = ''
+            self.declared_fields['org'].disabled = False
+        else:
+            self.declared_fields['org'].disabled = True
 
-    def __pre_populate_course_id(self, init_kwargs):
+    def _pre_populate_course_id_choices(self, init_kwargs):
         """
         Populate course id input field.
         """
         initial = init_kwargs.get('initial', {})
         # Incoming data should always get priority, do not change the order of if-else
-        if 'data' in init_kwargs and 'course_ids' in init_kwargs['data']:
+        if 'data' in init_kwargs and init_kwargs['data'].get('course_ids'):
             course_ids = init_kwargs['data'].getlist('course_ids')
             self.declared_fields['course_ids'].choices = [(course_id, course_id) for course_id in course_ids]
-        elif initial and 'course_ids' in initial:
+        elif initial and initial.get('course_ids'):
             self.declared_fields['course_ids'].choices = [(course_id, course_id) for course_id in initial['course_ids']]
 
-    def populate_instances(self):
-        """
-        Populate `instances` attribute for the form. It should contain list of all the instances being updated.
-        """
-        if self.instance is not None:
-            # We are on the update page.
-            if not self.instance.course_id:
-                # If course id is not present then we are updating organization level access roles.
-                # So pick all of the organization level courses belonging to the given user.
-                self.instances = CourseAccessRole.objects.filter(
-                    user=self.instance.user,
-                    org=self.instance.org,
-                    course_id=CourseKeyField.Empty
-                )
-            else:
-                # Otherwise we need to pick all the course level access roles
-                # We need to provide the ability to have course access roles that provide
-                # different permissions to different courses for the same user and organization.
-
-                # First, get all the roles assigned to the current user for the course on self.instance
-                roles = set(CourseAccessRole.objects.filter(
-                    user=self.instance.user,
-                    org=self.instance.org,
-                    course_id=self.instance.course_id,
-                ).values_list('role', flat=True))
-
-                access_roles = CourseAccessRole.objects.filter(
-                    user=self.instance.user,
-                    org=self.instance.org,
-                ).exclude(
-                    course_id=CourseKeyField.Empty
-                ).values(
-                    'course_id'
-                ).annotate(
-                    role_count=Count('role')
-                )
-
-                courses_to_include = [self.instance.course_id]
-                instance_role_count = len(roles)  # This is used just for caching length of roles.
-                for item in access_roles:
-                    if item['role_count'] == instance_role_count:
-                        # In order for the course access roles to be added to update page,
-                        # they need to be exactly same for all courses. otherwise, bugs will appear.
-                        # Check that roles are exactly the same along with the role count.
-                        # we have to make a db query for this.
-                        course_roles = set(CourseAccessRole.objects.filter(
-                            user=self.instance.user,
-                            org=self.instance.org,
-                            course_id=item['course_id'],
-                        ).values_list('role', flat=True))
-                        if course_roles == roles:
-                            # if instance roles and the course roles are exactly
-                            # the same then we can add them to update on the same page
-                            courses_to_include.append(item['course_id'])
-
-                self.instances = CourseAccessRole.objects.filter(
-                    user=self.instance.user,
-                    org=self.instance.org,
-                    course_id__in=courses_to_include,
-                ).exclude(
-                    course_id=CourseKeyField.Empty
-                )
+        self.declared_fields['course_ids'].disabled = True if self.instance else False
 
     def clean_course_ids(self):
         """
@@ -232,29 +196,6 @@ class ColarazCourseAccessRoleForm(forms.Form):
         """
         cleaned_data = super(ColarazCourseAccessRoleForm, self).clean()
 
-        roles = cleaned_data.get('roles', [])
-        if LMS_ADMIN_ROLE in roles and cleaned_data.get('course_ids'):
-            raise forms.ValidationError(
-                '{} role can only be assigned on the organization level, '
-                'please remove course selection to proceed.'.format(LMS_ADMIN_ROLE)
-            )
-        elif LMS_ADMIN_ROLE in roles:
-            roles = self.cleaned_data.get('roles', [])
-            roles.extend(ROLES_FOR_LMS_ADMIN)
-            roles = set(roles)  # Remove duplicates
-            roles.remove(LMS_ADMIN_ROLE)  # Remove LMS Admin Role
-
-            if CourseAccessRole.objects.filter(
-                user_id=cleaned_data.get('user'),
-                org=cleaned_data.get('org'),
-                role__in=ROLES_FOR_LMS_ADMIN
-            ).exists():
-                raise forms.ValidationError(
-                    '{} role can not be assigned to the selected user as some or all of roles of the lms admin'
-                    ' are already assigned to the selected user.'.format(LMS_ADMIN_ROLE, )
-                )
-            cleaned_data['roles'] = list(roles)
-
         org_names = {c.org.lower() for c in cleaned_data.get('course_ids', [])}
         org = cleaned_data['org']
 
@@ -266,20 +207,33 @@ class ColarazCourseAccessRoleForm(forms.Form):
             )
 
         if not self.errors and not self.instance:
+            selected_roles = cleaned_data.get('roles')
+            org_roles = [role.replace('org_', '', 1) for role in selected_roles
+                         if role in [index[0] for index in ORG_ROLES]]
+
             duplicate_roles = CourseAccessRole.objects.filter(
+                Q(
                     user_id=cleaned_data.get('user'),
                     org=cleaned_data.get('org'),
                     course_id__in=cleaned_data.get('course_ids'),
-                    role__in=cleaned_data.get('roles')
-            ).all()
+                    role__in=selected_roles,
+                ) | Q(
+                    user_id=cleaned_data.get('user'),
+                    course_id=CourseKeyField.Empty,
+                    role__in=org_roles,
+                ) & Q(
+                    Q(org=cleaned_data.get('org')) | Q(org='')
+                )
+            )
+
             if len(duplicate_roles) > 0:
                 raise forms.ValidationError(
                     mark_safe(
                         'Given user already has the following access for the given organization.'
-                        '<ul><li>{}</li></ul>'.format(
-                            '</li>'.join(
+                        '<ul>{}</ul>'.format(
+                            ''.join(
                                 [
-                                    '<strong>Course Id:</strong> {}, <strong>Role:</strong> {}'.format(
+                                    '<li><strong>Course Id:</strong> {}, <strong>Role:</strong> {}</li>'.format(
                                         role.course_id, role.role
                                     ) for role in duplicate_roles
                                 ]
@@ -316,53 +270,40 @@ class ColarazCourseAccessRoleForm(forms.Form):
         """
         Create a bunch of course access roles, and return a single instance from them.
         """
-        roles = bulk_create_course_access_role(
+        created_roles = bulk_create_course_access_role(
             self.user,
             user_id=self.cleaned_data['user'],
             org=self.cleaned_data['org'],
             roles=self.cleaned_data.get('roles', []),
             course_ids=self.cleaned_data.get('course_ids', [])
         )
-
-        return roles[0] if len(roles) > 0 else None
+        return created_roles[0] if len(created_roles) > 0 else None
 
     def update(self):
         """
         Update course access roles, deleting the ones removed by the user and return one instance.
         """
-        # if user or org has changed then delete all the roles that match self.instances and create new ones.
-        if str(self.instance.user.id) != self.cleaned_data['user'] or self.instance.org != self.cleaned_data['org']:
-            self.instances.delete()
-            return self.create()
+        def _is_course_creator_role_changed(initial_state, final_state):
+            return CourseCreatorRole.ROLE in initial_state.get('roles', []) \
+                and CourseCreatorRole.ROLE not in final_state.get('roles', [])
 
-        instance = None
-        if not self.instance.course_id:
-            # We are on the organization level course access role management page.
-            self.instances.exclude(
-                role__in=self.cleaned_data.get('roles', [])
-            ).delete()
+        if _is_course_creator_role_changed(self.initial, self.cleaned_data):
+            revoke_course_creator_access(self.instance.user, self.user)
+            self.instances.filter(role=CourseCreatorRole.ROLE).delete()
 
-            for role in self.cleaned_data.get('roles', []):
-                instance = get_or_create_course_access_role(
-                    self.user,
-                    user_id=self.cleaned_data['user'],
-                    org=self.cleaned_data['org'],
-                    role=role,
-                )
-        else:
-            # We are on course level access roles page.
-            self.instances.exclude(
-                role__in=self.cleaned_data.get('roles', []),
-                course_id__in=self.cleaned_data.get('course_ids', [])
-            ).delete()
+        cleaned_roles = []
+        for role in self.cleaned_data.get('roles', []):
+            cleaned_roles.append(role.replace('org_', '', 1) if role.startswith('org_') else role)
 
-            for course_id in self.cleaned_data.get('course_ids', []):
-                for role in self.cleaned_data.get('roles', []):
-                    instance = get_or_create_course_access_role(
-                        self.user,
-                        user_id=self.cleaned_data['user'],
-                        org=self.cleaned_data['org'],
-                        role=role,
-                        course_id=course_id,
-                    )
-        return instance
+        self.instances.exclude(
+            role__in=cleaned_roles,
+        ).delete()
+
+        created_roles = bulk_create_course_access_role(
+            self.user,
+            user_id=self.cleaned_data['user'],
+            org=self.cleaned_data['org'],
+            roles=self.cleaned_data.get('roles', []),
+            course_ids=self.cleaned_data.get('course_ids', [])
+        )
+        return created_roles[0] if len(created_roles) > 0 else None
