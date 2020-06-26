@@ -209,7 +209,7 @@ class ColarazCourseAccessRoleForm(forms.Form):
         if not self.errors and not self.instance:
             selected_roles = cleaned_data.get('roles')
             org_roles = [role.replace('org_', '', 1) for role in selected_roles
-                         if role in [index[0] for index in ORG_ROLES]]
+                         if role in [index[0] for index in ORG_ROLES + GLOBAL_ROLES]]
 
             duplicate_roles = CourseAccessRole.objects.filter(
                 Q(
