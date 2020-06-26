@@ -68,10 +68,11 @@ class NotificationHandlerApiView(APIView):
         }
         """
         elgg_id = request.user.colaraz_profile.elgg_id
-        api_details = getattr(settings, 'COLARAZ_NOTIFICATIONS')
-        method_key = self.API_METHODS.get(api_method, None)
+        api_details = getattr(settings, 'COLARAZ_NOTIFICATIONS', {})
+        is_enabled = api_details.get('ENABLE', False)
+        method_key = self.API_METHODS.get(api_method)
 
-        if api_details and elgg_id and method_key:
+        if is_enabled and elgg_id and method_key:
             api_url = api_details.get('API_URL')
             query_params = urlencode({
                 'api_key': api_details.get('API_KEY'),
@@ -90,9 +91,9 @@ class NotificationHandlerApiView(APIView):
             else:
                 LOGGER.error('Notifications API returned {} status'.format(resp.status_code))
         else:
-            LOGGER.error('Notifications API parameters are not complete or configured properly')
+            LOGGER.error('Notifications API is not enabled or is not configured properly')
         return Response(
-            {'message': 'Notifications API is not configured properly'},
+            {'message': 'Notifications API is not enabled or is not configured properly'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -128,11 +129,12 @@ class JobAlertsHandlerApiView(APIView):
         }
         """
         email_id = request.user.email
-        api_details = getattr(settings, 'COLARAZ_JOB_ALERTS', None)
+        api_details = getattr(settings, 'COLARAZ_JOB_ALERTS', {})
+        is_enabled = api_details.get('ENABLE', False)
         method_key = self.API_ENDPOINTS.get(api_method)
         api_url = api_details.get(method_key)
 
-        if api_details and email_id and api_url:
+        if is_enabled and email_id and api_url:
             resp = requests.post(api_url, json={'email': email_id})
             json_data = json.loads(resp.content)
             if resp.status_code == status.HTTP_200_OK:
@@ -144,9 +146,9 @@ class JobAlertsHandlerApiView(APIView):
                     )
                 )
         else:
-            LOGGER.error('Job Alerts API parameters are not complete or configured properly')
+            LOGGER.error('Job Alerts API is not enabled or is not configured properly')
 
         return Response(
-            {'message': 'Job Alerts API is not configured properly'},
+            {'message': 'Job Alerts API is not enabled or is not configured properly'},
             status=status.HTTP_400_BAD_REQUEST
         )
