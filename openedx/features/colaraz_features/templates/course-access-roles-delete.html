@@ -32,6 +32,10 @@ from django.urls import reverse
         </table>
         <div class="privileges-footer">
             <button type="submit" class="btn cz-btn cz-btn-primary">Delete</button>
+            <a
+                class="btn cz-btn cz-btn-primary"
+                href="${reverse('colaraz_features:course-access-roles-update', args=[','.join(str(obj.id) for obj in objects),])}"
+            >Cancel</a>
         </div>
     </form>
 </section>
