@@ -44,23 +44,49 @@ from openedx.core.djangolib.markup import HTML
         <header class="page-header has-secondary">
             ## Breadcrumb navigation
             <div class="page-header-main">
-                <nav aria-label="${_('Discussions')}" class="sr-is-focusable" tabindex="-1">
+                <nav aria-label="${_('Discussions')}" class="sr-is-focusable " tabindex="-1">
                     <div class="has-breadcrumbs"></div>
-                    <div class="select-box">
-                      <select class="cz-custom-select">
-                        <option value="">All Topics</option>
-                      </select>
+
+                    <div class="dropdown" style="float: left">
+                        <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">All Topics
+                            <span class="caret"></span></button>
+                        <ul class="dropdown-menu" style="width: 300px;">
+                            <input class="form-control" id="all-topics-filter" type="text" placeholder="Filter..">
+                            <span id="all-topics-main">
+                            </span>
+                        </ul>
                     </div>
-                    <div class="select-box">
-                      <select class="cz-custom-select">
-                        <option value="">All Discussions</option>
-                      </select>
+
+                    <div class="dropdown" style="float: left; padding-left: 15px;">
+                        <button class="btn dropdown-toggle" type="button" data-toggle="dropdown">All Discussions
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu" id="all-discussions-main" style="width: 300px; max-height: 310px; overflow: auto;">
+                             <li id="ca-no-posts" class="forum-nav-thread" style="user-select: auto;">
+                                  <a href="#" class="forum-nav-thread-link" style="user-select: auto;">
+                                    <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                      <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                                    </div>
+                                  </a>
+                                </li>
+                        </ul>
                     </div>
-                    <div class="select-box">
-                      <select class="cz-custom-select">
-                        <option value="">Posts I am Following</option>
-                      </select>
+
+                    <div class="dropdown" style="float: left; padding-left: 15px;">
+                        <button class="btn dropdown-toggle" type="button" data-toggle="dropdown">Posts I am Following
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu" id="posts-following-main" style="width: 300px; max-height: 310px; overflow: auto;">
+                             <li id="ca-no-posts" class="forum-nav-thread" style="user-select: auto;">
+                                  <a href="#" class="forum-nav-thread-link" style="user-select: auto;">
+                                    <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                      <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                                    </div>
+                                  </a>
+                                </li>
+                        </ul>
                     </div>
+
                 </nav>
             </div>
             <div class="page-header-secondary">
