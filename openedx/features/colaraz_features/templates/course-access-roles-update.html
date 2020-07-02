@@ -24,12 +24,18 @@ from django.urls import reverse
         });
     });
     $(document).ready(function() {
-        $('select#id_course_ids').select2({
-            tags: true,
-            tokenSeparators: [',', ' '],
-            width: "50%",
-            placeholder: "Add Course identifiers separated by a comma or space."
-        });
+        let course_ids = $('select#id_course_ids');
+        
+        if (course_ids.is(':disabled') && course_ids[0].value.length === 0) {
+            course_ids.parent().remove();
+        } else {
+            course_ids.select2({
+                tags: true,
+                tokenSeparators: [',', ' '],
+                width: "50%",
+                placeholder: "Add Course identifiers separated by a comma or space."
+            });
+        }
     });
 </script>
 
