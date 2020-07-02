@@ -359,6 +359,7 @@
                     body: body,
                     created_at: (new Date()).toISOString(),
                     username: window.user.get('username'),
+                    fullname: window.user_full_name, // [COLARAZ_CUSTOM]
                     votes: {
                         up_count: 0
                     },

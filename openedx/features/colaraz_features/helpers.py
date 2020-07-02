@@ -476,15 +476,23 @@ def get_course_access_role_display_name(course_access_role):
         or course_access_role.role == CourseCreatorRole.ROLE else 'org_{}'.format(course_access_role.role)
     return COURSE_ACCESS_ROLES_DISPLAY_MAPPING.get(role_name)
 
-def add_user_fullname_in_threads(threads_list):
+def add_user_fullname_in_threads(threads):
+    if not isinstance(threads, list):
+        tmp_list = []
+        tmp_list.append(threads)
+        threads = tmp_list
+        
     name_map = {}
-    thread_usernames = [thread['username'] for thread in threads_list if thread.has_key('username')]
+    thread_usernames = [thread['username'] for thread in threads if thread.has_key('username')]
     profile_usernames = UserProfile.objects.filter(user__username__in=thread_usernames)\
        .values_list('user__username', 'name')
     for profile_username in profile_usernames:
         name_map[profile_username[0]] = profile_username[1]
 
-    for thread in threads_list:
+    for thread in threads:
         if thread.has_key('username'):
             thread['fullname'] = name_map[thread['username']] or 'Anonymous'
-    return threads_list
+        if len(thread.get('children', [])) > 0:
+            thread['children'] = add_user_fullname_in_threads(thread.get('children'))
+
+    return threads

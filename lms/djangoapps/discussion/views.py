@@ -319,6 +319,11 @@ def single_thread(request, course_key, discussion_id, thread_id):
         content = utils.prepare_content(thread.to_dict(), course_key, is_staff)
         with function_trace("add_courseware_context"):
             add_courseware_context([content], course, request.user)
+        
+        # [COLARAZ_CUSTOM]
+        content = add_user_fullname_in_threads(content)
+        if len(content) == 1:
+            content = content[0]
 
         return utils.JsonResponse({
             'content': content,
