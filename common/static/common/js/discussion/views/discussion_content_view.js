@@ -494,7 +494,7 @@
 
             DiscussionContentShowView.prototype.getAuthorDisplay = function() {
                 var author_link = _.template($('#post-user-display-template').html())({
-                    username: this.model.get('username') || null,
+                    username: this.model.get('fullname') || null,
                     user_url: '#',
                     is_community_ta: this.model.get('community_ta_authored'),
                     is_staff: this.model.get('staff_authored')
