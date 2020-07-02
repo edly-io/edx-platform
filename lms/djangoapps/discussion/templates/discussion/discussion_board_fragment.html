@@ -47,11 +47,11 @@ from openedx.core.djangolib.markup import HTML
                 <nav aria-label="${_('Discussions')}" class="sr-is-focusable " tabindex="-1">
                     <div class="has-breadcrumbs"></div>
 
-                    <div class="dropdown" style="float: left">
+                    <div class="dropdown" style="float: left;">
                         <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">All Topics
                             <span class="caret"></span></button>
-                        <ul class="dropdown-menu" style="width: 300px;">
-                            <input class="form-control" id="all-topics-filter" type="text" placeholder="Filter..">
+                        <ul class="dropdown-menu" style="width: 300px; border: 0.5px solid #A6C854;">
+                            <input class="form-control" id="all-topics-filter" type="text" placeholder="Filter.." style="border: none;">
                             <span id="all-topics-main">
                             </span>
                         </ul>
@@ -61,14 +61,27 @@ from openedx.core.djangolib.markup import HTML
                         <button class="btn dropdown-toggle" type="button" data-toggle="dropdown">All Discussions
                             <span class="caret"></span>
                         </button>
-                        <ul class="dropdown-menu" id="all-discussions-main" style="width: 300px; max-height: 310px; overflow: auto;">
+                        <ul class="dropdown-menu" style="width: 300px; max-height: 310px; overflow: auto; border: 0.5px solid #A6C854;">
+                            <div class="input-group">
+                                <input class="form-control" id="all-discussions-filter" type="text" placeholder="Search.." style="border: none;">
+                                <div class="input-group-append" style="margin-right: 5px;">
+                                    <button class="btn-default" id="cz-search-posts" style="border: none;">
+                                        <i class="fa fa-search"></i>
+                                    </button>
+                                    <button class="btn-default" id="cz-search-cancel" style="border: none;">
+                                        <i class="fa fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <span id="all-discussions-main">
                              <li id="ca-no-posts" class="forum-nav-thread" style="user-select: auto;">
                                   <a href="#" class="forum-nav-thread-link" style="user-select: auto;">
                                     <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
                                       <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
                                     </div>
                                   </a>
-                                </li>
+                             </li>
+                            </span>
                         </ul>
                     </div>
 
@@ -76,7 +89,7 @@ from openedx.core.djangolib.markup import HTML
                         <button class="btn dropdown-toggle" type="button" data-toggle="dropdown">Posts I am Following
                             <span class="caret"></span>
                         </button>
-                        <ul class="dropdown-menu" id="posts-following-main" style="width: 300px; max-height: 310px; overflow: auto;">
+                        <ul class="dropdown-menu" id="posts-following-main" style="width: 300px; max-height: 310px; overflow: auto; border: 0.5px solid #A6C854;">
                              <li id="ca-no-posts" class="forum-nav-thread" style="user-select: auto;">
                                   <a href="#" class="forum-nav-thread-link" style="user-select: auto;">
                                     <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
