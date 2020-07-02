@@ -15,9 +15,21 @@
             </div>
             <% } %>
             <div class="post-btn-count-wrapper">
+            <!-- [COLARAZ_CUSTOM] using fullname instead of username -->
                 <ul class="post-info-list">
-                    <li>By <strong>Babar Hameed</strong></li>
-                    <li>4 days ago</li>
+                    <li>By <strong>
+                    <% if (typeof fullname !== 'undefined') { %>
+                    <a href="<%- user_url %>" class="username"><%- fullname %></a>
+                        <% if (typeof is_community_ta !== 'undefined') { %>
+                        <span class="user-label-community-ta"><%- gettext("(Community TA)") %></span>
+                        <% } else if (typeof is_staff !== 'undefined') { %>
+                        <span class="user-label-staff"><%- gettext("(Staff)") %></span>
+                        <% } %>
+                    <% } else { %>
+                        <%- gettext('anonymous') %>
+                    <% } %>
+                    </strong></li>
+                    <li><span class="timeago" title="<%- created_at %>"><%- created_at %></span></li>
                 </ul>
                 <ul class="post-actions-list">
                     <li class="actions-item is-public">

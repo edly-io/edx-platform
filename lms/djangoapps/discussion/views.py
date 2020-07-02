@@ -47,6 +47,7 @@ from django_comment_common.models import CourseDiscussionSettings
 from django_comment_common.utils import ThreadContext, get_course_discussion_settings, set_course_discussion_settings
 from openedx.core.djangoapps.plugin_api.views import EdxFragmentView
 from openedx.core.lib.courses import course_image_url
+from openedx.features.colaraz_features.helpers import add_user_fullname_in_threads
 from openedx.features.course_duration_limits.access import generate_course_expired_fragment
 from student.models import CourseEnrollment
 from util.json_request import JsonResponse, expect_json
@@ -232,7 +233,7 @@ def inline_discussion(request, course_key, discussion_id):
 
     return utils.JsonResponse({
         'is_commentable_divided': is_commentable_divided(course_key, discussion_id),
-        'discussion_data': threads,
+        'discussion_data': add_user_fullname_in_threads(threads),
         'user_info': user_info,
         'user_group_id': get_group_id_for_user(request.user, course_discussion_settings),
         'annotated_content_info': annotated_content_info,
@@ -270,7 +271,7 @@ def forum_form_discussion(request, course_key):
             add_courseware_context(threads, course, request.user)
 
         return utils.JsonResponse({
-            'discussion_data': threads,   # TODO: Standardize on 'discussion_data' vs 'threads'
+            'discussion_data': add_user_fullname_in_threads(threads),   # TODO: Standardize on 'discussion_data' vs 'threads'
             'annotated_content_info': annotated_content_info,
             'num_pages': query_params['num_pages'],
             'page': query_params['page'],
@@ -479,7 +480,7 @@ def _create_discussion_board_context(request, base_context, thread=None):
         'root_url': root_url,
         'discussion_id': discussion_id,
         'thread_id': thread_id,
-        'threads': threads,
+        'threads': add_user_fullname_in_threads(threads),
         'thread_pages': thread_pages,
         'annotated_content_info': annotated_content_info,
         'is_moderator': has_permission(user, "see_all_cohorts", course_key),
@@ -553,7 +554,7 @@ def create_user_profile_context(request, course_key, user_id):
             'django_user': django_user,
             'django_user_roles': user_roles,
             'profiled_user': profiled_user.to_dict(),
-            'threads': threads,
+            'threads': add_user_fullname_in_threads(threads),
             'user_group_id': user_group_id,
             'annotated_content_info': annotated_content_info,
             'page': query_params['page'],
@@ -574,6 +575,7 @@ def user_profile(request, course_key, user_id):
     """
     try:
         context = create_user_profile_context(request, course_key, user_id)
+        context['threads'] = add_user_fullname_in_threads(context['threads'])
         if request.is_ajax():
             return utils.JsonResponse({
                 'discussion_data': context['threads'],
@@ -721,6 +723,7 @@ class DiscussionBoardFragmentView(EdxFragmentView):
                 else None
             )
             context = _create_discussion_board_context(request, base_context, thread=thread)
+            context['threads'] = add_user_fullname_in_threads(context['threads'])
             course_expiration_fragment = generate_course_expired_fragment(request.user, context['course'])
             context.update({
                 'course_expiration_fragment': course_expiration_fragment,
