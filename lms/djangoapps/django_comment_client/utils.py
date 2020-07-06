@@ -28,6 +28,7 @@ from django_comment_common.models import (
 from django_comment_common.utils import get_course_discussion_settings
 from openedx.core.djangoapps.course_groups.cohorts import get_cohort_id, get_cohort_names, is_course_cohorted
 from openedx.core.lib.cache_utils import request_cached
+from openedx.features.colaraz_features.helpers import add_user_fullname_in_threads
 from student.models import get_user_by_username_or_email
 from student.roles import GlobalStaff
 from xmodule.modulestore.django import modulestore
@@ -819,7 +820,8 @@ def prepare_content(content, course_key, is_staff=False, discussion_division_ena
     else:
         # Remove any group information that might remain if the course had previously been divided.
         content.pop('group_id', None)
-
+        
+    add_user_fullname_in_threads(content)
     return content
 
 

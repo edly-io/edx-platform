@@ -194,6 +194,7 @@
                     body: body,
                     created_at: (new Date()).toISOString(),
                     username: window.user.get('username'),
+                    fullname: window.user_full_name, // [COLARAZ_CUSTOM]
                     abuse_flaggers: [],
                     user_id: window.user.get('id'),
                     id: 'unsaved'
