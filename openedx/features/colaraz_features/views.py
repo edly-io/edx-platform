@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count
-from django.http import HttpResponseBadRequest, JsonResponse
+from django.http import HttpResponseBadRequest, JsonResponse, Http404
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.views import View
@@ -230,16 +230,16 @@ class CourseAccessRoleUpdateView(BaseViewMixin, CourseAccessRoleFilterMixin, Col
         try:
             ids = [int(key) for key in pk.split(',') if key.strip()]
         except (TypeError, ValueError):
-            raise HttpBadRequest('Invalid Request URL')
+            raise Http404('User Role Not Found')
         
         if not ids:
-            raise HttpBadRequest('Invalid Request URL')
+            raise Http404('User Role Not Found')
 
         queryset = queryset.filter(id__in=ids)
         if len(queryset) > 0:
             return queryset
         
-        raise HttpBadRequest('Invalid Request URL')
+        raise Http404('User Role Not Found')
 
 class CourseAccessRoleDeleteView(BaseViewMixin, CourseAccessRoleFilterMixin, DeleteView):
     """
@@ -308,7 +308,7 @@ class CourseAccessRoleDeleteView(BaseViewMixin, CourseAccessRoleFilterMixin, Del
         queryset = queryset.filter(id__in=ids)
         if queryset.count() != len(ids):
             # User is trying something fishy
-            raise HttpBadRequest('Malformed request or user does not have access to perform this action.')
+            raise Http404('User Role Not Found')
 
         return queryset.all()
 
