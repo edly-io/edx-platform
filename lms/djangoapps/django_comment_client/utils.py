@@ -820,7 +820,8 @@ def prepare_content(content, course_key, is_staff=False, discussion_division_ena
     else:
         # Remove any group information that might remain if the course had previously been divided.
         content.pop('group_id', None)
-        
+    
+    # [COLARAZ_CUSTOM] adding profile name of user to thread
     add_user_fullname_in_threads(content)
     return content
 
