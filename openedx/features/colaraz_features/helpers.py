@@ -494,5 +494,7 @@ def add_user_fullname_in_threads(threads):
             thread['fullname'] = name_map[thread['username']] or 'Anonymous'
         if len(thread.get('children', [])) > 0:
             thread['children'] = add_user_fullname_in_threads(thread.get('children'))
+        if thread.get('endorsement'):
+            add_user_fullname_in_threads(thread.get('endorsement'))
 
     return threads
