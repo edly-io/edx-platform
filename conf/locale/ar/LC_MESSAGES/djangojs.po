@@ -9660,9 +9660,6 @@ msgid ""
 "from your dashboard. You will receive periodic reminders from "
 "%(platformName)s to verify your identity."
 msgstr ""
-"إذا لم تثبت هويتك الآن ، فلا يزال بإمكانك استكشاف دورتك"
-"من لوحة التحكم الخاصة بك. ستتلقى تذكيرات دورية من"
-"٪ (platformName) s للتحقق من هويتك."
 
 #: lms/templates/verify_student/reverify_success_step.underscore
 msgid "Identity Verification In Progress"
