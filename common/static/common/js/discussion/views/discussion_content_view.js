@@ -286,6 +286,14 @@
                             ngettext('{numVotes} Vote', '{numVotes} Votes', numVotes),
                             {numVotes: numVotes});
                         button.find('.vote-count').empty().text(votesText);
+
+                        if (this.$el.hasClass('thread-content-wrapper')) {
+                            button = this.$el.closest('.thread-wrapper').find('.thread-responses-wrapper button.action-vote');
+                            button.find('.js-sr-vote-count').empty().text(
+                                edx.StringUtils.interpolate(votesCountMsg, {numVotes: numVotes})
+                            );
+                            button.find('.vote-count').empty().text(votesText);
+                        }
                         this.$el.find('.display-vote .vote-count').empty().text(votesText);
                     },
                     pinned: function(pinned) {
