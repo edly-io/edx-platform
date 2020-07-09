@@ -4,6 +4,18 @@
 
 <script type="text/javascript">
   window.PLATFORM_NAME = "${settings.PLATFORM_NAME | n, js_escaped_string}";
+
+  <%
+    single_post_id = context.get('annotated_content_info').keys()[0]
+    is_post_subscribed = context.get('annotated_content_info').get(single_post_id).get('subscribed')
+  %>
+
+  % if is_post_subscribed:
+    window.IS_POST_SUBSCRIBED = true;
+  % else:
+    window.IS_POST_SUBSCRIBED = false;
+  % endif
+
   % if settings.FEATURES.get('ENABLE_DISCUSSION_HOME_PANEL', False):
     window.ENABLE_DISCUSSION_HOME_PANEL = true;
   % else:
