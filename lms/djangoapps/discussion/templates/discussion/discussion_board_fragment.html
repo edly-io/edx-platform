@@ -47,21 +47,21 @@ from openedx.core.djangolib.markup import HTML
                 <nav aria-label="${_('Discussions')}" class="sr-is-focusable " tabindex="-1">
                     <div class="has-breadcrumbs"></div>
 
-                    <div class="dropdown" style="float: left;">
-                        <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">All Topics
+                    <div class="dropdown" style="float: left; z-index: 1;">
+                        <button class="btn btn-primary dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Topics
                             <span class="caret"></span></button>
-                        <ul class="dropdown-menu" style="width: 300px; border: 0.5px solid #A6C854;">
+                        <ul class="dropdown-menu cz-discussions-dropdown">
                             <input class="form-control" id="all-topics-filter" type="text" placeholder="Filter.." style="border: none;">
                             <span id="all-topics-main">
                             </span>
                         </ul>
                     </div>
 
-                    <div class="dropdown" style="float: left; padding-left: 15px;">
-                        <button class="btn dropdown-toggle" type="button" data-toggle="dropdown">All Discussions
+                    <div class="dropdown" style="float: left; padding-left: 15px; z-index: 1;">
+                        <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Discussions
                             <span class="caret"></span>
                         </button>
-                        <ul class="dropdown-menu" style="width: 300px; max-height: 310px; overflow: auto; border: 0.5px solid #A6C854;">
+                        <ul class="cz-dropdown-scroll dropdown-menu forum-nav-thread-list cz-discussions-dropdown">
                             <div class="input-group">
                                 <input class="form-control" id="all-discussions-filter" type="text" placeholder="Search.." style="border: none;">
                                 <div class="input-group-append" style="margin-right: 5px;">
@@ -74,29 +74,29 @@ from openedx.core.djangolib.markup import HTML
                                 </div>
                             </div>
                             <span id="all-discussions-main">
-                             <li id="ca-no-posts" class="forum-nav-thread" style="user-select: auto;">
-                                  <a href="#" class="forum-nav-thread-link" style="user-select: auto;">
-                                    <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
-                                      <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                             <li id="ca-no-posts">
+                                <span style="user-select: auto;">
+                                   <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                         <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
                                     </div>
-                                  </a>
+                                 </span>
                              </li>
                             </span>
                         </ul>
                     </div>
 
-                    <div class="dropdown" style="float: left; padding-left: 15px;">
-                        <button class="btn dropdown-toggle" type="button" data-toggle="dropdown">Posts I am Following
+                    <div class="dropdown" style="float: left; padding-left: 15px; z-index: 1;">
+                        <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">Posts I am Following
                             <span class="caret"></span>
                         </button>
-                        <ul class="dropdown-menu" id="posts-following-main" style="width: 300px; max-height: 310px; overflow: auto; border: 0.5px solid #A6C854;">
-                             <li id="ca-no-posts" class="forum-nav-thread" style="user-select: auto;">
-                                  <a href="#" class="forum-nav-thread-link" style="user-select: auto;">
-                                    <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
-                                      <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                        <ul class="dropdown-menu cz-discussions-dropdown cz-dropdown-scroll" id="posts-following-main">
+                             <li id="ca-no-posts">
+                                <span style="user-select: auto;">
+                                   <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                         <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
                                     </div>
-                                  </a>
-                                </li>
+                                 </span>
+                             </li>
                         </ul>
                     </div>
 
@@ -131,7 +131,7 @@ from openedx.core.djangolib.markup import HTML
                 </main>
                 <aside class="forum-nav" role="complementary" aria-label="${_("Discussion thread list")}">
                     <%include file="_filter_dropdown.html" />
-                    <div class="discussion-thread-list-container"></div>
+{#                    <div class="discussion-thread-list-container"></div>#}
                 </aside>
             </div>
         </div>
