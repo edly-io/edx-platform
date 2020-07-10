@@ -36,8 +36,15 @@
                         Public
                     </li>
                     <li class="actions-item">
-                        <button class="btn-link action-button action-follow is-checked" role="checkbox" aria-checked="true">
+                        <button class="btn-link action-button action-follow <% if(window.IS_POST_SUBSCRIBED) { %>is-checked<% }%>"
+                        role="checkbox"
+                        <% if(window.IS_POST_SUBSCRIBED) { %>aria-checked="true"<% } else { %>aria-checked="false" <% }%>>
                             <span class="sr">Follow</span>
+                            <span class="action-label" aria-hidden="true">
+                                <span class="label-unchecked">Follow</span>
+                                <span class="label-checked">Unfollow</span>
+                            </span>
+
                             <span class="action-icon">
                                 <span class="icon fa fa-star" aria-hidden="true"></span>
                             </span>
