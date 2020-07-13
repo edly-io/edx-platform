@@ -6,8 +6,12 @@
   window.PLATFORM_NAME = "${settings.PLATFORM_NAME | n, js_escaped_string}";
 
   <%
-    single_post_id = context.get('annotated_content_info').keys()[0]
-    is_post_subscribed = context.get('annotated_content_info').get(single_post_id).get('subscribed')
+    if context.get('annotated_content_info', {}).keys():
+      single_post_id = context.get('annotated_content_info').keys()[0]
+      is_post_subscribed = context.get('annotated_content_info').get(single_post_id).get('subscribed')
+    else:
+      is_post_subscribed = False
+    endif
   %>
 
   % if is_post_subscribed:
