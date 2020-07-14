@@ -120,7 +120,7 @@ such that the value can be defined later than this assignment (file load order).
                 title: $container.data('display-name'),
                 info: $container.data('info-text'),
                 labels: labelsList,
-                add_placeholder: gettext('Enter username or email'),
+                add_placeholder: gettext('Enter email address'),
                 add_btn_label: $container.data('add-button-label'),
                 add_handler: function(input) {
                     return authListWidget.add_handler(input);
