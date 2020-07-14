@@ -1,6 +1,7 @@
 """
 Utility library for working with the edx-organizations app
 """
+import waffle
 
 from django.conf import settings
 from django.db.utils import DatabaseError
@@ -102,4 +103,4 @@ def organizations_enabled():
     """
     Returns boolean indication if organizations app is enabled on not.
     """
-    return settings.FEATURES.get('ORGANIZATIONS_APP', False)
+    return settings.FEATURES.get('ORGANIZATIONS_APP', False) or waffle.switch_is_active(settings.ENABLE_LINK_COURSES_WITH_ORGANIZATION_SWITCH)
