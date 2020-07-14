@@ -852,6 +852,8 @@ def _create_or_rerun_course(request):
 
     try:
         org = request.json.get('org')
+        enabled_organizations = get_enabled_organizations(request)
+        org = enabled_organizations[0].get('short_name', '') if enabled_organizations else None
         course = request.json.get('number', request.json.get('course'))
         display_name = request.json.get('display_name')
         # force the start date for reruns and allow us to override start via the client

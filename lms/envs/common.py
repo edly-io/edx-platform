@@ -287,6 +287,9 @@ FEATURES = {
     # Organizations application flag
     'ORGANIZATIONS_APP': False,
 
+    # Organizations course linking flag
+    'LINK_COURSE_WITH_ORGANIZATION': True,
+
     # Prerequisite courses feature flag
     'ENABLE_PREREQUISITE_COURSES': False,
 
