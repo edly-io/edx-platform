@@ -287,7 +287,7 @@
                             {numVotes: numVotes});
                         button.find('.vote-count').empty().text(votesText);
                         if (this.$el.hasClass('thread-content-wrapper')) {
-                            let isVoteCasted = button.attr('aria-checked');
+                            var isVoteCasted = button.attr('aria-checked');
                             button = this.$el.closest('.thread-wrapper').find('.thread-responses-wrapper button.action-vote');
                             button.attr('aria-checked', isVoteCasted);
                             button.find('.js-sr-vote-count').empty().text(
