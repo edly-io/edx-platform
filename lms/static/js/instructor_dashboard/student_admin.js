@@ -80,7 +80,7 @@
                 if (!uniqStudentIdentifier) {
                     studentadmin.$enrollment_status.text('');
                     return studentadmin.$request_err_enrollment_status.text(
-                        gettext('Please enter a student email address or username.')
+                        gettext('Please enter a student email address.')
                     );
                 }
                 errorMessage = gettext("Error getting enrollment status for '<%- student_id %>'. Make sure that the student identifier is spelled correctly.");  // eslint-disable-line max-len
@@ -111,7 +111,7 @@
                 uniqStudentIdentifier = studentadmin.$field_student_select_progress.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_progress.text(
-                        gettext('Please enter a student email address or username.')
+                        gettext('Please enter a student email address.')
                     );
                 }
                 errorMessage = gettext("Error getting student progress url for '<%- student_id %>'. Make sure that the student identifier is spelled correctly.");  // eslint-disable-line max-len
@@ -141,7 +141,7 @@
                 problemToReset = studentadmin.$field_problem_select_single.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_grade.text(
-                        gettext('Please enter a student email address or username.')
+                        gettext('Please enter a student email address.')
                     );
                 }
                 if (!problemToReset) {
@@ -182,7 +182,7 @@
                 problemToReset = studentadmin.$field_problem_select_single.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_grade.text(
-                        gettext('Please enter a student email address or username.')
+                        gettext('Please enter a student email address.')
                     );
                 }
                 if (!problemToReset) {
@@ -234,7 +234,7 @@
                 problemToReset = studentadmin.$field_problem_select_single.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_grade.text(
-                        gettext('Please enter a student email address or username.')
+                        gettext('Please enter a student email address.')
                     );
                 }
                 if (!problemToReset) {
@@ -269,7 +269,7 @@
                 uniqStudentIdentifier = studentadmin.$field_exam_grade.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_ee.text(gettext(
-                        'Please enter a student email address or username.')
+                        'Please enter a student email address.')
                     );
                 }
                 sendData = {
@@ -309,7 +309,7 @@
                 var confirmMessage, fullConfirmMessage, sendData, uniqStudentIdentifier;
                 uniqStudentIdentifier = studentadmin.$field_exam_grade.val();
                 if (!uniqStudentIdentifier) {
-                    return studentadmin.$request_err_ee.text(gettext("Enter a student's username or email address."));
+                    return studentadmin.$request_err_ee.text(gettext("Enter a student's email address."));
                 }
                 confirmMessage = gettext("Do you want to allow this student ('{student_id}') to skip the entrance exam?");  // eslint-disable-line max-len
                 fullConfirmMessage = interpolate_text(confirmMessage, {
@@ -329,7 +329,7 @@
                         }),
                         error: statusAjaxError(function() {
                             var errorMessage;
-                            errorMessage = gettext("An error occurred. Make sure that the student's username or email address is correct and try again.");  // eslint-disable-line max-len
+                            errorMessage = gettext("An error occurred. Make sure that the student's email address is correct and try again.");  // eslint-disable-line max-len
                             return studentadmin.$request_err_ee.text(errorMessage);
                         })
                     });
@@ -341,7 +341,7 @@
                 uniqStudentIdentifier = studentadmin.$field_exam_grade.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_ee.text(
-                        gettext('Please enter a student email address or username.')
+                        gettext('Please enter a student email address.')
                     );
                 }
                 sendData = {
@@ -376,7 +376,7 @@
                 uniqStudentIdentifier = studentadmin.$field_exam_grade.val();
                 if (!uniqStudentIdentifier) {
                     return studentadmin.$request_err_ee.text(
-                        gettext("Enter a student's username or email address.")
+                        gettext("Enter a student's or email address.")
                     );
                 }
                 sendData = {
@@ -486,7 +486,7 @@
             problemToReset = this.$field_problem_select_single.val();
             if (!uniqStudentIdentifier) {
                 return this.$request_err_grade.text(
-                    gettext('Please enter a student email address or username.')
+                    gettext('Please enter a student email address.')
                 );
             }
             if (!problemToReset) {
@@ -535,7 +535,7 @@
             score = this.$field_select_score_single.val();
             if (!uniqStudentIdentifier) {
                 return this.$request_err_grade.text(
-                    gettext('Please enter a student email address or username.')
+                    gettext('Please enter a student email address.')
                 );
             }
             if (!problemToReset) {
@@ -586,7 +586,7 @@
             uniqStudentIdentifier = this.$field_exam_grade.val();
             if (!uniqStudentIdentifier) {
                 return this.$request_err_ee.text(gettext(
-                    'Please enter a student email address or username.')
+                    'Please enter a student email address.')
                 );
             }
             sendData = {

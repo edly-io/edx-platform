@@ -154,7 +154,7 @@ such that the value can be defined later than this assignment (file load order).
                     return authListWidgetAddHandler.reload_list();
                 });
             } else {
-                return this.show_errors(gettext('Please enter a username or email.'));
+                return this.show_errors(gettext('Please enter an email address.'));
             }
         };
 
