@@ -365,6 +365,12 @@
             DiscussionThreadListView.prototype.threadSelected = function(e) {
                 var threadId;
                 threadId = $(e.target).closest('.forum-nav-thread').attr('data-id');
+                window.IS_POST_SUBSCRIBED = $(e.target)
+                                         .closest('.forum-nav-thread')
+                                         .find('.forum-nav-thread-labels')
+                                         .text()
+                                         .includes('Following')
+
                 if (this.supportsActiveThread) {
                     this.setActiveThread(threadId);
                 }
