@@ -38,59 +38,59 @@ from openedx.core.djangolib.markup import HTML
                 <nav aria-label="${_('Discussions')}" class="sr-is-focusable " tabindex="-1">
                     <div class="has-breadcrumbs"></div>
 
-                    <div class="dropdown" style="float: left; z-index: 1;">
-                        <button class="btn btn-primary dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Topics
-                            <span class="caret"></span></button>
-                        <ul class="dropdown-menu cz-discussions-dropdown">
-                            <input class="form-control" id="all-topics-filter" type="text" placeholder="Filter.." style="border: none;">
-                            <span id="all-topics-main">
-                            </span>
-                        </ul>
-                    </div>
+                    <div class="discussion-filters">
+                        <div class="dropdown">
+                            <button class="btn btn-primary dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Topics
+                                <span class="caret"></span></button>
+                            <div class="dropdown-menu cz-discussions-dropdown">
+                                <div class="topic-search">
+                                    <input class="form-control search-input" id="all-topics-filter" type="text" placeholder="Filter..">
+                                </div>
+                                <ul id="all-topics-main"></ul>
+                            </div>
+                        </div>
 
-                    <div class="dropdown" style="float: left; padding-left: 15px; z-index: 1;">
-                        <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Discussions
-                            <span class="caret"></span>
-                        </button>
-                        <ul class="cz-dropdown-scroll dropdown-menu forum-nav-thread-list cz-discussions-dropdown">
-                            <div class="input-group">
-                                <input class="form-control" id="all-discussions-filter" type="text" placeholder="Search.." style="border: none;">
-                                <div class="input-group-append" style="margin-right: 5px;">
-                                    <button class="btn-default" id="cz-search-posts" style="border: none;">
+                        <div class="dropdown">
+                            <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Discussions
+                                <span class="caret"></span>
+                            </button>
+                            <div class="cz-dropdown-scroll dropdown-menu forum-nav-thread-list cz-discussions-dropdown">
+                                <div class="discussion-search">
+                                    <input class="form-control search-input" id="all-discussions-filter" type="text" placeholder="Search..">
+                                    <button class="search-button" id="cz-search-posts">
                                         <i class="fa fa-search"></i>
                                     </button>
-                                    <button class="btn-default" id="cz-search-cancel" style="border: none;">
+                                    <button class="cancel-button" id="cz-search-cancel">
                                         <i class="fa fa-times"></i>
                                     </button>
                                 </div>
+                                <ul id="all-discussions-main">
+                                    <li id="ca-no-posts">
+                                        <span class="no-post" style="user-select: auto;">
+                                           <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                                 <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                                            </div>
+                                         </span>
+                                    </li>
+                                </ul>
                             </div>
-                            <span id="all-discussions-main">
-                             <li id="ca-no-posts">
-                                <span style="user-select: auto;">
-                                   <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
-                                         <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
-                                    </div>
-                                 </span>
-                             </li>
-                            </span>
-                        </ul>
-                    </div>
+                        </div>
 
-                    <div class="dropdown" style="float: left; padding-left: 15px; z-index: 1;">
-                        <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">Posts I am Following
-                            <span class="caret"></span>
-                        </button>
-                        <ul class="dropdown-menu cz-discussions-dropdown cz-dropdown-scroll" id="posts-following-main">
-                             <li id="ca-no-posts">
-                                <span style="user-select: auto;">
-                                   <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
-                                         <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
-                                    </div>
-                                 </span>
-                             </li>
-                        </ul>
+                        <div class="dropdown">
+                            <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">Posts I am Following
+                                <span class="caret"></span>
+                            </button>
+                            <ul class="dropdown-menu cz-discussions-dropdown cz-dropdown-scroll" id="posts-following-main">
+                                 <li id="ca-no-posts">
+                                    <span class="no-post" style="user-select: auto;">
+                                       <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                             <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                                        </div>
+                                     </span>
+                                 </li>
+                            </ul>
+                        </div>
                     </div>
-
                 </nav>
             </div>
             <div class="page-header-secondary">
