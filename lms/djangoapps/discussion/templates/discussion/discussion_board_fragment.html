@@ -54,7 +54,7 @@ from openedx.core.djangolib.markup import HTML
                             <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">All Discussions
                                 <span class="caret"></span>
                             </button>
-                            <div class="cz-dropdown-scroll dropdown-menu forum-nav-thread-list cz-discussions-dropdown">
+                            <div class="dropdown-menu forum-nav-thread-list cz-discussions-dropdown">
                                 <div class="discussion-search">
                                     <input class="form-control search-input" id="all-discussions-filter" type="text" placeholder="Search..">
                                     <button class="search-button" id="cz-search-posts">
@@ -80,15 +80,17 @@ from openedx.core.djangolib.markup import HTML
                             <button class="btn dropdown-toggle" type="button" data-flip="false" data-toggle="dropdown">Posts I am Following
                                 <span class="caret"></span>
                             </button>
-                            <ul class="dropdown-menu cz-discussions-dropdown cz-dropdown-scroll" id="posts-following-main">
-                                 <li id="ca-no-posts">
-                                    <span class="no-post" style="user-select: auto;">
-                                       <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
-                                             <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
-                                        </div>
-                                     </span>
-                                 </li>
-                            </ul>
+                            <div class="dropdown-menu cz-discussions-dropdown">
+                                <ul id="posts-following-main">
+                                    <li id="ca-no-posts">
+                                        <span class="no-post" style="user-select: auto;">
+                                           <div class="forum-nav-thread-wrapper-1" style="user-select: auto;">
+                                                 <span class="forum-nav-thread-title" style="user-select: auto;">No Posts to show</span>
+                                            </div>
+                                         </span>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </nav>
