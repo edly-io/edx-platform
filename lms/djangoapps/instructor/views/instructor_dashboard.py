@@ -9,6 +9,7 @@ from urlparse import urljoin
 
 import pytz
 from django.conf import settings
+from django.db.models import Q
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse
 from django.http import Http404, HttpResponseServerError
@@ -20,6 +21,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from mock import patch
 from opaque_keys import InvalidKeyError
+from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.keys import CourseKey
 from six import text_type
 from xblock.field_data import DictFieldData
@@ -107,8 +109,15 @@ def instructor_dashboard_2(request, course_id):
 
     course = get_course_by_id(course_key, depth=0)
 
+    current_org = request.user.colaraz_profile.site_identifier
+    has_admin_access = (request.user.is_staff
+                        or request.user.courseaccessrole_set.filter(
+                        (Q(course_id=CourseKey.from_string(course_id))
+                        | Q(course_id=CourseKeyField.Empty, org__iexact=current_org))
+                        & Q(role__in=['instructor', 'staff']) ).exists())
+
     access = {
-        'admin': request.user.is_staff,
+        'admin': has_admin_access,
         'instructor': bool(has_access(request.user, 'instructor', course)),
         'finance_admin': CourseFinanceAdminRole(course_key).has_user(request.user),
         'sales_admin': CourseSalesAdminRole(course_key).has_user(request.user),
