@@ -3533,6 +3533,9 @@ COLARAZ_BLOCKED_SUB_PATHS = ['/courses']
 COLARAZ_BLOCKED_FULL_PATHS = ['/', '/login']
 COLARAZ_ALLOWED_SUB_PATHS = ['/api/commerce']
 
+# To disable account verification for colaraz user
+FEATURES['ENABLE_AUTOMATIC_ACCOUNT_VERIFICATION'] = True
+
 ############## Plugin Django Apps #########################
 
 from openedx.core.djangoapps.plugins import plugin_apps, plugin_settings, constants as plugin_constants
