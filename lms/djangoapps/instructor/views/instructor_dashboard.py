@@ -109,15 +109,8 @@ def instructor_dashboard_2(request, course_id):
 
     course = get_course_by_id(course_key, depth=0)
 
-    current_org = request.user.colaraz_profile.site_identifier
-    has_admin_access = (request.user.is_staff
-                        or request.user.courseaccessrole_set.filter(
-                        (Q(course_id=CourseKey.from_string(course_id))
-                        | Q(course_id=CourseKeyField.Empty, org__iexact=current_org))
-                        & Q(role__in=['instructor', 'staff']) ).exists())
-
     access = {
-        'admin': has_admin_access,
+        'admin': request.user.is_staff,
         'instructor': bool(has_access(request.user, 'instructor', course)),
         'finance_admin': CourseFinanceAdminRole(course_key).has_user(request.user),
         'sales_admin': CourseSalesAdminRole(course_key).has_user(request.user),
