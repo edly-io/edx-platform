@@ -52,6 +52,7 @@ from openedx.core.djangoapps.verified_track_content.models import VerifiedTrackC
 from openedx.core.djangolib.markup import HTML, Text
 from openedx.core.lib.url_utils import quote_slashes
 from openedx.core.lib.xblock_utils import wrap_xblock
+from openedx.features.colaraz_features.helpers import has_admin_access
 from shoppingcart.models import Coupon, CourseRegCodeItem, PaidCourseRegistration
 from student.models import CourseEnrollment
 from student.roles import CourseFinanceAdminRole, CourseSalesAdminRole, CourseStaffRole, CourseInstructorRole
@@ -110,7 +111,7 @@ def instructor_dashboard_2(request, course_id):
     course = get_course_by_id(course_key, depth=0)
 
     access = {
-        'admin': request.user.is_staff,
+        'admin': request.user.is_staff or has_admin_access(request, course_key), # [COLARAZ_CUSTOM]
         'instructor': bool(has_access(request.user, 'instructor', course)),
         'finance_admin': CourseFinanceAdminRole(course_key).has_user(request.user),
         'sales_admin': CourseSalesAdminRole(course_key).has_user(request.user),

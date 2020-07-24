@@ -41,6 +41,7 @@ from contentstore.views.exception import AssetNotFoundException
 from course_modes.models import CourseMode
 from edxmako.shortcuts import render_to_response
 from eventtracking import tracker
+from openedx.features.colaraz_features.helpers import has_admin_access
 from student.auth import has_studio_write_access
 from student.roles import GlobalStaff
 from util.db import MYSQL_MAX_INT, generate_int_id
@@ -421,7 +422,8 @@ def certificates_list_handler(request, course_key_string):
                 'course_modes': course_modes,
                 'certificate_web_view_url': certificate_web_view_url,
                 'is_active': is_active,
-                'is_global_staff': GlobalStaff().has_user(request.user),
+                'is_global_staff': (has_admin_access(request, course_key)
+                                    or GlobalStaff().has_user(request.user)), # [COLARAZ_CUSTOM]
                 'certificate_activation_handler_url': activation_handler_url
             })
         elif "application/json" in request.META.get('HTTP_ACCEPT'):
@@ -485,8 +487,9 @@ def certificates_detail_handler(request, course_key_string, certificate_id):
         if certificate_id:
             active_certificates = CertificateManager.get_certificates(course, only_active=True)
             if int(certificate_id) in [int(certificate["id"]) for certificate in active_certificates]:
-                # Only global staff (PMs) are able to edit active certificate configuration
-                if not GlobalStaff().has_user(request.user):
+                # [COLARAZ_CUSTOM]
+                # Only global staff (PMs) and colaraz staff/instructor are able to edit active certificate configuration
+                if not (has_admin_access(request, course_key) or GlobalStaff().has_user(request.user)):
                     raise PermissionDenied()
         try:
             new_certificate = CertificateManager.deserialize_certificate(course, request.body)
@@ -514,8 +517,9 @@ def certificates_detail_handler(request, course_key_string, certificate_id):
 
         active_certificates = CertificateManager.get_certificates(course, only_active=True)
         if int(certificate_id) in [int(certificate["id"]) for certificate in active_certificates]:
-            # Only global staff (PMs) are able to delete active certificate configuration
-            if not GlobalStaff().has_user(request.user):
+            # [COLARAZ_CUSTOM]
+            # Only global staff (PMs) and colaraz staff/instructor are able to delete active certificate configuration
+            if not (has_admin_access(request, course_key) or GlobalStaff().has_user(request.user)):
                 raise PermissionDenied()
 
         CertificateManager.remove_certificate(

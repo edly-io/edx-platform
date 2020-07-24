@@ -21,6 +21,7 @@ import calc
 import track.views
 from edxmako.shortcuts import render_to_response, render_to_string
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+from openedx.features.colaraz_features.helpers import has_admin_access
 from openedx.features.enterprise_support import api as enterprise_api
 from organizations.models import OrganizationCourse
 from student.models import CourseEnrollment
@@ -51,7 +52,7 @@ def ensure_valid_course_key(view_func):
             try:
                 CourseKey.from_string(course_key)
                 site_orgs = configuration_helpers.get_current_site_orgs()
-                linked_courses = OrganizationCourse.objects.filter(course_id=course_key, 
+                linked_courses = OrganizationCourse.objects.filter(course_id=course_key,
                                                                    organization__name__in=site_orgs,
                                                                    active=True)
                 if not linked_courses:
@@ -89,7 +90,9 @@ def require_global_staff(func):
     """View decorator that requires that the user have global staff permissions. """
     @wraps(func)
     def wrapped(request, *args, **kwargs):  # pylint: disable=missing-docstring
-        if GlobalStaff().has_user(request.user):
+        # [COLARAZ_CUSTOM]
+        course_id = CourseKey.from_string(kwargs['course_id'])
+        if has_admin_access(request, course_id) or GlobalStaff().has_user(request.user):
             return func(request, *args, **kwargs)
         else:
             return HttpResponseForbidden(

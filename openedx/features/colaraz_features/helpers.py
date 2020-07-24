@@ -13,6 +13,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
+from django.db.models import Q
 from django.http import QueryDict
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.django.models import CourseKeyField
@@ -481,7 +482,7 @@ def add_user_fullname_in_threads(threads):
         tmp_list = []
         tmp_list.append(threads)
         threads = tmp_list
-        
+
     name_map = {}
     thread_usernames = [thread['username'] for thread in threads if thread.has_key('username')]
     profile_usernames = UserProfile.objects.filter(user__username__in=thread_usernames)\
@@ -498,3 +499,13 @@ def add_user_fullname_in_threads(threads):
             add_user_fullname_in_threads(thread.get('endorsement'))
 
     return threads
+
+
+def has_admin_access(request, course_id):
+    """
+    Checks that colaraz user has instructor/staff level privileges or not.
+    """
+    user_org = request.user.colaraz_profile.site_identifier
+    return request.user.courseaccessrole_set.filter((Q(course_id=course_id)
+                                                    | Q(course_id=CourseKeyField.Empty, org__iexact=user_org))
+                                                    & Q(role__in=['instructor', 'staff'])).exists()
