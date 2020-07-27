@@ -4,7 +4,7 @@
     <div class="">
         <label for="certificate-exception" class="sr"><%- gettext("Student email or username") %></label>
         <input class="student-username-or-email" id="certificate-exception" type="text" placeholder="<%- gettext('Student email or username') %>">
-        
+
         <label for="notes" class="sr"><%- gettext('Free text notes') %></label>
         <textarea class="notes-field" id="notes" rows="10" placeholder="<%- gettext('Free text notes') %>"></textarea>
     </div>
