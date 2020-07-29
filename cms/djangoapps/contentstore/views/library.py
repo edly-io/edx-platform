@@ -23,6 +23,7 @@ from contentstore.utils import add_instructor, reverse_library_url
 from contentstore.views.item import create_xblock_info
 from course_creators.views import get_course_creator_status
 from edxmako.shortcuts import render_to_response
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from student.auth import (
     STUDIO_EDIT_ROLES,
     STUDIO_VIEW_USERS,
@@ -150,6 +151,15 @@ def _create_library(request):
         display_name = request.json['display_name']
         org = request.json['org']
         library = request.json.get('number', None)
+
+        # [COLARAZ_CUSTOM]
+        if not request.user.is_superuser and not org in configuration_helpers.get_value('course_org_filter'):
+            log.exception('Unable to create library - invalid organization ({}).'.format(org))
+            return JsonResponseBadRequest({
+                "ErrMsg": _("Unable to create library '{}'.\n\n{} is not a valid organization.").format(display_name, org)
+            })
+
+
         if library is None:
             library = request.json['library']
         store = modulestore()
