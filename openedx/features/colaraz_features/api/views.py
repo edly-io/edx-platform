@@ -9,31 +9,50 @@ from six.moves.urllib.parse import urlencode
 from django.conf import settings
 
 from rest_framework import viewsets, status
+from rest_framework_oauth.authentication import OAuth2Authentication
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import serializers as rest_serializers
 
 from openedx.features.colaraz_features.api import serializers
 
+
 LOGGER = logging.getLogger(__name__)
+
 
 class SiteOrgViewSet(viewsets.ViewSet):
     """
     View set to enable creation of site, organization and theme via REST API.
     """
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated, IsAdminUser)
     serializer_class = serializers.SiteOrgSerializer
 
     def create(self, request):
         """
         Perform creation operation for site, organization, site theme and site configuration.
         """
-        serializer = self.serializer_class(data=request.POST)
+        try:
+            serializer = self.serializer_class(data=request.data)
+            if serializer.is_valid(raise_exception=True):
+                data = serializer.create(serializer.validated_data)
+        except (rest_serializers.ValidationError, ValueError, NameError) as ex:
+            return Response(
+                {'error': str(ex)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except:
+            return Response(
+                {'error': 'Request data is unappropriate'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        if serializer.is_valid(raise_exception=True):
-            serializer.create(serializer.validated_data)
-
-        return Response(serializer.validated_data, status=status.HTTP_201_CREATED)
+        return Response(
+            {'success': data},
+            status=status.HTTP_201_CREATED
+        )
 
 
 class NotificationHandlerApiView(APIView):
