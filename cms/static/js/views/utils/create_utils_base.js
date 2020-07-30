@@ -81,7 +81,11 @@ define(['jquery', 'underscore', 'gettext', 'common/js/components/utils/view_util
                     self.keyFieldSelectors,
                     function(element) {
                         var $element = $(element);
-                        var $event = $element.selector == '.new-course-org' ? 'change' : 'keyup';
+                        var $event = 'keyup';
+                        if ($element.selector == '.new-course-org' || $element.selector == '.new-library-org') {
+                            $event = 'change';
+                        }
+
                         $element.on($event, function(event) {
                             // Don't bother showing "required field" error when
                             // the user tabs into a new field; this is distracting

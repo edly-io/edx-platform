@@ -90,8 +90,12 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
         var makeCancelHandler = function(addType) {
             return function(e) {
                 e.preventDefault();
-                $('.new-course-org').val('').find('option').not(':first').remove();
-                $('.new-course-secondary-org').empty();
+                if (addType == 'course') {
+                    $('.new-course-org').val('').find('option').not(':first').remove();
+                    $('.new-course-secondary-org').empty();
+                } else {
+                    $('.new-library-org').val('').find('option').not(':first').remove();
+                }
                 $('.new-' + addType + '-button').removeClass('is-disabled').attr('aria-disabled', false);
                 $('.wrapper-create-' + addType).removeClass('is-shown');
                 // Clear out existing fields and errors
@@ -159,6 +163,7 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
             $cancelButton.bind('click', makeCancelHandler('library'));
             CancelOnEscape($cancelButton);
 
+            CreateLibraryUtils.setupOrgAutocomplete();
             CreateLibraryUtils.configureHandlers();
         };
 
