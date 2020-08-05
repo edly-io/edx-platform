@@ -136,12 +136,11 @@ class JobAlertsHandlerApiView(APIView):
 
         if is_enabled and email_id and api_url:
             resp = requests.post(api_url, json={'email': email_id})
-            json_data = json.loads(resp.content)
             if resp.status_code == status.HTTP_200_OK:
+                json_data = json.loads(resp.content)
                 return Response(json_data, status=status.HTTP_200_OK)
             else:
-                LOGGER.error('Job Alerts API returned following error message: "{}" with status: "{}"'.format(
-                        json_data.get('Message'),
+                LOGGER.error('Job Alerts API returned status: "{}"'.format(
                         resp.status_code,
                     )
                 )
