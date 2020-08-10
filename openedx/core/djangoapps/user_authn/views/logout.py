@@ -6,7 +6,9 @@ from django.conf import settings
 from django.contrib.auth import logout
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
+from django.utils.decorators import method_decorator
 from django.utils.http import urlencode
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.generic import TemplateView
 from provider.oauth2.models import Client
 from openedx.core.djangoapps.user_authn.cookies import delete_logged_in_cookies
@@ -48,6 +50,7 @@ class LogoutView(TemplateView):
         else:
             return self.default_target
 
+    @method_decorator(xframe_options_exempt)
     def dispatch(self, request, *args, **kwargs):
         # We do not log here, because we have a handler registered to perform logging on successful logouts.
         request.is_from_logout = True
