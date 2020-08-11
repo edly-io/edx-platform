@@ -1,4 +1,4 @@
-<%inherit file="/main.html" />
+<%inherit file="/course-access-roles-layout.html" />
 <%!
 from django.urls import reverse
 %>
@@ -25,7 +25,7 @@ from django.urls import reverse
     });
     $(document).ready(function() {
         let course_ids = $('select#id_course_ids');
-        
+
         if (course_ids.is(':disabled') && course_ids[0].value.length === 0) {
             course_ids.parent().remove();
         } else {
