@@ -22,4 +22,16 @@ class DomainValidator(RegexValidator):
     host_re = '^(' + hostname_re + domain_re + '|localhost)$'
 
     regex = re.compile(host_re, re.IGNORECASE)
-    message = _('Enter a valid domain.')
+    message = _('Enter a valid domain without spaces and any special character. e.g: example.com')
+
+
+class SiteNameValidator(RegexValidator):
+    """
+    Allows only a-z and 0-9.
+    """
+    # Hostname e.g. example in example.com
+    hostname_re = r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
+    host_re = '^(' + hostname_re + '|localhost)$'
+
+    regex = re.compile(host_re, re.IGNORECASE)
+    message = _('Enter a valid url domain without spaces and any special character. e.g: cambridge, lums')

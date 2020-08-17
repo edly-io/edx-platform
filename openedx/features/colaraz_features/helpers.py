@@ -1,13 +1,13 @@
 """
 Helper functions for colaraz app.
 """
+from collections import namedtuple
 import json
 import logging
-from collections import namedtuple
-
 import requests
 from six import text_type
 from six.moves.urllib.parse import urlencode
+from future.moves.urllib.parse import urlparse
 
 from django import forms
 from django.conf import settings
@@ -15,9 +15,17 @@ from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
 from django.db.models import Q
 from django.http import QueryDict
+
+from edx_oauth2_provider.models import TrustedClient
+from edx_rest_api_client.exceptions import HttpClientError
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.locator import CourseKey
+from provider.oauth2.models import Client
+from provider.constants import CONFIDENTIAL
+from rest_framework import serializers as rest_serializers
+
+from openedx.core.djangoapps.commerce.utils import ecommerce_api_client
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
 from openedx.core.djangoapps.theming.models import SiteTheme
 from openedx.features.colaraz_features.constants import (
@@ -37,24 +45,25 @@ else:
 
 # Tuple containing information for lms and studio
 # This named tuple can be used for sites, site themes, organizations etc.
-Pair = namedtuple('Pair', 'lms studio')
-LMS_AND_STUDIO_SITE_PREFIXES = ('courses', 'studio')
+Pair = namedtuple('Pair', 'lms studio preview')
+SITE_SERVICE_NAMES = ('courses', 'studio', 'preview')
 LOGGER = logging.getLogger(__name__)
 
 
-def do_sites_exists(domain):
+def get_existing_site_domains(name, domain):
     """
     Check if either lms or studio site for the given domain name exist.
 
     Arguments:
+        name (str): Name of site identifier. e.g. polymath, fortunate etc.
         domain (str): Domain to identify the site. e.g. example.com, test.example.com etc.
 
     Returns:
-        (bool): True if lms and studio sites do not exist for the given domain, False otherwise.
+        (list): Domains of existing sites.
     """
     return Site.objects.filter(
-        domain__in=['{}.{}'.format(prefix, domain) for prefix in LMS_AND_STUDIO_SITE_PREFIXES]
-    ).exists()
+        domain__in=['{}.{}.{}'.format(name, service_name, domain) for service_name in SITE_SERVICE_NAMES]
+    ).values_list('domain', flat=True)
 
 
 def remove_duplicates(items):
@@ -72,32 +81,34 @@ def remove_duplicates(items):
     return list(set(items))
 
 
-def create_sites(domain, name):
+def get_or_create_sites(name, domain):
     """
-    Create sites for lms and studio with domain and name provided in the arguments.
+    Get or Create sites for lms and studio with domain and name provided in the arguments.
 
     LMS Domain will be formed by prepending `courses` to the passed in domain. And Studio domain will be
     formed by prepending `studio` to the passed in domain.
 
     Arguments:
+        name (str): Site identifier for new sites. e.g. polymath, fortunate etc
         domain (str): Domain to identify the site. e.g. example.com, test.example.com etc.
-        name (str): Human readable name for the site.
 
     Returns:
-        (Pair<Site, Site>): named tuple containing lms, studio sites.
+        (Pair<Site, Site>): named tuple containing lms, studio, preview sites.
     """
-    sites = (
-        Site.objects.create(
-            domain='{}.{}'.format(prefix, domain),
-            name='{}.{}'.format(prefix, name),
-        ) for prefix in LMS_AND_STUDIO_SITE_PREFIXES
-    )
+    sites = ()
+    for service_name in SITE_SERVICE_NAMES:
+        site, _ = Site.objects.get_or_create(
+            domain='{}.{}.{}'.format(name, service_name, domain),
+            name='{}.{}.{}'.format(name, service_name, domain),
+        )
+        LOGGER.info('Site with domain ({}) {}'.format(domain, 'already exists.' if _ else 'is created.'))
+        sites = sites + (site,)
     return Pair(*sites)
 
 
-def create_site_themes(sites, theme):
+def update_or_create_site_themes(sites, theme):
     """
-    Create site themes for the site provided in the arguments.
+    Update or Create site themes for the site provided in the arguments.
 
     Arguments:
         sites (Pair<Site, Site>): Named tuple containing lms and studio sites.
@@ -105,76 +116,93 @@ def create_site_themes(sites, theme):
     Returns:
         (Pair<SiteTheme, SiteTheme>): named tuple containing lms, studio sites themes.
     """
-    site_themes = (
-        SiteTheme.objects.create(
-            site=site,
-            theme_dir_name=theme
-        ) for site in sites
-    )
-    return Pair(*site_themes)
+    if settings.DEFAULT_SITE_THEME != theme:
+        for site in sites:
+            SiteTheme.objects.update_or_create(
+                site=site,
+                defaults={
+                    "theme_dir_name": theme,
+                }
+            )
+            LOGGER.info('Site ({}) is mapped with theme ({})'.format(site, theme))
 
-
-def create_organization(name, short_name):
+def get_or_create_organization(name):
     """
     Create an organization with the given name.
 
-    Short name for the organization will be extracted from the name by slugify-ing the name.
-
     Arguments:
         name (str): Name of the organization to create.
-        short_name (str): Short name of the organization to create.
-
     Returns:
         (organization.Organization): Instance of the newly created organization.
     """
-    return Organization.objects.create(
-        name=name,
-        short_name=short_name,
-    )
+    org, _ = Organization.objects.get_or_create(name=name, short_name=name)
+    LOGGER.info('An Organization with name ({}) {}'.format(name, 'already exists' if _ else 'is created'))
+    return org
 
 
-def create_site_configurations(sites, organization, university_name, platform_name, organizations):
+def update_or_create_site_configurations(
+    sites,
+    organization,
+    university_name,
+    platform_name,
+    organizations,
+    company_type,
+    client_secret,
+    ecommerce_url
+):
     """
     Create site configurations for the given sites.
 
     Following fields will be set in the configuration
-        1. SESSION_COOKIE_DOMAIN: site.domain
-        2. PLATFORM_NAME: platform_name
-        3. site_domain: site.domain
-        4. site_name: university_name
-        5. course_org_filters: [ organization.short_name ] + organizations
+        1. SESSION_COOKIE_DOMAIN
+        2. PLATFORM_NAME
+        3. platform_name
+        4. site_domain
+        5. SITE_NAME
+        6. university
+        7. course_org_filters
+        8. COMPANY_TYPE
+        9. LMS_BASE
+        10. CMS_BASE
+        11. PREVIEW_LMS_BASE
+        12. ECOMMERCE_API_SIGNING_KEY
+        13. ECOMMERCE_API_URL
+        14. ECOMMERCE_PUBLIC_URL_ROOT
 
     Arguments:
-        sites (Pair<Site, Site>): named tuple containing lms and studio sites for which to create the configuration.
+        sites (Pair<Site, Site>): Named tuple containing lms and studio sites for which to create the configuration.
         organization (organization.Organization): Organization to associate with the configuration.
         university_name (str): Name of the university
         platform_name (str): Platform name that appears on the dashboard and several other places.
         organizations ([str]): List of organizations to add in the configuration.
-
-    Returns:
-        (Pair<SiteConfiguration, SiteConfiguration>): named tuple containing lms, studio sites configurations.
+        company_type (str): A colaraz specific field.
+        client_secret (str): OAuth2 client secret.
+        ecommerce_url (str): Ecommerce site url.
     """
-    site_configurations = (
-        SiteConfiguration.objects.create(
+    for site in sites:
+        site_conf, _ = SiteConfiguration.objects.update_or_create(
             site=site,
-            enabled=True,
-            values=dict(
-                SESSION_COOKIE_DOMAIN=site.domain,
-                PLATFORM_NAME=platform_name,
-                platform_name=platform_name,
-                site_domain=site.domain,
-                SITE_NAME=site.domain,
-                university=university_name,
-                course_org_filters=remove_duplicates(organizations + [organization.short_name]),
-                **(
-                    {
-                        'AUTH_PROVIDER_FALLBACK_URL': 'https://{}'.format(sites.lms.domain)
-                    } if site == sites.studio else {}
-                )
-            )
-        ) for site in sites
-    )
-    return Pair(*site_configurations)
+            defaults={
+                'enabled': True,
+                'values': {
+                    'SESSION_COOKIE_DOMAIN': settings.SESSION_COOKIE_DOMAIN,
+                    'PLATFORM_NAME': platform_name,
+                    'platform_name': platform_name,
+                    'site_domain': site.domain,
+                    'SITE_NAME': site.domain,
+                    'university': university_name,
+                    'course_org_filters': remove_duplicates(organizations + [organization.short_name]),
+                    'COMPANY_TYPE': company_type,
+                    'LMS_BASE': 'https://{}'.format(sites.lms.domain),
+                    'CMS_BASE': 'https://{}'.format(sites.studio.domain),
+                    'PREVIEW_LMS_BASE': 'https://{}'.format(sites.preview.domain),
+                    'ECOMMERCE_API_SIGNING_KEY': client_secret,
+                    'ECOMMERCE_API_URL': '{}api/v2'.format(ecommerce_url),
+                    'ECOMMERCE_PUBLIC_URL_ROOT': ecommerce_url,
+                }
+            }
+        )
+        LOGGER.info('Site {} is mapped with following configurations {}'.format(site, site_conf.values))
 
 
 def get_request_schema(request):
@@ -472,10 +500,12 @@ def get_role_based_urls(response):
         LOGGER.error('Parameters required to call Colaraz app links api were not complete')
     return {}
 
+
 def get_course_access_role_display_name(course_access_role):
     role_name = course_access_role.role if course_access_role.course_id \
         or course_access_role.role == CourseCreatorRole.ROLE else 'org_{}'.format(course_access_role.role)
     return COURSE_ACCESS_ROLES_DISPLAY_MAPPING.get(role_name)
+
 
 def add_user_fullname_in_threads(threads):
     if not isinstance(threads, list):
@@ -486,7 +516,7 @@ def add_user_fullname_in_threads(threads):
     name_map = {}
     thread_usernames = [thread['username'] for thread in threads if thread.has_key('username')]
     profile_usernames = UserProfile.objects.filter(user__username__in=thread_usernames)\
-       .values_list('user__username', 'name')
+                                           .values_list('user__username', 'name')
     for profile_username in profile_usernames:
         name_map[profile_username[0]] = profile_username[1]
 
@@ -509,3 +539,64 @@ def has_admin_access(request, course_id):
     return request.user.courseaccessrole_set.filter((Q(course_id=course_id)
                                                     | Q(course_id=CourseKeyField.Empty, org__iexact=user_org))
                                                     & Q(role__in=['instructor', 'staff'])).exists()
+
+
+def create_oauth2_client_for_ecommerce_site(url, site_name, service_user):
+    """
+    Creates the oauth2 client and add it in trusted clients.
+    """
+    client, created = Client.objects.get_or_create(
+        user=service_user,
+        name='{site_name}_ecommerce_client'.format(
+            site_name=site_name,
+        ),
+        url=url,
+        client_type=CONFIDENTIAL,
+        redirect_uri='{url}complete/edx-oidc/'.format(url=url),
+        logout_uri='{url}logout/'.format(url=url)
+    )
+    if created:
+        TrustedClient.objects.get_or_create(client=client)
+    return client
+
+
+def create_site_on_ecommerce(ecommerce_worker, lms_site_url, ecommerce_site_url, client, validated_data):
+    """
+    Creates sites, themes and configurations on ecommerce.
+    """
+    # TODO: EdxRestApiClient is depricated, use OAuthAPIClient instead
+    ecommerce_client = ecommerce_api_client(ecommerce_worker)
+
+    request_data = {
+        'lms_site_url': lms_site_url,
+        'ecommerce_site_domain': urlparse(ecommerce_site_url).netloc,
+        'site_theme': '{}-ecommerce'.format(validated_data['site_theme']),
+        'oauth_settings': {
+            'SOCIAL_AUTH_EDX_OIDC_KEY': client.client_id,
+            'SOCIAL_AUTH_EDX_OIDC_SECRET': client.client_secret,
+            'SOCIAL_AUTH_EDX_OIDC_ID_TOKEN_DECRYPTION_KEY': client.client_secret,
+            'SOCIAL_AUTH_EDX_OIDC_ISSUERS': [lms_site_url],
+            'SOCIAL_AUTH_EDX_OIDC_PUBLIC_URL_ROOT': '{}/oauth2'.format(lms_site_url),
+            'SOCIAL_AUTH_EDX_OIDC_URL_ROOT': '{}/oauth2'.format(lms_site_url),
+        }
+    }
+    optional_fields = [
+        'client_side_payment_processor',
+        'ecommerce_from_email',
+        'payment_processors',
+        'payment_support_email',
+        'site_partner',
+    ]
+    for field in optional_fields:
+        if validated_data.get(field):
+            request_data[field] = validated_data.get(field)
+
+    LOGGER.info('Sending the following data to ecommerce for site creation: {}'.format(request_data))
+
+    try:
+        response = ecommerce_client.resource('/colaraz/api/v1/site-org/').post(request_data)
+    except HttpClientError as ex:
+        LOGGER.error('Error while sending data to ecommerce: {}'.format(str(ex.content)))
+        raise rest_serializers.ValidationError(str(ex.content))
+
+    return response
