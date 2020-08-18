@@ -191,7 +191,7 @@ def update_or_create_site_configurations(
                     'site_domain': site.domain,
                     'SITE_NAME': site.domain,
                     'university': university_name,
-                    'course_org_filters': remove_duplicates(organizations + [organization.short_name]),
+                    'course_org_filter': remove_duplicates(organizations + [organization.short_name]),
                     'COMPANY_TYPE': company_type,
                     'LMS_BASE': sites.lms.domain,
                     'CMS_BASE': sites.studio.domain,
