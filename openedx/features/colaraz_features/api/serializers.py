@@ -23,6 +23,7 @@ from openedx.features.colaraz_features.helpers import (
 )
 
 class SiteOrgSerializer(serializers.Serializer):
+    auth_token = serializers.CharField(required=True)
     site_domain = DomainField(max_length=20, required=True)
     site_name = SiteNameField(max_length=20, required=True)
     site_theme = serializers.CharField(max_length=255, required=False, default=settings.DEFAULT_SITE_THEME)
@@ -49,6 +50,15 @@ class SiteOrgSerializer(serializers.Serializer):
             self.sites_validation(fields.get('site_name'), fields.get('site_domain'))
             self.org_validation(fields.get('site_name'))
         return fields
+
+    @staticmethod
+    def validate_auth_token(value):
+        """
+        Validate authorization token.
+        """
+        if value != getattr(settings, 'COLARAZ_SITE_CREATION_API_TOKEN', ''):
+            raise serializers.ValidationError('Authentication Token is not valid')
+        return value
 
     @staticmethod
     def sites_validation(name, domain):
