@@ -43,24 +43,27 @@ class ColarazIdentityServer(IdentityServer3):
         current_req = get_current_request()
         site = getattr(current_req, "site", None)
         domain = getattr(site, "domain", None)
+        try:
+            user_site_domain = response["companyInfo"]["url"]
 
-        user_site_domain = response["companyInfo"]["url"]
+            if not domain:
+                LOGGER.exception("Domain not found in request attributes")
+                raise AuthException("Colaraz", "Error while authentication")
+            elif user_site_domain.lower() not in domain:
+                LOGGER.exception("User can only login through {} site".format(user_site_domain))
+                raise AuthException("Colaraz", "Your account belongs to {}".format(user_site_domain))
 
-        if not domain:
-            LOGGER.exception("Domain not found in request attributes")
-            raise AuthException("Colaraz", "Error while authentication")
-        elif user_site_domain.lower() not in domain:
-            LOGGER.exception("User can only login through {} site".format(user_site_domain))
-            raise AuthException("Colaraz", "Your account belongs to {}".format(user_site_domain))
-
-        details = {
-            "fullname": "{} {}".format(response["firstName"], response["lastName"]),
-            "email": response["email"],
-            "first_name": response["firstName"],
-            "last_name": response["lastName"],
-            "username": response["email"]
-        }
-        return details
+            details = {
+                "fullname": "{} {}".format(response["firstName"], response["lastName"]),
+                "email": response["email"],
+                "first_name": response["firstName"],
+                "last_name": response["lastName"],
+                "username": response["email"]
+            }
+            return details
+        except KeyError:
+            LOGGER.exception("User profile data is unappropriate or not given")
+            raise AuthException("Colaraz", "User profile data is unappropriate or not given")
 
     @cached_property
     def _id3_config(self):
