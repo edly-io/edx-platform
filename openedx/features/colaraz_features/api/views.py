@@ -26,8 +26,7 @@ class SiteOrgViewSet(viewsets.ViewSet):
     """
     View set to enable creation of site, organization and theme via REST API.
     """
-    authentication_classes = (OAuth2Authentication,)
-    permission_classes = (IsAuthenticated, IsAdminUser)
+
     serializer_class = serializers.SiteOrgSerializer
 
     def create(self, request):

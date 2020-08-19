@@ -1161,6 +1161,10 @@ COLARAZ_JOB_ALERTS = ENV_TOKENS.get(
     'COLARAZ_JOB_ALERTS',
     COLARAZ_JOB_ALERTS
 )
+COLARAZ_SITE_CREATION_API_TOKEN = AUTH_TOKENS.get(
+    'COLARAZ_SITE_CREATION_API_TOKEN',
+    COLARAZ_SITE_CREATION_API_TOKEN
+)
 ############################### Plugin Settings ###############################
 
 # This is at the bottom because it is going to load more settings after base settings are loaded

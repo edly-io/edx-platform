@@ -23,6 +23,7 @@ from openedx.features.colaraz_features.helpers import (
 )
 
 class SiteOrgSerializer(serializers.Serializer):
+    auth_token = serializers.CharField(required=True)
     site_domain = DomainField(max_length=20, required=True)
     site_name = SiteNameField(max_length=20, required=True)
     site_theme = serializers.CharField(max_length=255, required=False, default=settings.DEFAULT_SITE_THEME)
@@ -51,6 +52,15 @@ class SiteOrgSerializer(serializers.Serializer):
         return fields
 
     @staticmethod
+    def validate_auth_token(value):
+        """
+        Validate authorization token.
+        """
+        if value != getattr(settings, 'COLARAZ_SITE_CREATION_API_TOKEN', ''):
+            raise serializers.ValidationError('Authentication Token is not valid')
+        return value
+
+    @staticmethod
     def sites_validation(name, domain):
         """
         Validate that site domains do not already exist.
@@ -73,19 +83,18 @@ class SiteOrgSerializer(serializers.Serializer):
         """
         Create instances of site, site theme, organization and site configuration on edx-platform and ecommerce.
         """
-        site_name = validated_data['site_name']
         ecommerce_site_url = '{uri.scheme}://{site_name}.{uri.netloc}/'.format(
-            site_name=site_name,
+            site_name=validated_data['site_name'],
             uri=urlparse(settings.ECOMMERCE_PUBLIC_URL_ROOT),
         )
         ecommerce_worker = User.objects.get(username=settings.ECOMMERCE_SERVICE_WORKER_USERNAME)
         client = create_oauth2_client_for_ecommerce_site(
             service_user=ecommerce_worker,
-            site_name=site_name,
+            site_name=validated_data['site_name'],
             url=ecommerce_site_url,
         )
 
-        sites = get_or_create_sites(name=site_name, domain=validated_data['site_domain'])
+        sites = get_or_create_sites(name=validated_data['site_name'], domain=validated_data['site_domain'])
         organization = get_or_create_organization(name=validated_data['site_name'])
         update_or_create_site_themes(sites=sites, theme=validated_data['site_theme'])
         update_or_create_site_configurations(
