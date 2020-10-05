@@ -1516,7 +1516,7 @@ def render_xblock(request, usage_key_string, check_if_enrolled=True):
             'allow_iframing': True,
             'disable_header': True,
             'disable_footer': True,
-            'disable_window_wrap': True,
+            'disable_window_wrap': False,
             'enable_completion_on_view_service': enable_completion_on_view_service,
             'staff_access': bool(has_access(request.user, 'staff', course)),
             'xqa_server': settings.FEATURES.get('XQA_SERVER', 'http://your_xqa_server.com'),
