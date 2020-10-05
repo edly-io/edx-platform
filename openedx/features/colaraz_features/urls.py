@@ -6,6 +6,7 @@ from django.conf.urls import url, include
 from openedx.features.colaraz_features.api import urls
 from openedx.features.colaraz_features import views
 
+app_name = 'colaraz'
 
 urlpatterns = [
     url(r'^api/v1/', include(urls.urlpatterns)),
