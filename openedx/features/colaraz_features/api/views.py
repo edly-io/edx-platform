@@ -17,7 +17,8 @@ from rest_framework.views import APIView
 from rest_framework import serializers as rest_serializers
 
 from openedx.features.colaraz_features.api import serializers
-
+from openedx.features.course_experience.utils import get_course_outline_block_tree
+from xmodule.modulestore.exceptions import ItemNotFoundError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -169,3 +170,26 @@ class JobAlertsHandlerApiView(APIView):
             {'message': 'Job Alerts API is not enabled or is not configured properly'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+
+class CourseOutlineView(APIView):
+    authentication_classes = (OAuth2Authentication, )
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, course_id):
+        """
+        api to get course outline in sequence
+        :param request:
+        :param course_id:
+        :return: dictionary of course outline tree structure
+        """
+        user = request.user
+        try:
+            course_tree = get_course_outline_block_tree(request, course_id, user)
+        except ItemNotFoundError:
+            # this exception is raised in few cases like if invalid course_id is passed
+            return Response(data='Course not found', status=status.HTTP_404_NOT_FOUND)
+        if course_tree is None:
+            return Response(data='Course not found', status=status.HTTP_404_NOT_FOUND)
+        return Response(course_tree, status=status.HTTP_200_OK)
+
