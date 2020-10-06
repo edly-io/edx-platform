@@ -28,11 +28,11 @@ class SubscriptionsListView(ListAPIView):
 
     def get_queryset(self):
         return_only_valid_subscriptions = True if self.request.query_params.get('valid') == 'true' else False
-        user_id = self.request.query_params.get('user', self.request.user.id)
+        username = self.request.query_params.get('user', self.request.user.username)
         if return_only_valid_subscriptions:
-            return UserSubscription.get_valid_subscriptions(user_id=user_id)
+            return UserSubscription.get_valid_subscriptions(self.request.site, username=username)
 
-        return UserSubscription.objects.filter(user_id=user_id)
+        return UserSubscription.objects.filter(user_username=username)
 
 
 class SubscriptionRetrieveUpdateView(PutAsCreateMixin, RetrieveUpdateAPIView):
@@ -50,8 +50,8 @@ class SubscriptionRetrieveUpdateView(PutAsCreateMixin, RetrieveUpdateAPIView):
     ordering = ['-created']
 
     def get_object(self, queryset=None):
-        user_id = self.request.user.id
-        self.kwargs['user'] = user_id
+        username = self.request.data.get('user', self.request.user.username)
+        self.kwargs['user__username'] = username
         user_subscription = UserSubscription.objects.filter(**self.kwargs).first()
 
         if not user_subscription:
