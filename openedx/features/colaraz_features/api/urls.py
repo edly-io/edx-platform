@@ -9,6 +9,7 @@ from openedx.features.colaraz_features.api.views import (
     NotificationHandlerApiView,
     JobAlertsHandlerApiView,
     CourseOutlineView,
+    CourseXBlockApi
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     url(r'^notifications/(?P<api_method>\D+)', NotificationHandlerApiView.as_view(), name="notifications_handler"),
     url(r'^job-alerts/(?P<api_method>\D+)', JobAlertsHandlerApiView.as_view(), name="job_alerts_handler"),
     url(r'^course/{}'.format(settings.COURSE_ID_PATTERN), CourseOutlineView.as_view(), name="course_outline"),
+    url(r'^xblock/{}$'.format(settings.USAGE_KEY_PATTERN), CourseXBlockApi.as_view(), name="course_xblock"),
 ]
