@@ -4,10 +4,13 @@ Views for colaraz API.
 import json
 import logging
 import requests
+from six import text_type
 from six.moves.urllib.parse import urlencode
 
+from bleach import clean
 from django.conf import settings
-
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
+from opaque_keys.edx.keys import CourseKey, UsageKey
 from rest_framework import viewsets, status
 from rest_framework_oauth.authentication import OAuth2Authentication
 from rest_framework.authentication import SessionAuthentication
@@ -16,8 +19,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import serializers as rest_serializers
 
+from edxmako.shortcuts import marketing_link, render_to_response, render_to_string
+from lms.djangoapps.courseware.access import has_access, has_ccx_coach_role
+from lms.djangoapps.courseware.courses import get_course_with_access
+from lms.djangoapps.courseware.exceptions import CourseAccessRedirect, Redirect
+from lms.djangoapps.courseware.module_render import get_module, get_module_by_usage_id, get_module_for_descriptor
 from openedx.features.colaraz_features.api import serializers
 from openedx.features.course_experience.utils import get_course_outline_block_tree
+from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
 
 LOGGER = logging.getLogger(__name__)
@@ -193,3 +202,61 @@ class CourseOutlineView(APIView):
             return Response(data='Course not found', status=status.HTTP_404_NOT_FOUND)
         return Response(course_tree, status=status.HTTP_200_OK)
 
+
+class CourseXBlockApi(APIView):
+    authentication_classes = (OAuth2Authentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, usage_key_string):
+        """
+        Returns an HttpResponse with HTML content for the xBlock with the given usage_key.
+        The returned HTML is a chromeless rendering of the xBlock (excluding content of the containing courseware).
+        """
+        usage_key = UsageKey.from_string(usage_key_string)
+
+        usage_key = usage_key.replace(course_key=modulestore().fill_in_run(usage_key.course_key))
+        course_key = usage_key.course_key
+
+        requested_view = request.GET.get('view', 'student_view')
+        if requested_view != 'student_view':
+            return HttpResponseBadRequest(
+                "Rendering of the xblock view '{}' is not supported.".format(clean(requested_view, strip=True))
+            )
+
+        with modulestore().bulk_operations(course_key):
+            # verify the user has access to the course, including enrollment check
+            try:
+                course = get_course_with_access(request.user, 'load', course_key, check_if_enrolled=True)
+            except CourseAccessRedirect:
+                raise Http404("Course not found.")
+
+            # get the block, which verifies whether the user has access to the block.
+            block, _ = get_module_by_usage_id(
+                request, text_type(course_key), text_type(usage_key), disable_staff_debug_info=True, course=course
+            )
+
+            student_view_context = request.GET.dict()
+            student_view_context['show_bookmark_button'] = False
+
+            enable_completion_on_view_service = False
+            completion_service = block.runtime.service(block, 'completion')
+            if completion_service and completion_service.completion_tracking_enabled():
+                if completion_service.blocks_to_mark_complete_on_view({block}):
+                    enable_completion_on_view_service = True
+                    student_view_context['wrap_xblock_data'] = {
+                        'mark-completed-on-view-after-delay': completion_service.get_complete_on_view_delay_ms()
+                    }
+
+            context = {
+                'fragment': block.render('student_view', context=student_view_context),
+                'course': course,
+                'disable_accordion': True,
+                'allow_iframing': True,
+                'disable_header': True,
+                'disable_footer': True,
+                'disable_window_wrap': False,
+                'enable_completion_on_view_service': enable_completion_on_view_service,
+                'staff_access': bool(has_access(request.user, 'staff', course)),
+                'xqa_server': settings.FEATURES.get('XQA_SERVER', 'http://your_xqa_server.com'),
+            }
+            return render_to_response('courseware/courseware-chromeless.html', context)
