@@ -5,6 +5,8 @@ import re
 
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
+from oauth2_provider.models import AccessToken
+from rest_framework import authentication, exceptions
 
 
 class DomainValidator(RegexValidator):
@@ -35,3 +37,20 @@ class SiteNameValidator(RegexValidator):
 
     regex = re.compile(host_re)
     message = _('Enter a valid url domain without spaces, capital letters and any special character. e.g: cambridge, lums')
+
+
+class TokenBasedAuthentication(authentication.BaseAuthentication):
+    """
+    Class to authenticate user via auth token passed in url as a parameter.
+    """
+
+    def authenticate(self, request):
+        token = request.GET.get('token')
+        if token:
+            try:
+                user = AccessToken.objects.get(token=token).user
+                return user, None
+            except AccessToken.DoesNotExist:
+                raise exceptions.AuthenticationFailed(_('Invalid Token.'))
+        else:
+            raise exceptions.AuthenticationFailed(_('Access token required in url as query parameter'))
