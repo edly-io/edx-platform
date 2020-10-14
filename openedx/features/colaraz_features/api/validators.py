@@ -3,10 +3,17 @@ Custom Validators for Colaraz API.
 """
 import re
 
+from django.conf import settings
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
-from oauth2_provider.models import AccessToken
 from rest_framework import authentication, exceptions
+# For local testing, you will have to import
+# from oauth2_provider.models import AccessToken
+# We are doing it on the basis of settings.DEBUG flag in the imports section.
+if settings.DEBUG == True:
+    from oauth2_provider.models import AccessToken
+else:
+    from provider.oauth2.models import AccessToken
 
 
 class DomainValidator(RegexValidator):
