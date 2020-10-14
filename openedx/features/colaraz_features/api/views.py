@@ -25,6 +25,7 @@ from lms.djangoapps.courseware.courses import get_course_with_access
 from lms.djangoapps.courseware.exceptions import CourseAccessRedirect, Redirect
 from lms.djangoapps.courseware.module_render import get_module, get_module_by_usage_id, get_module_for_descriptor
 from openedx.features.colaraz_features.api import serializers
+from openedx.features.colaraz_features.api.validators import TokenBasedAuthentication
 from openedx.features.course_experience.utils import get_course_outline_block_tree
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
@@ -204,7 +205,7 @@ class CourseOutlineView(APIView):
 
 
 class CourseXBlockApi(APIView):
-    authentication_classes = (OAuth2Authentication,)
+    authentication_classes = (TokenBasedAuthentication,)
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, usage_key_string):
