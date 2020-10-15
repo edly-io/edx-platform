@@ -256,6 +256,7 @@ class CourseXBlockApi(APIView):
                 'disable_header': True,
                 'disable_footer': True,
                 'disable_window_wrap': False,
+                'mobile_view': True,
                 'enable_completion_on_view_service': enable_completion_on_view_service,
                 'staff_access': bool(has_access(request.user, 'staff', course)),
                 'xqa_server': settings.FEATURES.get('XQA_SERVER', 'http://your_xqa_server.com'),
