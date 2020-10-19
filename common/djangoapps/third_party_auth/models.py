@@ -221,7 +221,7 @@ class ProviderConfig(ConfigurationModel):
     def provider_id(self):
         """ Unique string key identifying this provider. Must be URL and css class friendly. """
         assert self.prefix is not None
-        return "-".join((self.prefix, ) + tuple(getattr(self, field) for field in self.KEY_FIELDS))
+        return "-".join((self.prefix, ) + tuple(str(getattr(self, field)) for field in self.KEY_FIELDS))
 
     @property
     def backend_class(self):
@@ -329,6 +329,13 @@ class OAuth2ProviderConfig(ProviderConfig):
     Configuration Entry for an OAuth2 based provider.
     Also works for OAuth1 providers.
     """
+    # We are keying the provider config by backend_name here as suggested in the python social
+    # auth documentation. In order to reuse a backend for a second provider, a subclass can be
+    # created with seperate name.
+    # example:
+    # class SecondOpenIDProvider(OpenIDAuth):
+    #   name = "second-openId-provider"
+    KEY_FIELDS = ('backend_name', 'site')
     prefix = 'oa2'
     backend_name = models.CharField(
         max_length=50, blank=False, db_index=True,
