@@ -23,10 +23,12 @@ from edxmako.shortcuts import marketing_link, render_to_response, render_to_stri
 from lms.djangoapps.courseware.access import has_access, has_ccx_coach_role
 from lms.djangoapps.courseware.courses import get_course_with_access
 from lms.djangoapps.courseware.exceptions import CourseAccessRedirect, Redirect
-from lms.djangoapps.courseware.module_render import get_module, get_module_by_usage_id, get_module_for_descriptor
+from lms.djangoapps.courseware.module_render import (get_module, get_module_by_usage_id, get_module_for_descriptor,
+                                                     _invoke_xblock_handler)
 from openedx.features.colaraz_features.api import serializers
 from openedx.features.colaraz_features.api.validators import TokenBasedAuthentication
 from openedx.features.course_experience.utils import get_course_outline_block_tree
+from opaque_keys import InvalidKeyError
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
 
@@ -262,3 +264,33 @@ class CourseXBlockApi(APIView):
                 'xqa_server': settings.FEATURES.get('XQA_SERVER', 'http://your_xqa_server.com'),
             }
             return render_to_response('courseware/courseware-chromeless.html', context)
+
+
+class HandleXblockCallback(APIView):
+    authentication_classes = (TokenBasedAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, course_id, usage_id, handler, suffix=None):
+        """
+        Arguments:
+            request (Request): Django request.
+            course_id (str): Course containing the block
+            usage_id (str)
+            handler (str)
+            suffix (str)
+
+        Raises:
+            Http404: If the course is not found in the modulestore.
+        """
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise Http404('{} is not a valid course key'.format(course_id))
+
+        with modulestore().bulk_operations(course_key):
+            try:
+                course = modulestore().get_course(course_key)
+            except ItemNotFoundError:
+                raise Http404('{} does not exist in the modulestore'.format(course_id))
+
+            return _invoke_xblock_handler(request, course_id, usage_id, handler, suffix, course=course)
