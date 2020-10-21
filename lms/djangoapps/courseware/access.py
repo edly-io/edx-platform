@@ -45,6 +45,7 @@ from mobile_api.models import IgnoreMobileAvailableFlagConfig
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.external_auth.models import ExternalAuthMap
 from openedx.features.course_duration_limits.access import check_course_expired
+from openedx.features.subscriptions.utils import is_course_accessible_with_subscription
 from student import auth
 from student.models import CourseEnrollmentAllowed
 from student.roles import (
@@ -367,6 +368,14 @@ def _has_access_course(user, action, courselike):
                 return staff_access
             else:
                 return has_not_expired
+
+        user_has_active_subscription = is_course_accessible_with_subscription(user, courselike)
+        if not user_has_active_subscription:
+            staff_access = _has_staff_access_to_descriptor(user, courselike, courselike.id)
+            if staff_access:
+                return staff_access
+            else:
+                return user_has_active_subscription
 
         return ACCESS_GRANTED
 
