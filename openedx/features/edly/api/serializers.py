@@ -4,13 +4,13 @@ from openedx.core.djangoapps.site_configuration.helpers import get_value_for_org
 
 
 class SiteSerialzier(serializers.Serializer):
-    domain = serializers.SerializerMethodField()
-    name = serializers.SerializerMethodField()
+    domain_name = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
 
-    def get_domain(self, obj):
+    def get_domain_name(self, obj):
         return self.context['edly_sub_org_of_user'].lms_site.domain
 
-    def get_name(self, obj):
+    def get_display_name(self, obj):
         return self.context['edly_sub_org_of_user'].lms_site.name
 
 
