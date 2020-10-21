@@ -26,18 +26,21 @@ class UserSiteSerializer(serializers.Serializer):
     def get_app_config(self, obj):
         mobile_app_config = get_value_for_org(
             self.context['edly_sub_org_of_user'].edx_organization.short_name,
-            'MOBILE_APP_CONFIG'
+            'MOBILE_APP_CONFIG',
+            default={}
         )
         return mobile_app_config
 
     def get_branding(self, obj):
         branding = get_value_for_org(
             self.context['edly_sub_org_of_user'].edx_organization.short_name,
-            'BRANDING'
+            'BRANDING',
+            default={}
         )
         colors = get_value_for_org(
             self.context['edly_sub_org_of_user'].edx_organization.short_name,
-            'COLORS'
+            'COLORS',
+            default={}
         )
         branding.update(colors)
         return branding
