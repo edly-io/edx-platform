@@ -123,3 +123,5 @@ docker_push: docker_tag docker_auth ## push to docker hub
 	docker push 'openedx/edx-platform:latest-newrelic'
 	docker push "openedx/edx-platform:${GITHUB_SHA}-newrelic"
 
+install_prereqs:
+	$ python -c 'from pavelib.prereqs import install_prereqs; install_prereqs()'

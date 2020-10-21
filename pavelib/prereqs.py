@@ -6,11 +6,10 @@ Install Python and Node prerequisites.
 import hashlib
 import os
 import re
-import subprocess
+from subprocess import Popen, call, check_output
 import sys
 from distutils import sysconfig
 
-from paver.easy import BuildFailure, sh, task
 
 from .utils.envs import Env
 from .utils.timer import timed
@@ -141,14 +140,14 @@ def node_prereqs_installation():
     # The implementation of Paver's `sh` function returns before the forked
     # actually returns. Using a Popen object so that we can ensure that
     # the forked process has returned
-    proc = subprocess.Popen(npm_command, stderr=npm_log_file)
+    proc = Popen(npm_command, stderr=npm_log_file)
     retcode = proc.wait()
     if retcode == 1:
         # Error handling around a race condition that produces "cb() never called" error. This
         # evinces itself as `cb_error_text` and it ought to disappear when we upgrade
         # npm to 3 or higher. TODO: clean this up when we do that.
         print("npm install error detected. Retrying...")
-        proc = subprocess.Popen(npm_command, stderr=npm_log_file)
+        proc = Popen(npm_command, stderr=npm_log_file)
         retcode = proc.wait()
         if retcode == 1:
             raise Exception("npm install failed: See {}".format(npm_log_file_path))
@@ -168,10 +167,8 @@ def python_prereqs_installation():
 def pip_install_req_file(req_file):
     """Pip install the requirements file."""
     pip_cmd = 'pip install -q --disable-pip-version-check --exists-action w'
-    sh("{pip_cmd} -r {req_file}".format(pip_cmd=pip_cmd, req_file=req_file))
+    call("{pip_cmd} -r {req_file}".format(pip_cmd=pip_cmd, req_file=req_file), shell=True)
 
-
-@task
 @timed
 def install_node_prereqs():
     """
@@ -203,7 +200,6 @@ PACKAGES_TO_UNINSTALL = [
 ]
 
 
-@task
 @timed
 def uninstall_python_packages():
     """
@@ -239,12 +235,12 @@ def uninstall_python_packages():
     # to really really get rid of it.
     for _ in range(3):
         uninstalled = False
-        frozen = sh("pip freeze", capture=True)
+        frozen = check_output('pip freeze', shell=True).decode("utf-8")
 
         for package_name in PACKAGES_TO_UNINSTALL:
             if package_in_frozen(package_name, frozen):
                 # Uninstall the pacakge
-                sh("pip uninstall --disable-pip-version-check -y {}".format(package_name))
+                call("pip uninstall --disable-pip-version-check -y {}".format(package_name), shell=True)
                 uninstalled = True
         if not uninstalled:
             break
@@ -275,7 +271,6 @@ def package_in_frozen(package_name, frozen_output):
     return bool(re.search(pattern, frozen_output))
 
 
-@task
 @timed
 def install_coverage_prereqs():
     """ Install python prereqs for measuring coverage. """
@@ -285,7 +280,6 @@ def install_coverage_prereqs():
     pip_install_req_file(COVERAGE_REQ_FILE)
 
 
-@task
 @timed
 def install_python_prereqs():
     """
@@ -319,12 +313,12 @@ def install_python_prereqs():
     prereq_cache("Python prereqs", files_to_fingerprint, python_prereqs_installation)
 
 
-@task
 @timed
 def install_prereqs():
     """
     Installs Node and Python prerequisites
     """
+
     if no_prereq_install():
         print(NO_PREREQ_MESSAGE)
         return
@@ -338,7 +332,7 @@ def install_prereqs():
 
 def log_installed_python_prereqs():
     """  Logs output of pip freeze for debugging. """
-    sh("pip freeze > {}".format(Env.GEN_LOG_DIR + "/pip_freeze.log"))
+    call("pip freeze > {}".format(Env.GEN_LOG_DIR + "/pip_freeze.log"), shell=True)
 
 
 def print_devstack_warning():
