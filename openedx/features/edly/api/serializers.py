@@ -13,13 +13,12 @@ class UserSiteSerializer(serializers.Serializer):
             'MOBILE_APP_CONFIG',
             default={}
         )
-        mobile_app_config['API_HOST_URL'] = get_value_for_org(
+        url = get_value_for_org(
             self.context['edly_sub_org_of_user'].edx_organization.short_name,
             'SITE_NAME',
             default=''
         )
         protocol = 'https' if self.context['request'].is_secure() else 'http'
-        url = mobile_app_config['API_HOST_URL']
         mobile_app_config['API_HOST_URL'] = '{}//:{}'.format(protocol, url) if url else ''
         mobile_app_config['ORGANIZATION_CODE'] = self.context['edly_sub_org_of_user'].edx_organization.short_name
         return mobile_app_config

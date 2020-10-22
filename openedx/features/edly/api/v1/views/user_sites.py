@@ -35,8 +35,8 @@ class UserSitesViewSet(viewsets.ViewSet):
 
         The HTTP 200 response has the following values.
 
-        * app_config: Mobile configurations for the site with user is linked.
-        * site_data: Branding configurations for the site with user is linked.
+        * app_config: Mobile configurations for the site which user is linked with.
+        * site_data: Branding configurations for the site which user is linked with.
     """
     permission_classes = (IsAuthenticated,)
     serializer = UserSiteSerializer
