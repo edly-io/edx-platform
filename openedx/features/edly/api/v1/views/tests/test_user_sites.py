@@ -42,10 +42,6 @@ class TestUserSitesViewSet(TestCase):
         """
         Verify that `list` returns correct response when user is not logged in.
         """
+        self.client.logout()
         response = self.client.get(self.user_sites_list_url)
-
-        assert response.status_code == 200
-
-        data = response.data[0]
-        assert data.get('site_data', {}).get('display_name') == self.request_site.name
-        assert data.get('app_config', {}).get('ORGANIZATION_CODE') == self.edly_sub_org.edx_organization.short_name
+        assert response.status_code == 401
