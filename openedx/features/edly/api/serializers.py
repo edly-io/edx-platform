@@ -3,25 +3,9 @@ from rest_framework import serializers
 from openedx.core.djangoapps.site_configuration.helpers import get_value_for_org
 
 
-class SiteSerialzier(serializers.Serializer):
-    domain_name = serializers.SerializerMethodField()
-    display_name = serializers.SerializerMethodField()
-
-    def get_domain_name(self, obj):
-        return self.context['edly_sub_org_of_user'].lms_site.domain
-
-    def get_display_name(self, obj):
-        return self.context['edly_sub_org_of_user'].lms_site.name
-
-
 class UserSiteSerializer(serializers.Serializer):
-    site = serializers.SerializerMethodField()
     app_config = serializers.SerializerMethodField()
-    branding = serializers.SerializerMethodField()
-
-    def get_site(self, obj):
-        serializer = SiteSerialzier({}, context=self.context)
-        return serializer.data
+    site_data = serializers.SerializerMethodField()
 
     def get_app_config(self, obj):
         mobile_app_config = get_value_for_org(
@@ -29,18 +13,29 @@ class UserSiteSerializer(serializers.Serializer):
             'MOBILE_APP_CONFIG',
             default={}
         )
+        mobile_app_config['API_HOST_URL'] = get_value_for_org(
+            self.context['edly_sub_org_of_user'].edx_organization.short_name,
+            'SITE_NAME',
+            default=''
+        )
+        protocol = 'https' if self.context['request'].is_secure() else 'http'
+        url = mobile_app_config['API_HOST_URL']
+        mobile_app_config['API_HOST_URL'] = '{}//:{}'.format(protocol, url) if url else ''
+        mobile_app_config['ORGANIZATION_CODE'] = self.context['edly_sub_org_of_user'].edx_organization.short_name
         return mobile_app_config
 
-    def get_branding(self, obj):
-        branding = get_value_for_org(
+    def get_site_data(self, obj):
+        site_data = get_value_for_org(
             self.context['edly_sub_org_of_user'].edx_organization.short_name,
             'BRANDING',
             default={}
         )
-        colors = get_value_for_org(
-            self.context['edly_sub_org_of_user'].edx_organization.short_name,
-            'COLORS',
-            default={}
+        site_data.update(
+            get_value_for_org(
+                self.context['edly_sub_org_of_user'].edx_organization.short_name,
+                'COLORS',
+                default={}
+            )
         )
-        branding.update(colors)
-        return branding
+        site_data['display_name'] = self.context['edly_sub_org_of_user'].lms_site.name
+        return site_data
