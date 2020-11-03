@@ -598,6 +598,7 @@ CORS_ORIGIN_WHITELIST = (
     'http://panel.dev.edly.com',
     'http://panel.backend.dev.edly.com',
 )
+DISABLE_CMS_TASK_EMAILS = 'DISABLE_CMS_TASK_EMAILS'
 
 # Clickjacking protection can be disabled by setting this to 'ALLOW'
 X_FRAME_OPTIONS = 'DENY'

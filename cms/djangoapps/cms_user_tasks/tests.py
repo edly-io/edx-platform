@@ -17,6 +17,8 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 from user_tasks.models import UserTaskArtifact, UserTaskStatus
 from user_tasks.serializers import ArtifactSerializer, StatusSerializer
+from openedx.core.djangoapps.site_configuration.tests.factories import SiteFactory, SiteConfigurationFactory
+from openedx.core.lib.celery.task_utils import emulate_http_request
 
 from .signals import user_task_stopped
 
@@ -156,6 +158,27 @@ class TestUserTaskStopped(APITestCase):
         super(TestUserTaskStopped, self).setUp()
         self.status.refresh_from_db()
         self.client.force_authenticate(self.user)  # pylint: disable=no-member
+
+    def test_email_when_disabled_from_site_configuration(self):
+        """
+        Test that email is not sent if disabled from site configuration.
+        """
+        site = SiteFactory()
+        SiteConfigurationFactory(
+            site=site,
+            values={
+                settings.DISABLE_CMS_TASK_EMAILS: 'false'
+            }
+        )
+        with emulate_http_request(site=site, user=self.user):
+            user_task_stopped.send(sender=UserTaskStatus, status=self.status)
+            self.assertEqual(len(mail.outbox), 1)
+
+            site.configuration.values = {
+                settings.DISABLE_CMS_TASK_EMAILS: 'true'
+            }
+            user_task_stopped.send(sender=UserTaskStatus, status=self.status)
+            self.assertEqual(len(mail.outbox), 0)
 
     def test_email_sent_with_site(self):
         """
