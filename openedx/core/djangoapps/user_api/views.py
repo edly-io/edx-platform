@@ -158,7 +158,6 @@ class RegistrationView(APIView):
             user = create_account_with_params(request, data)
             create_user_link_with_edly_sub_organization(request, user)
             user = create_learner_link_with_permission_groups(user)
-
         except AccountValidationError as err:
             errors = {
                 err.field: [{"user_message": text_type(err)}]
