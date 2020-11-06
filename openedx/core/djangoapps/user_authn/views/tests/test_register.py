@@ -679,6 +679,8 @@ class TestCreateAccountValidation(TestCase):
         self.assertLess(len(params["email"]), 254)
         self.assert_success(params)
 
+        self.client.logout()
+
         # Invalid
         params["email"] = "not_an_email_address"
         assert_email_error("A properly formatted e-mail is required")
@@ -783,6 +785,8 @@ class TestCreateAccountValidation(TestCase):
             # True
             params["honor_code"] = "tRUe"
             self.assert_success(params)
+
+            self.client.logout()
 
         with override_settings(REGISTRATION_EXTRA_FIELDS={"honor_code": "optional"}):
             # Missing
