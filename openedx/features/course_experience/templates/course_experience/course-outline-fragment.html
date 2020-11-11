@@ -50,11 +50,13 @@ course_sections = blocks.get('children')
                 gated_subsection = subsection['id'] in gated_content
                 completed_prereqs = gated_content[subsection['id']]['completed_prereqs'] if gated_subsection else False
                 subsection_is_auto_opened = subsection.get('resume_block') is True
+                hide_subsection = hide_lms_subsection is True and len(subsection.get('children', [])) == 1
                 %>
                       <li class="subsection accordion ${ 'current' if subsection.get('resume_block') else '' }">
                 % if gated_subsection and not completed_prereqs:
                                 <a href="${ subsection['lms_web_url'] }">
                                     <button class="subsection-text prerequisite-button"
+                                            style="${ 'display: none' if hide_subsection else '' }"
                                             id="${ subsection['id'] }">
                                     <span class="menu-icon icon fa fa-lock"
                                             aria-hidden="true">
@@ -73,6 +75,7 @@ course_sections = blocks.get('children')
                 % else:
                                     <button class="subsection-text accordion-trigger"
                                             id="${ subsection['id'] }"
+                                            style="${ 'display: none' if hide_subsection else '' }"
                                             aria-expanded="${ 'true' if subsection_is_auto_opened else 'false' }"
                                             aria-controls="${ subsection['id'] }_contents">
                                         <span class="fa fa-chevron-right ${ 'fa-rotate-90' if subsection_is_auto_opened else '' }"
@@ -146,7 +149,8 @@ course_sections = blocks.get('children')
                                 </a>
                 % endif
                 % if not gated_subsection or (gated_subsection and completed_prereqs):
-                                <ol class="outline-item accordion-panel ${ '' if subsection_is_auto_opened else 'is-hidden' }"
+                                <ol class="outline-item accordion-panel
+                                    ${ '' if subsection_is_auto_opened or hide_subsection else 'is-hidden' }"
                                     id="${ subsection['id'] }_contents"
                                     aria-labelledby="${ subsection['id'] }"
                                 >

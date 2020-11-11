@@ -700,6 +700,16 @@ class CourseFields(object):
         scope=Scope.settings
     )
 
+    hide_lms_subsection = Boolean(
+        display_name=_("Hide LMS Subsection"),
+        help=_(
+            "Enter true or false. If true, subsection will be hide from LMS site and "
+            "unit will appear along other subsections"
+        ),
+        default=False,
+        scope=Scope.settings
+    )
+
     invitation_only = Boolean(
         display_name=_("Invitation Only"),
         help=_("Whether to restrict enrollment to invitation by the course staff."),
