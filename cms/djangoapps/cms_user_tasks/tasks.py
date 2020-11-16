@@ -22,9 +22,12 @@ def send_task_complete_email(self, task_name, task_state_text, dest_addr, detail
     """
     Sending an email to the users when an async task completes.
     """
-    disable_emails = configuration_helpers.get_value(settings.DISABLE_CMS_TASK_EMAILS) == 'true'
-    if  disable_emails:
-        LOGGER.info('Studio task emails are disabled. Set DISABLE_CMS_TASK_EMAILS to "true" in site configuration to enable.')
+    disable_emails = configuration_helpers.get_value(settings.DISABLE_CMS_TASK_EMAILS, default='true') == 'true'
+    if disable_emails:
+        LOGGER.info(
+            'Studio task emails are disabled. To enable them, \
+            set DISABLE_CMS_TASK_EMAILS to "false" in site configuration.'
+        )
         return
 
     retries = self.request.retries
