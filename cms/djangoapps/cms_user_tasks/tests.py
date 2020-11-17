@@ -162,7 +162,7 @@ class TestUserTaskStopped(APITestCase):
         SiteConfigurationFactory(
             site=self.site,
             values={
-                settings.DISABLE_CMS_TASK_EMAILS: 'false'
+                'DISABLE_CMS_TASK_EMAILS': 'false'
             }
         )
 
@@ -175,7 +175,7 @@ class TestUserTaskStopped(APITestCase):
             self.assertEqual(len(mail.outbox), 1)
 
             self.site.configuration.values = {
-                settings.DISABLE_CMS_TASK_EMAILS: 'true'
+                'DISABLE_CMS_TASK_EMAILS': 'true'
             }
             user_task_stopped.send(sender=UserTaskStatus, status=self.status)
             self.assertEqual(len(mail.outbox), 0)

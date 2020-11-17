@@ -23,7 +23,7 @@ def send_task_complete_email(self, task_name, task_state_text, dest_addr, detail
     Sending an email to the users when an async task completes.
     """
     disable_emails = configuration_helpers.get_value(
-        settings.DISABLE_CMS_TASK_EMAILS,
+        'DISABLE_CMS_TASK_EMAILS',
         settings.FEATURES.get('DISABLE_CMS_TASK_EMAILS', True)
     )
     if disable_emails:
