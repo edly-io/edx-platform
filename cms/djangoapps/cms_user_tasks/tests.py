@@ -158,23 +158,23 @@ class TestUserTaskStopped(APITestCase):
         super(TestUserTaskStopped, self).setUp()
         self.status.refresh_from_db()
         self.client.force_authenticate(self.user)  # pylint: disable=no-member
+        self.site = SiteFactory()
+        SiteConfigurationFactory(
+            site=self.site,
+            values={
+                settings.DISABLE_CMS_TASK_EMAILS: 'false'
+            }
+        )
 
     def test_email_when_disabled_from_site_configuration(self):
         """
         Test that email is not sent if disabled from site configuration.
         """
-        site = SiteFactory()
-        SiteConfigurationFactory(
-            site=site,
-            values={
-                settings.DISABLE_CMS_TASK_EMAILS: 'false'
-            }
-        )
-        with emulate_http_request(site=site, user=self.user):
+        with emulate_http_request(site=self.site, user=self.user):
             user_task_stopped.send(sender=UserTaskStatus, status=self.status)
             self.assertEqual(len(mail.outbox), 1)
 
-            site.configuration.values = {
+            self.site.configuration.values = {
                 settings.DISABLE_CMS_TASK_EMAILS: 'true'
             }
             user_task_stopped.send(sender=UserTaskStatus, status=self.status)
@@ -187,24 +187,25 @@ class TestUserTaskStopped(APITestCase):
         UserTaskArtifact.objects.create(
             status=self.status, name='BASE_URL', url='https://test.edx.org/'
         )
-        user_task_stopped.send(sender=UserTaskStatus, status=self.status)
+        with emulate_http_request(site=self.site, user=self.user):
+            user_task_stopped.send(sender=UserTaskStatus, status=self.status)
 
-        subject = "{platform_name} {studio_name}: Task Status Update".format(
-            platform_name=settings.PLATFORM_NAME, studio_name=settings.STUDIO_NAME
-        )
-        body_fragments = [
-            "Your {task_name} task has completed with the status".format(task_name=self.status.name.lower()),
-            "https://test.edx.org/",
-            reverse('usertaskstatus-detail', args=[self.status.uuid])
-        ]
+            subject = "{platform_name} {studio_name}: Task Status Update".format(
+                platform_name=settings.PLATFORM_NAME, studio_name=settings.STUDIO_NAME
+            )
+            body_fragments = [
+                "Your {task_name} task has completed with the status".format(task_name=self.status.name.lower()),
+                "https://test.edx.org/",
+                reverse('usertaskstatus-detail', args=[self.status.uuid])
+            ]
 
-        self.assertEqual(len(mail.outbox), 1)
+            self.assertEqual(len(mail.outbox), 1)
 
-        msg = mail.outbox[0]
+            msg = mail.outbox[0]
 
-        self.assertEqual(msg.subject, subject)
-        for fragment in body_fragments:
-            self.assertIn(fragment, msg.body)
+            self.assertEqual(msg.subject, subject)
+            for fragment in body_fragments:
+                self.assertIn(fragment, msg.body)
 
     def test_email_not_sent_for_child(self):
         """
@@ -220,23 +221,24 @@ class TestUserTaskStopped(APITestCase):
         """
         Make sure we send a generic email if the BASE_URL artifact doesn't exist
         """
-        user_task_stopped.send(sender=UserTaskStatus, status=self.status)
+        with emulate_http_request(site=self.site, user=self.user):
+            user_task_stopped.send(sender=UserTaskStatus, status=self.status)
 
-        subject = "{platform_name} {studio_name}: Task Status Update".format(
-            platform_name=settings.PLATFORM_NAME, studio_name=settings.STUDIO_NAME
-        )
-        fragments = [
-            "Your {task_name} task has completed with the status".format(task_name=self.status.name.lower()),
-            "Sign in to view the details of your task or download any files created."
-        ]
+            subject = "{platform_name} {studio_name}: Task Status Update".format(
+                platform_name=settings.PLATFORM_NAME, studio_name=settings.STUDIO_NAME
+            )
+            fragments = [
+                "Your {task_name} task has completed with the status".format(task_name=self.status.name.lower()),
+                "Sign in to view the details of your task or download any files created."
+            ]
 
-        self.assertEqual(len(mail.outbox), 1)
+            self.assertEqual(len(mail.outbox), 1)
 
-        msg = mail.outbox[0]
-        self.assertEqual(msg.subject, subject)
+            msg = mail.outbox[0]
+            self.assertEqual(msg.subject, subject)
 
-        for fragment in fragments:
-            self.assertIn(fragment, msg.body)
+            for fragment in fragments:
+                self.assertIn(fragment, msg.body)
 
     def test_email_retries(self):
         """
@@ -246,8 +248,9 @@ class TestUserTaskStopped(APITestCase):
             mock_exception.side_effect = NoAuthHandlerFound()
 
             with mock.patch('cms_user_tasks.tasks.send_task_complete_email.retry') as mock_retry:
-                user_task_stopped.send(sender=UserTaskStatus, status=self.status)
-                self.assertTrue(mock_retry.called)
+                with emulate_http_request(site=self.site, user=self.user):
+                    user_task_stopped.send(sender=UserTaskStatus, status=self.status)
+                    self.assertTrue(mock_retry.called)
 
     def test_queue_email_failure(self):
         logger = logging.getLogger("cms_user_tasks.signals")
