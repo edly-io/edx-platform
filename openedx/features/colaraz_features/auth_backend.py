@@ -4,6 +4,8 @@ from django.utils.functional import cached_property
 from social_core.exceptions import AuthException
 
 from openedx.core.djangoapps.theming.helpers import get_current_request
+from openedx.features.colaraz_features.helpers import register_user_from_mobile_request
+
 from third_party_auth.identityserver3 import IdentityServer3
 
 LOGGER = logging.getLogger(__name__)
@@ -69,3 +71,23 @@ class ColarazIdentityServer(IdentityServer3):
     def _id3_config(self):
         from third_party_auth.models import OAuth2ProviderConfig
         return OAuth2ProviderConfig.current(self.name)
+
+    def user_data(self, access_token, *args, **kwargs):
+        """
+        Returns the user data receive by social backend and register in case of user doesn't exists already.
+        """
+
+        # Imported here to avoid circular imports
+        from third_party_auth.utils import user_exists
+
+        user_data = super(ColarazIdentityServer, self).user_data(access_token, *args, **kwargs)
+        request = get_current_request()
+        request_source = request.GET.get('src')
+
+        if (request.view_name == "AccessTokenExchangeView" and
+                request_source == 'mobile' and
+                not user_exists(user_data)):
+            LOGGER.info("Received request from mobile and now registering a new user.")
+            user = register_user_from_mobile_request(request, user_data)
+
+        return user_data

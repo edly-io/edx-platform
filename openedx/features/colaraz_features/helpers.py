@@ -14,10 +14,13 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
 from django.db.models import Q
+from django.dispatch import Signal
 from django.http import QueryDict
+from django.utils.translation import get_language
 
 from edx_oauth2_provider.models import TrustedClient
 from edx_rest_api_client.exceptions import HttpClientError
+from notification_prefs.views import enable_notifications
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.locator import CourseKey
@@ -26,22 +29,35 @@ from provider.constants import CONFIDENTIAL
 from rest_framework import serializers as rest_serializers
 
 from openedx.core.djangoapps.commerce.utils import ecommerce_api_client
+from openedx.core.djangoapps.lang_pref import LANGUAGE_KEY
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
 from openedx.core.djangoapps.theming.models import SiteTheme
+from openedx.core.djangoapps.user_api.accounts.utils import generate_password
+from openedx.core.djangoapps.user_api.preferences import api as preferences_api
 from openedx.features.colaraz_features.constants import (
     ALL_ORGANIZATIONS_MARKER,
     COURSE_ACCESS_ROLES_DISPLAY_MAPPING,
     ROLES_FOR_LMS_ADMIN
 )
 from organizations.models import Organization
-from student.models import CourseAccessRole, UserProfile
+from student.forms import AccountCreationForm, get_registration_extension_form
+from student.helpers import (
+    authenticate_new_user,
+    create_or_set_user_attribute_created_on_site,
+    do_create_account,
+)
+from student.models import CourseAccessRole, UserProfile, create_comments_service_user
 from student.roles import CourseCreatorRole, OrgRoleManagerRole
+import third_party_auth
 from xmodule.modulestore.django import modulestore
 
 if settings.ROOT_URLCONF == 'lms.urls':
     from cms.djangoapps.course_creators.models import CourseCreator
 else:
     from course_creators.models import CourseCreator
+
+REGISTER_USER = Signal(providing_args=["user", "registration"])
 
 # Tuple containing information for lms and studio
 # This named tuple can be used for sites, site themes, organizations etc.
@@ -125,6 +141,7 @@ def update_or_create_site_themes(sites, theme):
                 }
             )
             LOGGER.info('Site ({}) is mapped with theme ({})'.format(site, theme))
+
 
 def get_or_create_organization(name):
     """
@@ -600,3 +617,73 @@ def create_site_on_ecommerce(ecommerce_worker, lms_site_url, ecommerce_site_url,
         raise rest_serializers.ValidationError(str(ex.content))
 
     return response
+
+
+def _add_extras_in_params(params):
+    username = third_party_auth.models.clean_username(params['email'])
+    fullname = params['firstName'] + " " + params['lastName']
+    extras = {
+        "username": username,
+        "name": fullname,
+        "social_auth_provider": "Colaraz",
+        "gender": "",
+        "year_of_birth": "",
+        "level_of_education": "",
+        "goals": "",
+        "honor_code": "true",
+        "terms_of_service": "true"
+    }
+    params.update(extras)
+    return params
+
+
+def register_user_from_mobile_request(request, user_data):
+    params = user_data.copy()
+    params = _add_extras_in_params(params)
+    extra_fields = configuration_helpers.get_value(
+        'REGISTRATION_EXTRA_FIELDS',
+        getattr(settings, 'REGISTRATION_EXTRA_FIELDS', {})
+    )
+
+    params["password"] = generate_password()
+
+    extended_profile_fields = configuration_helpers.get_value('extended_profile_fields', [])
+
+    registration_fields = getattr(settings, 'REGISTRATION_EXTRA_FIELDS', {})
+    tos_required = (
+       registration_fields.get('terms_of_service') != 'hidden' or
+       registration_fields.get('honor_code') != 'hidden'
+    )
+
+    form = AccountCreationForm(
+        data=params,
+        extra_fields=extra_fields,
+        extended_profile_fields=extended_profile_fields,
+        do_third_party_auth=False,
+        tos_required=tos_required,
+    )
+    custom_form = get_registration_extension_form(data=params)
+
+    (user, profile, registration) = do_create_account(form, custom_form, True)
+
+    new_user = authenticate_new_user(request, user.username, params['password'])
+
+    registration.activate()
+
+    # Perform operations that are non-critical parts of account creation
+    create_or_set_user_attribute_created_on_site(user, request.site)
+
+    preferences_api.set_user_preference(user, LANGUAGE_KEY, get_language())
+
+    if settings.FEATURES.get('ENABLE_DISCUSSION_EMAIL_DIGEST'):
+        try:
+            enable_notifications(user)
+        except Exception:  # pylint: disable=broad-except
+            LOGGER.exception("Enable discussion notifications failed for user {id}.".format(id=user.id))
+
+    # Announce registration
+    REGISTER_USER.send(sender=None, user=user, registration=registration)
+
+    create_comments_service_user(user)
+
+    return new_user

@@ -106,10 +106,10 @@ def create_account_with_params(request, params):
     params = dict(params.items())
 
     # [COLARAZ_CUSTOM]
-    # To restrict user creation from open edX registeration flow while 
+    # To restrict user creation from open edX registration flow while
     # allowing social_auth to create them.
     req_via_social_auth = params.has_key('social_auth_provider')
-    
+
     # allow to define custom set of required/optional/hidden fields via configuration
     extra_fields = configuration_helpers.get_value(
         'REGISTRATION_EXTRA_FIELDS',
