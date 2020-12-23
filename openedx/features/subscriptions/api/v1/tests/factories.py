@@ -1,7 +1,7 @@
 from datetime import date
 import factory
 from factory import SubFactory
-from factory.fuzzy import FuzzyDate, FuzzyInteger
+from factory.fuzzy import FuzzyDate, FuzzyInteger, FuzzyText
 from factory.django import DjangoModelFactory
 
 from openedx.core.djangoapps.site_configuration.tests.factories import SiteFactory
@@ -22,6 +22,7 @@ class UserSubscriptionFactory(DjangoModelFactory):
     expiration_date = FuzzyDate(start_date=date.today(), end_date=date.today())
     subscription_type = UserSubscription.LIMITED_ACCESS
     site = SubFactory(SiteFactory)
+    description = FuzzyText(length=50)
 
     @factory.post_generation
     def course_enrollments(self, create, extracted, **kwargs):

@@ -24,5 +24,6 @@ class UserSubscriptionSerializerTests(TestCase):
                 'subscription_type': user_subscription.subscription_type,
                 'user': user_subscription.user.id,
                 'course_enrollments': [],
+                'description': user_subscription.description,
             }
         )

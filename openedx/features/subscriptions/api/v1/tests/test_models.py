@@ -49,7 +49,7 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
         # Lifetime access subscription
         (None, None, UserSubscription.LIFETIME_ACCESS, 1, None, True),
     )
-    def test_is_active(self, max_allowed_courses, expiration_date, subscription_type, subscription_id, number_of_enrollments, expected_value):
+    def test_is_active(self, max_allowed_courses, expiration_date, subscription_type, subscription_id, number_of_enrollments, expected_value, description):
         """
         Verify the method properly maps mode slugs to display names.
         """
@@ -59,7 +59,8 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
             subscription_type=subscription_type,
             subscription_id=subscription_id,
             user=self.user,
-            site=self.site
+            site=self.site,
+            description=description
         )
         if number_of_enrollments:
             course_enrollments = _get_course_enrollments(number_of_enrollments, self.user)
@@ -84,7 +85,7 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
         # Lifetime access subscription
         (None, None, UserSubscription.LIFETIME_ACCESS, 1, None, True),
     )
-    def test_is_valid(self, max_allowed_courses, expiration_date, subscription_type, subscription_id, number_of_enrollments, expected_value):
+    def test_is_valid(self, max_allowed_courses, expiration_date, subscription_type, subscription_id, number_of_enrollments, expected_value, description):
         """
         Verify the method returns the slug if it has no known mapping.
         """
@@ -93,7 +94,8 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
             expiration_date=expiration_date,
             subscription_type=subscription_type,
             subscription_id=subscription_id,
-            user=self.user
+            user=self.user,
+            description=description
         )
         if number_of_enrollments:
             course_enrollments = _get_course_enrollments(number_of_enrollments, self.user)
@@ -118,7 +120,7 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
         # Lifetime access subscription
         (None, None, UserSubscription.LIFETIME_ACCESS, 1, None, True),
     )
-    def test_get_valid_subscription(self, max_allowed_courses, expiration_date, subscription_type, subscription_id, number_of_enrollments, expected_value):
+    def test_get_valid_subscription(self, max_allowed_courses, expiration_date, subscription_type, subscription_id, number_of_enrollments, expected_value, description):
         """
         Verify that get_valid_subscription returns valid subscription correctly.
         """
@@ -128,7 +130,8 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
             subscription_type=subscription_type,
             subscription_id=subscription_id,
             user=self.user,
-            site=self.site
+            site=self.site,
+            description=description
         )
         if number_of_enrollments:
             course_enrollments = _get_course_enrollments(number_of_enrollments, self.user)
@@ -152,7 +155,8 @@ class UserSubscriptionsTests(ModuleStoreTestCase):
             subscription_type=UserSubscription.LIMITED_ACCESS,
             subscription_id=1,
             user=self.user,
-            site=self.site
+            site=self.site,
+            description=description
         )
         user_subscription_history = UserSubscriptionHistory.objects.filter(
             site=user_subscription.site,
