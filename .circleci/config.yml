@@ -37,12 +37,14 @@ jobs:
             mkdir test-results
             sudo service mongodb start
             sudo service mongodb status
+            pytest --junitxml=test-results/junit.xml --pyargs figures
             pytest --junitxml=test-results/junit.xml --pyargs edly_panel_app openedx.features.edly
-            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/views/test_course_top_stats_metrics_view.py
-            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/metrics/test_last_month_metrics.py
-            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/metrics/test_current_month_metrics.py
-            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/pipeline/test_course_daily_metrics.py
-            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/test_permissions.py
+
+#            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/views/test_course_top_stats_metrics_view.py
+#            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/metrics/test_last_month_metrics.py
+#            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/metrics/test_current_month_metrics.py
+#            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/pipeline/test_course_daily_metrics.py
+#            pytest --junitxml=test-results/junit.xml --pyargs figures/tests/test_permissions.py
       - run:
           name: "Run Quality"
           command: |
