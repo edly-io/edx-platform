@@ -7,9 +7,11 @@ from django.test import TestCase, RequestFactory, Client
 from django.urls import reverse
 
 from openedx.core.djangoapps.site_configuration.tests.factories import SiteFactory
+from openedx.core.djangolib.testing.utils import skip_unless_lms
 from openedx.features.edly.tests.factories import EdlyUserFactory, EdlySubOrganizationFactory
 
 
+@skip_unless_lms
 class TestUserSitesViewSet(TestCase):
 
     def setUp(self):
