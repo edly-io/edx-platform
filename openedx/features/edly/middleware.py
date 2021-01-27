@@ -27,7 +27,6 @@ class EdlyOrganizationAccessMiddleware(MiddlewareMixin):
         if request.user.is_superuser or request.user.is_staff:
             return
 
-        # import pdb; pdb.set_trace()
         if request.user.is_authenticated and not user_has_edly_organization_access(request):
             logger.exception('Edly user %s has no access for site %s.' % (request.user.email, request.site))
             if request.path != '/logout':
