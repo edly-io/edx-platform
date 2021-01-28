@@ -284,6 +284,7 @@ VIDEO_TRANSCRIPTS_SETTINGS = dict(
 
 MIDDLEWARE.remove('openedx.features.edly.middleware.EdlyOrganizationAccessMiddleware')
 MIDDLEWARE.remove('openedx.features.edly.middleware.SettingsOverrideMiddleware')
+MIDDLEWARE.remove('edly_panel_app.middleware.EdlyUserActivityMiddleware')
 ####################### Plugin Settings ##########################
 
 # pylint: disable=wrong-import-position
