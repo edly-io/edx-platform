@@ -12,7 +12,7 @@ jobs:
       - checkout # check out source code to working directory
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/share
-      - run: sudo chown -R circleci:circleci "${which python3}/site-packages"
+      - run: sudo chown -R circleci:circleci /usr/local/lib/python3
       - restore_cache:
           key: edx-test-deps-{{ checksum "requirements/edx/testing.txt" }}
       - run:
