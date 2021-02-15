@@ -56,7 +56,7 @@ class ColarazIdentityServer(IdentityServer3):
                 raise AuthException("Colaraz", "Your account belongs to {}".format(user_site_domain))
 
             details = {
-                "fullname": "{} {}".format(response["firstName"], response["lastName"]),
+                "fullname": u"{} {}".format(response["firstName"], response["lastName"]).encode("ascii", "ignore"),
                 "email": response["email"],
                 "first_name": response["firstName"],
                 "last_name": response["lastName"],
