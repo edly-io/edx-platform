@@ -284,7 +284,8 @@
                     possible: totalScore
                 }, true
             );
-            return this.$('.problem-progress').text(progress);
+            // TODO: temporary change, will revert after sometime
+            // return this.$('.problem-progress').text(progress);
         };
 
         Problem.prototype.updateProgress = function(response) {
