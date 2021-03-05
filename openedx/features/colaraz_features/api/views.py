@@ -111,7 +111,13 @@ class NotificationHandlerApiView(APIView):
                 'method': api_details.get(method_key),
             })
 
-            resp = requests.get(api_url, params=query_params)
+            try:
+                resp = requests.get(api_url, params=query_params)
+            except:
+                return Response(
+                    {'message': 'Notification API is unreachable at the moment. Please try again later.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             if resp.status_code == status.HTTP_200_OK:
                 json_data = json.loads(resp.content)
                 if json_data.get('status') == 0:
@@ -166,7 +172,13 @@ class JobAlertsHandlerApiView(APIView):
         api_url = api_details.get(method_key)
 
         if is_enabled and email_id and api_url:
-            resp = requests.post(api_url, json={'email': email_id})
+            try:
+                resp = requests.post(api_url, json={'email': email_id})
+            except:
+                return Response(
+                    {'message': 'Job Alerts API is unreachable at the moment. Please try again later.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
             if resp.status_code == status.HTTP_200_OK:
                 json_data = json.loads(resp.content)
                 return Response(json_data, status=status.HTTP_200_OK)
