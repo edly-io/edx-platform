@@ -366,7 +366,7 @@ class CourseGradeReport(object):
             if assignment_average is not None:
                 grade_results.append([assignment_average])
 
-        return [course_grade.percent] + _flatten(grade_results)
+        return ["{}%".format(course_grade.percent*100)] + _flatten(grade_results)
 
     def _user_subsection_grades(self, course_grade, subsection_headers):
         """
