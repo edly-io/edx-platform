@@ -100,7 +100,7 @@
 # Third Party XBlocks
 
 -e git+https://github.com/colaraz/edx-sga.git@col-v1.1#egg=edx-sga==col-v1.1
--e git+https://github.com/colaraz/long-answers-xblock.git@col-v1.0#egg=long-answers-xblock==col-v1.0
+-e git+https://github.com/colaraz/long-answers-xblock.git@col-v1.1#egg=long-answers-xblock==col-v1.1
 -e git+https://github.com/open-craft/xblock-poll@add89e14558c30f3c8dc7431e5cd6536fff6d941#egg=xblock-poll==1.5.1
 -e git+https://github.com/edx-solutions/xblock-drag-and-drop-v2@v2.1.6#egg=xblock-drag-and-drop-v2==2.1.6
 -e git+https://github.com/raccoongang/xblock-pdf.git@sgab-v.1.0.1#egg=xblock-pdf
