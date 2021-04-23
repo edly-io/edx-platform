@@ -17,3 +17,12 @@
   %endif
 % endfor
 </div>
+
+<script>
+  $(function(){
+    var ext = '.csv';
+    $('a[href*="' + ext + '"]').each(function() {
+      $(this).prop('download', this.href.split('/').pop().split('.')[0] + ext);
+    });
+  });
+</script>
