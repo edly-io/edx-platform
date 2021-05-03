@@ -3849,10 +3849,10 @@ msgstr "Àllöw Püßlïç Wïkï Àççéss Ⱡ'σяєм ιρѕυм ∂σłσя
 
 #: common/lib/xmodule/xmodule/course_module.py
 msgid ""
-"Enter true or false. If true, edX users can view the course wiki even if "
+"Enter true or false. If true, Colaraz LMS users can view the course wiki even if "
 "they're not enrolled in the course."
 msgstr ""
-"Éntér trüé ör fälsé. Ìf trüé, édX üsérs çän vïéw thé çöürsé wïkï évén ïf "
+"Éntér trüé ör fälsé. Ìf trüé, Colaraz LMS üsérs çän vïéw thé çöürsé wïkï évén ïf "
 "théý'ré nöt énrölléd ïn thé çöürsé. Ⱡ'σяєм ιρѕυм ∂σłσя ѕι#"
 
 #: common/lib/xmodule/xmodule/course_module.py
