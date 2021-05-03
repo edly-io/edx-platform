@@ -3351,7 +3351,7 @@ msgstr "شممخص حعزمهذ صهنه شذذثسس"
 
 #: common/lib/xmodule/xmodule/course_module.py
 msgid ""
-"Enter true or false. If true, edX users can view the course wiki even if "
+"Enter true or false. If true, Colaraz LMS users can view the course wiki even if "
 "they're not enrolled in the course."
 msgstr ""
 "ثرفثق فقعث خق بشمسث. هب فقعث, ثيط عسثقس ذشر دهثص فاث ذخعقسث صهنه ثدثر هب "

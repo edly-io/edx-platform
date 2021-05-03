@@ -693,7 +693,7 @@ class CourseFields(object):
     allow_public_wiki_access = Boolean(
         display_name=_("Allow Public Wiki Access"),
         help=_(
-            "Enter true or false. If true, edX users can view the course wiki even "
+            "Enter true or false. If true, Colaraz LMS users can view the course wiki even "
             "if they're not enrolled in the course."
         ),
         default=False,

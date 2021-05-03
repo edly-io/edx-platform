@@ -3510,10 +3510,10 @@ msgstr "Autoriser l'accès public au wiki"
 
 #: common/lib/xmodule/xmodule/course_module.py
 msgid ""
-"Enter true or false. If true, edX users can view the course wiki even if "
+"Enter true or false. If true, Colaraz LMS users can view the course wiki even if "
 "they're not enrolled in the course."
 msgstr ""
-"Entrez vrai ou faux. Si vrai, les utilisateurs edX peuvent voir le wiki de "
+"Entrez vrai ou faux. Si vrai, les utilisateurs Colaraz LMS peuvent voir le wiki de "
 "cours même s'ils ne sont pas inscrits au cours."
 
 #: common/lib/xmodule/xmodule/course_module.py

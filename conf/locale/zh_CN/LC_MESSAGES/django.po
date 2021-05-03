@@ -3357,9 +3357,9 @@ msgstr "允许公共 Wiki 访问"
 
 #: common/lib/xmodule/xmodule/course_module.py
 msgid ""
-"Enter true or false. If true, edX users can view the course wiki even if "
+"Enter true or false. If true, Colaraz LMS users can view the course wiki even if "
 "they're not enrolled in the course."
-msgstr "输入true或false。如果为true，edX用户即使未选修该课程也可以查看课程Wiki 。"
+msgstr "输入true或false。如果为true，Colaraz LMS用户即使未选修该课程也可以查看课程Wiki 。"
 
 #: common/lib/xmodule/xmodule/course_module.py
 msgid "Invitation Only"

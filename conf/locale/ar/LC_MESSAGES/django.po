@@ -3478,10 +3478,10 @@ msgstr "السماح باستخدام عامّة الناس لصفحة الوي�
 
 #: common/lib/xmodule/xmodule/course_module.py
 msgid ""
-"Enter true or false. If true, edX users can view the course wiki even if "
+"Enter true or false. If true, Colaraz LMS users can view the course wiki even if "
 "they're not enrolled in the course."
 msgstr ""
-"يُرجى إدخال ’true‘ أو ’false‘ .تسمح القيمة ’true‘ لمستخدمي منصّة edX بعرض "
+"يُرجى إدخال ’true‘ أو ’false‘ .تسمح القيمة ’true‘ لمستخدمي منصّة Colaraz LMS بعرض "
 "صفحة ويكي المخصّصة للمساق حتى لو لم يكونوا مسجّلين فيه."
 
 #: common/lib/xmodule/xmodule/course_module.py
