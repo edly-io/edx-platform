@@ -183,3 +183,13 @@ block_is_unit = is_unit(xblock)
         </div>
     % endif
 % endif
+
+<script>
+    $(function(){
+      var ext = '.csv';
+      $('a[href*="' + ext + '"]').each(function() {
+        $(this).prop('download', this.href.split('/').pop().split('.')[0] + ext);
+      });
+    });
+  </script>
+  
