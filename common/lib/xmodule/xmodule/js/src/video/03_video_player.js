@@ -224,6 +224,12 @@ function(HTML5Video, HTML5HLSVideo, Resizer, HLS, _, Time) {
         if (state.isTouch) {
             dfd.resolve();
         }
+
+        if (document.getElementById("unit-next-button").disabled === false)
+        {
+            document.getElementById("unit-next-button").disabled = true;
+            document.getElementById("unit-next-button").previousState = true;
+        }
     }
 
     function _updateVcrAndRegion(state, isYoutube) {
@@ -530,6 +536,11 @@ function(HTML5Video, HTML5HLSVideo, Resizer, HLS, _, Time) {
             this.el.trigger('pause', arguments);
         }
         this.el.trigger('ended', arguments);
+
+        if (document.getElementById("unit-next-button").disabled === true && document.getElementById("unit-next-button").previousState === true)
+        {
+            document.getElementById("unit-next-button").disabled = false;
+        }
     }
 
     function onPause() {
