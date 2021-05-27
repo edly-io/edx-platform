@@ -1573,6 +1573,7 @@ COLARAZ_PREVIEW_DOMAIN_KEY = 'preview'
 COLARAZ_SUB_DOMAIN = 'colaraz.com'
 COLARAZ_NOTIFICATIONS = {}
 COLARAZ_JOB_ALERTS = {}
+COLARAZ_CHECK_SESSION = {}
 
 # These variables are used in ColarazAuthenticationMiddleware
 COLARAZ_ENABLE_AUTH_MIDDLEWARE = False

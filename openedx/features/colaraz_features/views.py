@@ -10,7 +10,13 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count
-from django.http import HttpResponseBadRequest, JsonResponse, Http404
+from django.http import (
+    HttpResponseBadRequest,
+    JsonResponse,
+    Http404,
+    HttpResponsePermanentRedirect,
+    HttpResponseRedirect,
+)
 from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 from django.views import View
@@ -34,7 +40,22 @@ from student.helpers import get_next_url_for_login_page
 from student.models import CourseAccessRole
 from student.roles import CourseCreatorRole
 
+
 class AuthProviderLogoutRedirectView(RedirectView):
+    def get(self, request, *args, **kwargs):
+        """
+        We were facing some inconsistency in the session between Colaraz IDP and edx-platform.
+        This method will remove sessionid from cookies to make sure that the user is logged out.
+        """
+        url = self.get_redirect_url(*args, **kwargs)
+
+        if self.permanent:
+            response = HttpResponsePermanentRedirect(url)
+        else:
+            response = HttpResponseRedirect(url)
+
+        response.delete_cookie("sessionid")
+        return response
 
     def get_redirect_url(self, *args, **kwargs):
         """
@@ -102,6 +123,7 @@ class ColarazFormViewMixin(object):
     """
     Mixin to add functionality required by the Colaraz Form.
     """
+
     def get_form_kwargs(self):
         """
         Returns the keyword arguments for instantiating the form.
@@ -112,7 +134,6 @@ class ColarazFormViewMixin(object):
             'user': self.request.user
         })
         return kwargs
-
 
 
 class CourseAccessRolesPaginator(Paginator):
@@ -139,7 +160,7 @@ class CourseAccessRolesPaginator(Paginator):
                 org_roles.append(record)
 
             records.update({key: record})
-        
+
         used_roles_email_ids = []
         for org_role in org_roles:
             if course_creator_roles.has_key(org_role.get('email')):
@@ -148,7 +169,7 @@ class CourseAccessRolesPaginator(Paginator):
                 role_display_name = get_course_access_role_display_name(creator_role)
                 org_role['roles'] = self._append_list(org_role.get('roles', []), role_display_name)
                 org_role['ids'] = self._append_list(org_role.get('ids', []), str(creator_role.id))
-        
+
         for email, role in course_creator_roles.items():
             if email not in used_roles_email_ids:
                 records.update({
@@ -191,7 +212,7 @@ class CourseAccessRoleListView(BaseViewMixin, CourseAccessRoleFilterMixin, ListV
         Get the number of items to paginate by, or ``None`` for no pagination.
         """
         return self.paginate_by
-        
+
     def get_queryset(self):
         """
         Return the list of items for this view. Apply search on queryset.
@@ -231,15 +252,16 @@ class CourseAccessRoleUpdateView(BaseViewMixin, CourseAccessRoleFilterMixin, Col
             ids = [int(key) for key in pk.split(',') if key.strip()]
         except (TypeError, ValueError):
             raise Http404('User Role Not Found')
-        
+
         if not ids:
             raise Http404('User Role Not Found')
 
         queryset = queryset.filter(id__in=ids)
         if len(queryset) > 0:
             return queryset
-        
+
         raise Http404('User Role Not Found')
+
 
 class CourseAccessRoleDeleteView(BaseViewMixin, CourseAccessRoleFilterMixin, DeleteView):
     """

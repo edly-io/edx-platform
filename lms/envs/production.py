@@ -1165,6 +1165,10 @@ COLARAZ_SITE_CREATION_API_TOKEN = AUTH_TOKENS.get(
     'COLARAZ_SITE_CREATION_API_TOKEN',
     COLARAZ_SITE_CREATION_API_TOKEN
 )
+COLARAZ_CHECK_SESSION = ENV_TOKENS.get(
+    'COLARAZ_CHECK_SESSION',
+    COLARAZ_CHECK_SESSION
+)
 ############################### Plugin Settings ###############################
 
 # This is at the bottom because it is going to load more settings after base settings are loaded

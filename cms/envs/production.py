@@ -651,6 +651,10 @@ COLARAZ_JOB_ALERTS = ENV_TOKENS.get(
     'COLARAZ_JOB_ALERTS',
     COLARAZ_JOB_ALERTS
 )
+COLARAZ_CHECK_SESSION = ENV_TOKENS.get(
+    'COLARAZ_CHECK_SESSION',
+    COLARAZ_CHECK_SESSION
+)
 ####################### Plugin Settings ##########################
 
 # This is at the bottom because it is going to load more settings after base settings are loaded
