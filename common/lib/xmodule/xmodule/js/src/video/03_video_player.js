@@ -224,6 +224,9 @@ function(HTML5Video, HTML5HLSVideo, Resizer, HLS, _, Time) {
         if (state.isTouch) {
             dfd.resolve();
         }
+        if (state.config.enableNextOnCompletion === true && state.config.isComplete === false) {
+            $('.sequence-nav-button.button-next').prop('disabled', true);
+        }
     }
 
     function _updateVcrAndRegion(state, isYoutube) {

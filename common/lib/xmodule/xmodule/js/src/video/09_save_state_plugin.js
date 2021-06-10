@@ -16,7 +16,7 @@
             }
 
             _.bindAll(this, 'onSpeedChange', 'onAutoAdvanceChange', 'saveStateHandler', 'bindUnloadHandler', 'onUnload',
-            'onYoutubeAvailability', 'onLanguageChange', 'destroy');
+            'onYoutubeAvailability', 'onLanguageChange', 'destroy','onVideoComplete');
             this.state = state;
             this.options = _.extend({events: []}, options);
             this.state.videoSaveStatePlugin = this;
@@ -70,6 +70,10 @@
                 this.saveState(true, {speed: newSpeed});
                 this.state.storage.setItem('speed', newSpeed, true);
                 this.state.storage.setItem('general_speed', newSpeed);
+            },
+
+            onVideoComplete: function(event) {
+                this.saveState(true, { is_complete: true });
             },
 
             onAutoAdvanceChange: function(event, enabled) {

@@ -196,6 +196,7 @@ class TestVideo(BaseTestVideoXBlock):
             {u'transcript_language': 'uk'},
             {u'bumper_do_not_show_again': True},
             {u'bumper_last_view_date': True},
+            {u'is_complete': False},
             {u'demoo�': 'sample'}
         ]
         for sample in data:
@@ -221,6 +222,10 @@ class TestVideo(BaseTestVideoXBlock):
         self.assertEqual(self.item_descriptor.bumper_do_not_show_again, False)
         self.item_descriptor.handle_ajax('save_user_state', {'bumper_do_not_show_again': True})
         self.assertEqual(self.item_descriptor.bumper_do_not_show_again, True)
+
+        self.assertEqual(self.item_descriptor.is_complete, False)
+        self.item_descriptor.handle_ajax('save_user_state', {'is_complete': True})
+        self.assertEqual(self.item_descriptor.is_complete, True)
 
         with freezegun.freeze_time(now()):
             self.assertEqual(self.item_descriptor.bumper_last_view_date, None)

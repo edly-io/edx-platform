@@ -127,6 +127,20 @@ import * as Time from 'time.js';
                 });
             });
 
+            it('data contains video completely watched flag, async is true', function() {
+                itSpec({
+                    asyncVal: true,
+                    speedVal: undefined,
+                    positionVal: undefined,
+                    data: {
+                        is_complete: true
+                    },
+                    ajaxData: {
+                        is_complete: true
+                    }
+                });
+            });
+
             function itSpec(value) {
                 state.config.saveStateEnabled = true;
                 var asyncVal = value.asyncVal,

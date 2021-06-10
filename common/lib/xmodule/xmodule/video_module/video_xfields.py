@@ -206,3 +206,32 @@ class VideoFields(object):
         scope=Scope.preferences,
         default=False,
     )
+    enable_progress_slider = Boolean(
+        help=_(
+            "Specify whether progress bar is enabled or disabled"
+        ),
+        display_name=_("Enable Progress Slider"),
+        scope=Scope.settings,
+        default=True
+    )
+    enable_speed_control = Boolean(
+        help=_(
+            "Specify whether Speed Controls are enabled or disabled"
+        ),
+        display_name=_("Enable Speed Controls"),
+        scope=Scope.settings,
+        default=True
+    )
+    enable_next_on_completion = Boolean(
+        help=_(
+            "Enable Next Button on completion"
+        ),
+        display_name=_("Enable Next Button on Completion"),
+        scope=Scope.settings,
+        default=False
+    )
+    is_complete = Boolean(
+        help=_("Is video completely watched?"),
+        scope=Scope.user_state,
+        default=False
+    )

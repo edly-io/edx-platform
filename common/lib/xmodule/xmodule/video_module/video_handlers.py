@@ -67,7 +67,7 @@ class VideoStudentViewHandlers(object):
         accepted_keys = [
             'speed', 'auto_advance', 'saved_video_position', 'transcript_language',
             'transcript_download_format', 'youtube_is_available',
-            'bumper_last_view_date', 'bumper_do_not_show_again'
+            'bumper_last_view_date', 'bumper_do_not_show_again','is_complete'
         ]
 
         conversions = {
@@ -77,6 +77,7 @@ class VideoStudentViewHandlers(object):
             'youtube_is_available': json.loads,
             'bumper_last_view_date': to_boolean,
             'bumper_do_not_show_again': to_boolean,
+            'is_complete': to_boolean,
         }
 
         if dispatch == 'save_user_state':

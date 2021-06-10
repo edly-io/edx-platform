@@ -449,8 +449,12 @@ class VideoBlock(
                 if getattr(self.runtime, 'suppports_state_for_anonymous_users', False) else ''
             ),
             'ytTestTimeout': settings.YOUTUBE['TEST_TIMEOUT'],
-        }
 
+            'enableProgressSlider': self.enable_progress_slider,
+            'enableSpeedControl': self.enable_speed_control,
+            'enableNextOnCompletion': self.enable_next_on_completion,
+            'isComplete': self.is_complete,
+        }
         bumperize(self)
 
         context = {
