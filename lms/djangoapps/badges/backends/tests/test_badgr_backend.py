@@ -18,7 +18,7 @@ from badges.models import BadgeAssertion
 from badges.tests.factories import BadgeClassFactory
 from openedx.core.lib.tests.assertions.events import assert_event_matches
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
-from track.tests import EventTrackingTestCase
+from track.tests import FROZEN_TIME, EventTrackingTestCase
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 
@@ -178,10 +178,11 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
     @patch('requests.post')
     def test_badge_creation_event(self, post):
         result = {
-            'json': {'id': 'http://www.example.com/example'},
-            'image': 'http://www.example.com/example.png',
-            'badge': 'test_assertion_slug',
-            'issuer': 'https://example.com/v2/issuers/test-issuer',
+            'result': [{
+                'openBadgeId': 'http://www.example.com/example',
+                'image': 'http://www.example.com/example.png',
+                'issuer': 'https://example.com/v2/issuers/test-issuer'
+            }]
         }
         response = Mock()
         response.json.return_value = result
@@ -196,7 +197,7 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
             '/assertions')
         self.check_headers(kwargs['headers'])
         assertion = BadgeAssertion.objects.get(user=self.user, badge_class__course_id=self.course.location.course_key)
-        assert assertion.data == result
+        assert assertion.data == result['result'][0]
         assert assertion.image_url == 'http://www.example.com/example.png'
         assert assertion.assertion_url == 'http://www.example.com/example'
         assert kwargs['json'] == {"recipient": {"identity": 'example@example.com', "type": "email"},
@@ -215,7 +216,9 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
                 'assertion_image_url': 'http://www.example.com/example.png',
                 'assertion_json_url': 'http://www.example.com/example',
                 'issuer': 'https://example.com/v2/issuers/test-issuer',
-            }
+            },
+            'context': {},
+            'timestamp': FROZEN_TIME
         }, self.get_event())
 
     def test_get_new_tokens(self):
