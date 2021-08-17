@@ -547,6 +547,9 @@ def _accessible_libraries_iter(user, org=None):
         specified org will be returned. The default value is None.
     """
     if org is not None:
+        if isinstance(org, list):
+            org = ','.join(org)
+
         libraries = [] if org == '' else modulestore().get_libraries(org=org)
     else:
         libraries = modulestore().get_library_summaries()
