@@ -546,8 +546,8 @@ def _accessible_libraries_iter(user, org=None):
         string will result in no libraries, and otherwise only libraries with the
         specified org will be returned. The default value is None.
     """
-    if org is not None:
-        libraries = [] if org == '' else modulestore().get_libraries(org=org)
+    if org:
+        libraries = modulestore().get_libraries(org=org)
     else:
         libraries = modulestore().get_library_summaries()
     # No need to worry about ErrorDescriptors - split's get_libraries() never returns them.
