@@ -83,7 +83,7 @@ def get_user_permissions(user, course_key, org=None):
         org = course_key.org
         organization = Organization.objects.get(short_name=org)
         try:
-            edly_sub_org = organization.edlysuborganization
+            edly_sub_org = organization.edx_organizations.first().slug
         except ObjectDoesNotExist:
             edly_sub_org = None
 
