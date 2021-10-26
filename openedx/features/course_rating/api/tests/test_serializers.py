@@ -32,7 +32,7 @@ class CourseRatingSerializerTests(TestCase):
             'id': 1,
             'user': self.user.id,
             'rating': 3,
-            'comment': 'This is test comment 1',
+            'comment': 'This is test comment 0',
             'moderated_by': self.moderator.id,
             'is_approved': False,
             'course_rating': {
