@@ -85,6 +85,14 @@ PAYMENT_PROCESSOR_CONFIG = {
             'cancel_checkout_path': PAYMENT_PROCESSOR_CANCEL_PATH,
             'error_path': PAYMENT_PROCESSOR_ERROR_PATH,
         },
+        'authorizenet': {
+            'redirect_url': config_from_yaml.get('AUTHORIZENET_REDIRECT_URL'),
+            'cancel_checkout_path': PAYMENT_PROCESSOR_CANCEL_PATH,
+            'merchant_auth_name': config_from_yaml.get('AUTHORIZENET_MERCHANT_AUTH_NAME'),
+            'transaction_key': config_from_yaml.get('AUTHORIZENET_TRANSACTION_KEY'),
+            'signature_key': config_from_yaml.get('AUTHORIZENET_SIGNATURE_KEY'),
+            'production_mode': config_from_yaml.get('AUTHORIZENET_PRODUCTION_MODE', False)
+        },
         'stripe': {
             'publishable_key': 'pk_test_JU90ubQThS4C5K4E3gG2K61N',
             'secret_key': 'sk_test_cHL2I2pDzsp5ApNTKX3E97oq',
@@ -98,7 +106,13 @@ PAYMENT_PROCESSOR_CONFIG = {
 # Language cookie
 LANGUAGE_COOKIE_NAME = 'openedx-language-preference'
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = config_from_yaml.get('ECOMMERCE_EMAIL_BACKEND')
+EMAIL_HOST = config_from_yaml.get('ECOMMERCE_EMAIL_HOST')
+EMAIL_PORT = config_from_yaml.get('ECOMMERCE_EMAIL_PORT')
+EMAIL_USE_TLS = config_from_yaml.get('ECOMMERCE_EMAIL_USE_TLS')
+EMAIL_HOST_USER = config_from_yaml.get('ECOMMERCE_EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config_from_yaml.get('ECOMMERCE_EMAIL_HOST_PASSWORD')
 
 #SAILTHRU settings
 SAILTHRU_KEY = 'abc123'

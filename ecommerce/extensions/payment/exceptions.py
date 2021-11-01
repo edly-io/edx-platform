@@ -7,6 +7,31 @@ from oscar.apps.payment.exceptions import GatewayError, PaymentError
 PROCESSOR_NOT_FOUND_DEVELOPER_MESSAGE = "Lookup for a payment processor with name [{name}] failed"
 PROCESSOR_NOT_FOUND_USER_MESSAGE = _("We don't support the payment option you selected.")
 
+class MissingTransactionDetailError(PaymentError):
+    """ Unable to get Authorizenet transaction detail using a transaction_id received through notification. """
+    pass
+
+class RefundError(Exception):
+    """ Raised when requested payment processor is unable to create a refund for settled transcations. """
+    pass
+
+class PaymentProcessorResponseNotFound(RefundError):
+    """ Raised when requested processor is unable to get Payment Processor Response for settled transaction. """
+    pass
+
+class MissingProcessorResponseCardInfo(RefundError):
+    """
+        Raised when requested processor is unable to get card information from payment processor response
+        for settled transaction.
+    """
+    pass
+
+class UnSettledTransaction(Exception):
+    """
+        The referenced transaction does not meet the criteria for issuing a credit. It may be unsettled.
+        Reference: https://developer.authorize.net/api/reference/responseCodes.html?code=54
+    """
+    pass
 
 class ProcessorMisconfiguredError(Exception):
     """ Raised when a payment processor has invalid/missing settings. """

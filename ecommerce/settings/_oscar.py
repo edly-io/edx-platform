@@ -130,6 +130,7 @@ PAYMENT_PROCESSORS = (
     'ecommerce.extensions.payment.processors.cybersource.CybersourceREST',
     'ecommerce.extensions.payment.processors.paypal.Paypal',
     'ecommerce.extensions.payment.processors.stripe.Stripe',
+    'ecommerce.extensions.payment.processors.authorizenet.AuthorizeNet',
 )
 
 PAYMENT_PROCESSOR_RECEIPT_PATH = '/checkout/receipt/'
@@ -161,6 +162,13 @@ PAYMENT_PROCESSOR_CONFIG = {
             'client_secret': None,
             'cancel_checkout_path': PAYMENT_PROCESSOR_CANCEL_PATH,
             'error_path': PAYMENT_PROCESSOR_ERROR_PATH,
+        },
+        'authorizenet': {
+            'cancel_checkout_path': PAYMENT_PROCESSOR_CANCEL_PATH,
+            'merchant_auth_name': None,
+            'transaction_key': None,
+            'signature_key': None,
+            'redirect_url': None,
         },
         'stripe': {
             'publishable_key': None,

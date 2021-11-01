@@ -1,5 +1,7 @@
+import json
 import logging
 import re
+import lxml
 
 from django.utils.translation import ugettext_lazy as _
 from oscar.core.loading import get_model
@@ -131,3 +133,21 @@ def embargo_check(user, site, products):
             pass
 
     return True
+
+class LxmlObjectJsonEncoder(json.JSONEncoder):
+    """
+       A specialized JSON encoder that can handle lxml objectify types
+    """
+    def default(self, o):  # pylint: disable=method-hidden
+        if isinstance(o, lxml.objectify.IntElement):
+            return int(o)
+        if isinstance(o, lxml.objectify.NumberElement) or isinstance(o, lxml.objectify.FloatElement):
+            return float(o)
+        if isinstance(o, lxml.objectify.ObjectifiedDataElement):
+            try:
+                return str(o)
+            except UnicodeEncodeError:
+                return unicode(o).encode('utf-8')
+        if hasattr(o, '__dict__'):
+            return o.__dict__
+        return json.JSONEncoder.default(self, o)

@@ -1,6 +1,7 @@
 -c pins.txt
 
 analytics-python
+authorizenet==1.1.4
 bleach
 coreapi
 cybersource-rest-client-python
