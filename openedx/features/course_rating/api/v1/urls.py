@@ -4,7 +4,6 @@ Defines URLs for the course rating.
 
 from django.conf.urls import include, url
 from rest_framework import routers
-from django.conf import settings
 
 from openedx.features.course_rating.api.v1.views import CourseRatingViewSet, CourseAverageRatingAPIView
 
