@@ -5,6 +5,7 @@ Dashboard view and supporting methods
 
 import datetime
 import logging
+import base64
 from collections import defaultdict
 
 from django.conf import settings
@@ -34,6 +35,7 @@ from openedx.core.djangoapps.catalog.utils import (
     get_pseudo_session_for_entitlement,
     get_visible_sessions_for_entitlement
 )
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.credit.email_utils import get_credit_provider_attribute_values, make_providers_strings
 from openedx.core.djangoapps.plugins.constants import ProjectType
 from openedx.core.djangoapps.programs.models import ProgramsApiConfig
@@ -810,6 +812,18 @@ def student_dashboard(request):  # lint-amnesty, pylint: disable=too-many-statem
             user,
         )
     )
+
+    # Retrieve pendingTransactionCourse cookie to show waiting alert to the learner. It conatain encrypted
+    # course_id for which AuthorizeNet transaction has been perfromed but notification is yet to be received.
+    transaction_hash = request.COOKIES.get(settings.ECOMMERCE_TRANSACTION_COOKIE_NAME)
+    if transaction_hash:
+        decoded_course_id = base64.b64decode(transaction_hash[2:-1]).decode("utf-8")
+        transaction_course_id = CourseKey.from_string(decoded_course_id)
+        pending_transaction_course_name = CourseOverview.get_from_id(transaction_course_id).display_name
+        context.update({
+            'pending_upgrade_course_name': pending_transaction_course_name,
+        })
+
     if ecommerce_service.is_enabled(request.user):
         context.update({
             'use_ecommerce_payment_flow': True,
@@ -826,4 +840,9 @@ def student_dashboard(request):  # lint-amnesty, pylint: disable=too-many-statem
         'resume_button_urls': resume_button_urls
     })
 
-    return render_to_response('dashboard.html', context)
+    response = render_to_response('dashboard.html', context)
+    if transaction_hash:
+        response.delete_cookie(
+            settings.ECOMMERCE_TRANSACTION_COOKIE_NAME, domain=settings.SESSION_COOKIE_DOMAIN)
+
+    return response
