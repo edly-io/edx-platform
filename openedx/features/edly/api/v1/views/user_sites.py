@@ -54,6 +54,7 @@ class UserSitesViewSet(viewsets.ViewSet):
 
         user_sites = []
         for edly_sub_org_of_user in edly_sub_orgs_of_user.all():
+            print('edly_sub_org_of_user: ', edly_sub_org_of_user)
             context['edly_sub_org_of_user'] = edly_sub_org_of_user
             edx_organizations = edly_sub_org_of_user.get_edx_organizations
             print('edx_organizations: ', edx_organizations)
