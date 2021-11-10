@@ -40,8 +40,8 @@ class TestUserSitesViewSet(TestCase):
         response = self.client.get(self.user_sites_list_url)
 
         assert response.status_code == 200
-
-        data = response.data[0]
+        print(response.data)
+        data = response.data
         assert data.get('site_data', {}).get('display_name') == self.request_site.name
         assert not data.get('app_config')
 
