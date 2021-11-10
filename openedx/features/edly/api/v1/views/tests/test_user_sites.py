@@ -37,11 +37,14 @@ class TestUserSitesViewSet(TestCase):
         """
         Verify that `list` returns correct response when user is logged in.
         """
+        print('sending api call')
+        print("self.user_sites_list_url: ", self.user_sites_list_url)
         response = self.client.get(self.user_sites_list_url)
+        print('status code: ', response.status_code)
 
         assert response.status_code == 200
         print(response.data)
-        data = response.data
+        data = response.data[0]
         assert data.get('site_data', {}).get('display_name') == self.request_site.name
         assert not data.get('app_config')
 
