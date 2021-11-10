@@ -26,7 +26,7 @@ class TestUserSitesViewSet(TestCase):
         self.edly_sub_org = EdlySubOrganizationFactory(lms_site=self.request_site, studio_site=self.request_site, preview_site=self.request_site)
         self.request = RequestFactory(SERVER_NAME=self.request_site.domain).get('')
         self.request.site = self.request_site
-        self.user = EdlyUserFactory(is_staff=False, is_superuser=False)
+        self.user = EdlyUserFactory(is_staff=True, is_superuser=True)
         self.request.user = self.user
         self.user.edly_profile.edly_sub_organizations.add(self.edly_sub_org)
         self.client = Client(SERVER_NAME=self.request_site.domain)
