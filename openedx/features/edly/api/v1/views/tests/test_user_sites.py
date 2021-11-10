@@ -26,7 +26,7 @@ class TestUserSitesViewSet(TestCase):
         self.edly_sub_org = EdlySubOrganizationFactory(lms_site=self.request_site, studio_site=self.request_site, preview_site=self.request_site)
         self.request = RequestFactory(SERVER_NAME=self.request_site.domain).get('')
         self.request.site = self.request_site
-        self.user = EdlyUserFactory(is_staff=True, is_superuser=True)
+        self.user = EdlyUserFactory(is_staff=False, is_superuser=False)
         self.request.user = self.user
         self.user.edly_profile.edly_sub_organizations.add(self.edly_sub_org)
         self.client = Client(SERVER_NAME=self.request_site.domain)
@@ -39,7 +39,10 @@ class TestUserSitesViewSet(TestCase):
         """
         print('sending api call')
         print("self.user_sites_list_url: ", self.user_sites_list_url)
+        print('self.request_site.domain: ', self.request_site.domain)
+
         response = self.client.get(self.user_sites_list_url)
+
         print('status code: ', response.status_code)
 
         assert response.status_code == 200
