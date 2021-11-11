@@ -43,7 +43,6 @@ class UserSitesViewSet(viewsets.ViewSet):
     serializer = UserSiteSerializer
 
     def list(self, request, *args, **kwargs):
-
         user = request.user
         edly_sub_orgs_of_user = user.edly_profile.edly_sub_organizations
 

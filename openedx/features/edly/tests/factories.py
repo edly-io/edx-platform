@@ -55,10 +55,8 @@ class EdlySubOrganizationFactory(DjangoModelFactory):
         if extracted:
             edx_orgs = []
             edx_orgs.extend(extracted if isinstance(extracted, list) else [extracted])
-
             for edx_org in edx_orgs:
                 self.edx_organizations.add(edx_org)
-
         else:
             self.edx_organizations.add(self.edx_organization)
 
