@@ -43,10 +43,9 @@ class UserSitesViewSet(viewsets.ViewSet):
     serializer = UserSiteSerializer
 
     def list(self, request, *args, **kwargs):
-        print("Now in the API Function")
+
         user = request.user
         edly_sub_orgs_of_user = user.edly_profile.edly_sub_organizations
-        print("edly_sub_orgs_of_user: ", edly_sub_orgs_of_user)
 
         context = {
             'request': request,
@@ -54,15 +53,14 @@ class UserSitesViewSet(viewsets.ViewSet):
 
         user_sites = []
         for edly_sub_org_of_user in edly_sub_orgs_of_user.all():
-            print('edly_sub_org_of_user: ', edly_sub_org_of_user)
             context['edly_sub_org_of_user'] = edly_sub_org_of_user
             edx_organizations = edly_sub_org_of_user.get_edx_organizations
-            print('edx_organizations: ', edx_organizations)
+
             for edx_organization in edx_organizations:
                 site_configuration = SiteConfiguration.get_configuration_for_org(edx_organization)
                 site_configuration = site_configuration.__dict__.get('site_values', {}) if site_configuration else {}
                 context['site_configuration'] = site_configuration
                 serializer = self.serializer({}, context=context)
                 user_sites.append(serializer.data)
-        print('user_sites: ', user_sites)
+
         return Response(user_sites)
