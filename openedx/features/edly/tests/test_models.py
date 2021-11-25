@@ -3,6 +3,7 @@ Tests for Edly django models.
 """
 from django.test import TestCase
 
+from organizations.tests.factories import OrganizationFactory
 from openedx.features.edly.models import EdlyOrganization, EdlySubOrganization, EdlyUserProfile
 from openedx.features.edly.tests.factories import (
     EdlyOrganizationFactory,
@@ -11,7 +12,6 @@ from openedx.features.edly.tests.factories import (
     EdlyUserProfileFactory,
     SiteFactory,
 )
-from organizations.tests.factories import OrganizationFactory
 from student.tests.factories import UserFactory
 from student.roles import GlobalCourseCreatorRole
 
@@ -76,7 +76,7 @@ class EdlySubOrganizationTests(TestCase):
 
         user = UserFactory.create()
         edly_user_profile = EdlyUserProfileFactory(user=user)
-        edly_user_profile.edly_sub_organizations.add(edly_sub_organization)
+        edly_user_profile.edly_sub_organizations.add(edly_sub_organization)  # pylint: disable=E1101
         GlobalCourseCreatorRole(edx_org.short_name).add_users(user)
 
         edx_org_2 = OrganizationFactory()
