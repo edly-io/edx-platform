@@ -555,5 +555,5 @@ derive_settings(__name__)
 # HOTJAR ANALYTICS
 HOTJAR_TRACKING_ID = ENV_TOKENS.get(
     'HOTJAR_TRACKING_ID',
-    HOTJAR_TRACKING_ID
+    None
 )
