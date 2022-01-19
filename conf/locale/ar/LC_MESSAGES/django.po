@@ -22872,15 +22872,11 @@ msgstr ""
 "تعتقد أن هذا خطأ، أو إذا كانت لديك استفسارات أخرى بشأن استخدام واجهة برمجة "
 "التطبيقات هذه، فاتصل ب{email}."
 
-#: themes/st-lutherx/cms/templates/emails/account_access_denied.txt
-#: themes/st-lutherx/cms/templates/emails/account_access_granted.txt
-#: themes/st-lutherx/lms/templates/emails/account_access_denied.txt
-#: themes/st-lutherx/lms/templates/emails/account_access_granted.txt
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusblocked/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusunblocked/email/body.html
 msgid "Best,"
-msgstr ""
+msgstr "الأفضل،"
 
 #: themes/st-lutherx/cms/templates/emails/account_access_denied.txt
 #: themes/st-lutherx/cms/templates/emails/account_access_granted.txt
@@ -27704,71 +27700,71 @@ msgstr "أُنقر على زر \"بدء الامتحان المراقب\" أدن
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Please provide valid type in the query params."
-msgstr ""
+msgstr "يرجى تقديم نوع صالح في معلمات الاستعلام."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Please provide valid report request type in the query params."
-msgstr ""
+msgstr "يرجى تقديم نوع طلب تقرير صالح في معلمات الاستعلام."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Please provide valid quarter and year"
-msgstr ""
+msgstr "يرجى تقديم ربع وسنة صالحة"
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Please provide valid start and end date."
-msgstr ""
+msgstr "يرجى تقديم تاريخ بدء وانتهاء صالحين."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Please provide valid year."
-msgstr ""
+msgstr "يرجى تقديم سنة صالحة."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Please specify the valid date ranges."
-msgstr ""
+msgstr "يرجى تحديد نطاقات التواريخ الصالحة."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "No user record found."
-msgstr ""
+msgstr "لم يتم العثور على سجل المستخدم."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Users status update completed."
-msgstr ""
+msgstr "اكتمل تحديث حالة المستخدمين."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Users status update failed."
-msgstr ""
+msgstr "فشل تحديث حالة المستخدمين."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "User cannot change its status."
-msgstr ""
+msgstr "لا يمكن للمستخدم تغيير حالته."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Site theme directory not provided."
-msgstr ""
+msgstr "لم يتم توفير دليل سمة الموقع."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Site theme update completed."
-msgstr ""
+msgstr "اكتمل تحديث سمة الموقع."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Site theme update failed."
-msgstr ""
+msgstr "فشل تحديث سمة الموقع."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Client sites setup successful."
-msgstr ""
+msgstr "تم إعداد مواقع العملاء بنجاح."
 
 #: edly_panel_app/api/v1/constants.py
 msgid "Client sites setup failed."
-msgstr ""
+msgstr "فشل إعداد مواقع العميل"
 
 #: edly_panel_app/api/v1/helpers.py
 msgid "Copy Rights. All rights reserved."
-msgstr ""
+msgstr "حقوق الطبع. كل الحقوق محفوظة."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.html
 msgid "Invitation to Join "
-msgstr ""
+msgstr "دعوة للانضمام"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.html
 #, python-format
@@ -27776,21 +27772,23 @@ msgid ""
 "An account has been created for you in %(platform_name)s. Please use the "
 "link below to set your password and log in."
 msgstr ""
+"تم إنشاء حساب لك في %(platform_name)s.الرجاء استخدام الرابط أدناه لتعيين "
+"كلمة المرور الخاصة بك وتسجيل الدخول."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.html
 msgid "If you don't want to join, you can ignore this email."
-msgstr ""
+msgstr "إذا كنت لا ترغب في الانضمام ، يمكنك تجاهل هذا البريد الإلكتروني."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.html
 msgid "Set Password"
-msgstr ""
+msgstr "ضبط كلمة السر"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusblocked/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusunblocked/email/body.html
 #, python-format
 msgid "Hi %(user)s,"
-msgstr ""
+msgstr "أهلا %(user)s,"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/body.html
 #, python-format
@@ -27798,11 +27796,13 @@ msgid ""
 "Thank you for activating your %(platform_name)s account. To start exploring,"
 " visit: %(homepage_url)s. Enjoy your learning journey!"
 msgstr ""
+"شكرًا لك على تفعيل حساب %(platform_name)s الخاص بك.لبدء الاستكشاف ، قم "
+"بزيارة: %(homepage_url)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/body.html
 #, python-format
 msgid "The %(platform_name)s team."
-msgstr ""
+msgstr "فريق %(platform_name)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusblocked/email/body.html
 #, python-format
@@ -27810,10 +27810,12 @@ msgid ""
 "Your account on %(platform_name)s has been blocked. If you think this was "
 "done in error, please reach out to us at %(contact_email)s."
 msgstr ""
+"تم حظر حسابك على %(platform_name)s.إذا كنت تعتقد أن هذا حدث عن طريق الخطأ ، "
+"فيرجى التواصل معنا على %(contact_email)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.html
 msgid "Hi"
-msgstr ""
+msgstr "أهلا"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.html
 #, python-format
@@ -27821,6 +27823,8 @@ msgid ""
 "Your account on %(platform_name)s has been deactivated. If you think this "
 "was done in error, please reach out to us at %(contact_email)s."
 msgstr ""
+"تم إلغاء تنشيط حسابك على %(platform_name)s.إذا كنت تعتقد أن هذا حدث عن طريق "
+"الخطأ ، فيرجى التواصل معنا على %(contact_email)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusunblocked/email/body.html
 #, python-format
@@ -27828,6 +27832,8 @@ msgid ""
 "Your account has been unblocked. Please reset your password to continue your"
 " learning. To reset password, visit: %(password_reset_url)s"
 msgstr ""
+"تم إلغاء حظر حسابك. يرجى إعادة تعيين كلمة المرور الخاصة بك لمواصلة التعلم "
+"الخاص بك.لإعادة تعيين كلمة المرور ، قم بزيارة: %(password_reset_url)s"
 
 #~ msgid "Problem"
 #~ msgstr "المسألة"
