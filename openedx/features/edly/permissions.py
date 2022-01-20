@@ -10,6 +10,5 @@ class CanAccessEdxAPI(BasePermission):
     """
 
     def has_permission(self, request, view):
-        return request.user.is_staff or request.user.edly_profile.edly_sub_organizations.filter(
-            lms_site=request.site
-        ).exists()
+        return request.user.is_staff or \
+            request.site.edly_sub_org_for_lms.slug in request.user.edly_profile.get_linked_edly_sub_organizations

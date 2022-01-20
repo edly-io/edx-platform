@@ -35,8 +35,8 @@ from openedx.core.lib.api.permissions import ApiKeyHeaderPermission, ApiKeyHeade
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin
 from openedx.core.lib.exceptions import CourseNotFoundError
 from openedx.core.lib.log_utils import audit_log
-from openedx.features.edly.utils import is_course_org_same_as_site_org
 from openedx.features.edly.permissions import CanAccessEdxAPI
+from openedx.features.edly.utils import is_course_org_same_as_site_org
 from openedx.features.enterprise_support.api import (
     ConsentApiServiceClient,
     EnterpriseApiException,
