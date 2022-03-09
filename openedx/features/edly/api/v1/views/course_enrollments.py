@@ -5,6 +5,7 @@ from figures.views import CourseEnrollmentViewSet
 
 from openedx.core.lib.api.permissions import ApiKeyHeaderPermissionIsAuthenticated
 
+
 class EdlyCourseEnrollmentViewSet(CourseEnrollmentViewSet):
     """
     **Use Case**
