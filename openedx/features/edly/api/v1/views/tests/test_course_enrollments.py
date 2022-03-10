@@ -49,7 +49,7 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         Verify that returns correct response if user logged in and in edly_api_users_group.
         """
         edly_api_users_group = GroupFactory(name=settings.EDLY_API_USERS_GROUP)
-        self.request.user.groups.add(edly_api_users_group)  #pylint:disable=E1101
+        self.request.user.groups.add(edly_api_users_group)  # pylint:disable=E1101
         response = self.client.get(self.course_enrollments_url)
 
         assert response.status_code == 200
