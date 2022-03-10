@@ -23,7 +23,7 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         super(TestEdlyCourseEnrollmentViewSett, self).setUp()
         self.request_site = SiteFactory()
         self.edly_sub_org = EdlySubOrganizationFactory(
-            ms_site=self.request_site,
+            lms_site=self.request_site,
             studio_site=self.request_site,
             preview_site=self.request_site
             )
