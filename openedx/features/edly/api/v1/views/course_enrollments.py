@@ -26,5 +26,5 @@ class EdlyCourseEnrollmentViewSet(CourseEnrollmentViewSet):
         JwtAuthentication,
         BearerAuthenticationAllowInactiveUser,
         SessionAuthenticationAllowInactiveUser,
-        )                 
+        )
     permission_classes = (ApiKeyHeaderPermission,)
