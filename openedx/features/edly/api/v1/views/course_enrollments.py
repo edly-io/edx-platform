@@ -22,8 +22,9 @@ class EdlyCourseEnrollmentViewSet(CourseEnrollmentViewSet):
 
         If the request is successful, the request returns an HTTP 200 "OK" response.
     """
-    authentication_classes = (JwtAuthentication,
-                              BearerAuthenticationAllowInactiveUser,
-                              SessionAuthenticationAllowInactiveUser,
-                             )
+    authentication_classes = (
+        JwtAuthentication,
+        BearerAuthenticationAllowInactiveUser,
+        SessionAuthenticationAllowInactiveUser,
+        )                 
     permission_classes = (ApiKeyHeaderPermission,)

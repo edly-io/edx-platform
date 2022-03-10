@@ -25,7 +25,7 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         self.edly_sub_org = EdlySubOrganizationFactory(
             lms_site=self.request_site,
             studio_site=self.request_site,
-            preview_site=self.request_site
+            preview_site=self.request_site,
             )
         self.request = RequestFactory(SERVER_NAME=self.request_site.domain).get('')
         self.request.site = self.request_site

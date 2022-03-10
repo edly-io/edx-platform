@@ -8,7 +8,7 @@ router.register(r'user_sites', UserSitesViewSet, base_name='user_sites')
 router.register(
     r'course_enrollment',
     EdlyCourseEnrollmentViewSet,
-    base_name='course_enrollment'
+    base_name='course_enrollment',
     )
 
 urlpatterns = router.urls
