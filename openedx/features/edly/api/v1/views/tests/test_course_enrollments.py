@@ -30,7 +30,7 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         self.user.edly_profile.edly_sub_organizations.add(self.edly_sub_org)
         self.client = Client(SERVER_NAME=self.request_site.domain)
         self.client.login(username=self.user.username, password='test')
-        self.course_enrollments_url = reverse('course_enrollment-get')
+        self.course_enrollments_url = reverse('course_enrollment-list')
 
     def test_with_logged_in_non_edly_api_group_user(self):
         """
@@ -38,7 +38,7 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         """
         response = self.client.get(self.course_enrollments_url)
 
-        assert response.status_code == 401
+        assert response.status_code == 403
     
     def test_with_logged_in_edly_api_group_user(self):
         """

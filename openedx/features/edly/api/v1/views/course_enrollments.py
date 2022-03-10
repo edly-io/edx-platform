@@ -2,8 +2,11 @@
 Views for course enrollments API
 """
 from figures.views import CourseEnrollmentViewSet
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 
-from openedx.core.lib.api.permissions import ApiKeyHeaderPermissionIsAuthenticated
+from openedx.core.lib.api.permissions import ApiKeyHeaderPermissionIsAuthenticated, ApiKeyHeaderPermission
 
 
 class EdlyCourseEnrollmentViewSet(CourseEnrollmentViewSet):
@@ -20,4 +23,6 @@ class EdlyCourseEnrollmentViewSet(CourseEnrollmentViewSet):
 
         If the request is successful, the request returns an HTTP 200 "OK" response.
     """
-    permission_classes = (ApiKeyHeaderPermissionIsAuthenticated,)
+    authentication_classes = (JwtAuthentication, BearerAuthenticationAllowInactiveUser,
+                              SessionAuthenticationAllowInactiveUser,)
+    permission_classes = (ApiKeyHeaderPermission,)
