@@ -22,7 +22,11 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         """
         super(TestEdlyCourseEnrollmentViewSett, self).setUp()
         self.request_site = SiteFactory()
-        self.edly_sub_org = EdlySubOrganizationFactory(lms_site=self.request_site, studio_site=self.request_site, preview_site=self.request_site)
+        self.edly_sub_org = EdlySubOrganizationFactory(
+            ms_site=self.request_site,
+            studio_site=self.request_site,
+            preview_site=self.request_site
+            )
         self.request = RequestFactory(SERVER_NAME=self.request_site.domain).get('')
         self.request.site = self.request_site
         self.user = EdlyUserFactory(is_staff=True, is_superuser=True)
@@ -39,13 +43,13 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         response = self.client.get(self.course_enrollments_url)
 
         assert response.status_code == 403
-    
+
     def test_with_logged_in_edly_api_group_user(self):
         """
         Verify that returns correct response if user logged in and in edly_api_users_group.
         """
         edly_api_users_group = GroupFactory(name=settings.EDLY_API_USERS_GROUP)
-        self.request.user.groups.add(edly_api_users_group)
+        self.request.user.groups.add(edly_api_users_group)  #pylint:disable=E1101
         response = self.client.get(self.course_enrollments_url)
 
         assert response.status_code == 200
@@ -58,4 +62,3 @@ class TestEdlyCourseEnrollmentViewSett(TestCase):
         response = self.client.get(self.course_enrollments_url)
 
         assert response.status_code == 401
-

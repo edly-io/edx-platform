@@ -6,7 +6,7 @@ from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthenticat
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 
-from openedx.core.lib.api.permissions import ApiKeyHeaderPermissionIsAuthenticated, ApiKeyHeaderPermission
+from openedx.core.lib.api.permissions import ApiKeyHeaderPermission
 
 
 class EdlyCourseEnrollmentViewSet(CourseEnrollmentViewSet):
