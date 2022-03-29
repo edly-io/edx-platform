@@ -1,0 +1,10 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Dear {% endblocktrans %}{{ full_name }},
+
+{% blocktrans %}You are enrolled in the course "{{ display_name }}" and have {{ days_left }} day(s) left to complete it.{% endblocktrans %}
+
+{% blocktrans %}Please sign in to your Training portal to view the course: {{ course_url }}.{% endblocktrans %}
+
+----
+{% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}.{% endblocktrans %}
+{% endautoescape %}

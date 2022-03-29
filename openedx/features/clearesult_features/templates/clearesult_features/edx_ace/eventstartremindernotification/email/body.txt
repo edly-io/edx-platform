@@ -1,0 +1,18 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Dear {% endblocktrans %}{{ full_name }},
+
+{% blocktrans %}This email is to remind you that that you are registred for the "{{ display_name }}" event which will begin in {{ days_left }} day(s).{% endblocktrans %}
+
+{% blocktrans %}Followings are the event details:{% endblocktrans %}
+{% blocktrans %}Event Name: {% endblocktrans %}"{{ display_name }}"
+{% blocktrans %}Event Start: {% endblocktrans %}"{{ event_start_info }}"
+{% blocktrans %}Event End: {% endblocktrans %}"{{ event_end_info }}"
+
+
+{% blocktrans %}You are already registered for the event so don't forget to mark your calendar. {% endblocktrans %}
+{% blocktrans %}Download File (ics) {% endblocktrans %}{{ event_url }}.
+
+{% blocktrans %}Sign in to your Training portal to view your dashboard: {% endblocktrans %}{{ dashboard_url }}
+
+{% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}{% endblocktrans %}
+{% endautoescape %}

@@ -1,0 +1,63 @@
+{% extends 'ace_common/edx_ace/common/base_body.html' %}
+
+{% load i18n %}
+{% load static %}
+{% block content %}
+<table width="100%" align="left" border="0" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+        <td>
+            <p>{% blocktrans %}Dear {% endblocktrans %}{{ full_name }},</p>
+
+            <p>{% blocktrans %}This email is to remind you that that you are registred for the "{{ display_name }}" which will begin in <span style="font-weight:bold;">{{ days_left }}</span> day(s).{% endblocktrans %}</p>
+
+            <p>{% blocktrans %}Followings are the event details:{% endblocktrans %}</p>
+
+            <ul>
+                <li style="display:flex">
+                    <span style="font-weight:bold;width:30%;">Event Name: </span>
+                    <span style="width:70%%">{{ display_name }}</span>
+                </li>
+                <li style="display:flex">
+                    <span style="font-weight:bold;width:30%">Event Start: </span>
+                    <span style="width:70%">{{ event_start_info }}</span>
+                </li>
+                <li style="display:flex">
+                    <span style="font-weight:bold;width:30%">Event End: </span>
+                    <span style="width:70%">{{ event_end_info }}</span>
+                </li>
+            </ul>
+
+            <p>{% blocktrans %}Don't forget to mark your calendar.{% endblocktrans %}</p>
+            <p><a href="{{ event_url }}">Download calendar event (ics)</a></p>
+
+            <p>{% blocktrans %}Sign in to the Training portal to view your dashboard.{% endblocktrans %}</p>
+            <a
+                href="{{ dashboard_url }}"
+                class="blue pull-right"
+
+                style="
+                    color: #ffffff;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    -webkit-border-radius: 4px;
+                    -moz-border-radius: 4px;
+                    background-color: #005686;
+                    border-top: 12px solid #005686;
+                    border-bottom: 12px solid #005686;
+                    border-right: 50px solid #005686;
+                    border-left: 50px solid #005686;
+                    display: inline-block;
+                "
+            >
+                {% blocktrans %} <font color="#ffffff"><b>View Dashboard</b></font>{% endblocktrans %}
+            </a>
+
+            <p style="color: rgba(0,0,0,.75);">
+                {% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}{% endblocktrans %}
+                <br />
+            </p>
+
+        </td>
+    </tr>
+</table>
+{% endblock %}

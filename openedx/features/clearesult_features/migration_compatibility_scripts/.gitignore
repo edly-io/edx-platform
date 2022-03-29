@@ -1,0 +1,2 @@
+# don't push CSV file for this repo
+*.csv

@@ -35,6 +35,7 @@ import os
 
 from corsheaders.defaults import default_headers as corsheaders_default_headers
 from path import Path as path
+from django.urls import reverse_lazy
 from django.utils.translation import ugettext_lazy as _
 from enterprise.constants import (
     ENTERPRISE_ADMIN_ROLE,
@@ -1724,6 +1725,11 @@ MIDDLEWARE = [
     #'django.contrib.auth.middleware.AuthenticationMiddleware',
     'openedx.core.djangoapps.cache_toolbox.middleware.CacheBackedAuthenticationMiddleware',
 
+    # [CLEARESULT_CUSTOM]
+    'openedx.features.clearesult_features.middlewares.authentication.ClearesultAuthenticationMiddleware',
+    'openedx.features.clearesult_features.middlewares.session_watcher.ClearesultSessionMiddleware',
+    'openedx.features.clearesult_features.middlewares.site_security.SiteAuthenticationMiddleware',
+
     'common.djangoapps.student.middleware.UserStandingMiddleware',
     'openedx.core.djangoapps.contentserver.middleware.StaticContentServer',
 
@@ -2776,6 +2782,9 @@ INSTALLED_APPS = [
     'openedx.core.djangoapps.content.learning_sequences.apps.LearningSequencesConfig',
 
     'ratelimitbackend',
+
+    #clearesult custom features
+    'openedx.features.clearesult_features',
 ]
 
 ######################### CSRF #########################################
@@ -3009,6 +3018,45 @@ if FEATURES.get('ENABLE_CORS_HEADERS'):
 XDOMAIN_PROXY_CACHE_TIMEOUT = 60 * 15
 
 LOGIN_REDIRECT_WHITELIST = []
+
+################### CLEARESULT SETTINGS ###############################
+CLEARESULT_BLOCKED_SUBPATH = [
+    '/courses'
+]
+CLEARESULT_BLOCKED_FULL_PATH = [
+    '/login'
+]
+CLEARESULT_ALLOWED_SUB_PATHS = [
+    '/api'
+]
+CLEARESULT_ALLOWED_INCLUDED_PATHS = [
+    '/about'
+]
+CLEARESULT_SITE_SECURITY_ALLOWED_PATHS = [
+    reverse_lazy('signin_user'),
+    reverse_lazy('register_user'),
+    reverse_lazy('clearesult_features:site_security_code'),
+    reverse_lazy('logout'),
+]
+
+CLEARESULT_CREDIT_PROVIDERS = [
+    'BPI',
+    'NATE',
+    'RESNET HERS Rater',
+    'AIA',
+    'AEE',
+    'LEED'
+]
+
+CLEARESULT_LOGOUT_SERVICE_USER = 'logout_service_user'
+
+DRUPAL_API_CREDENTIALS = {
+    'username': '',
+    'password': '',
+    'url': ''
+}
+
+CLEARESULT_REPORTS_TZ = 'America/Jamaica' # EST timezone
 
 ###################### Registration ##################################
 
@@ -4183,6 +4231,42 @@ GITHUB_REPO_ROOT = '/edx/var/edxapp/data'
 
 ##################### SUPPORT URL ############################
 SUPPORT_HOW_TO_UNENROLL_LINK = ''
+
+
+##################### Magento ############################
+MAGENTO_REDIRECT_URL = ''
+MAGENTO_BASE_API_URL = ''
+MAGENTO_LMS_INTEGRATION_TOKEN = ''
+
+##################### Clearesult ############################
+
+# To disable account verification for clearesult user
+FEATURES['ENABLE_AUTOMATIC_ACCOUNT_VERIFICATION'] = True
+
+# To hide courses from discover new tab
+FEATURES['SHOW_ARCHIVED_COURSES_IN_LISTING'] = False
+
+# Block types to keep and filter in calculating course progress
+CORE_BLOCK_TYPES = ['html', 'video', 'problem', 'scormxblock']
+FILTER_BLOCKS_IN_UNIT = ['html']
+
+###################### SSO Provider configurations ###################
+GLOBALLY_ENABLED_SSO_PROVIDERS = [
+    'clearesult-azuread-oauth2'
+]
+
+######################## Default Email Params ################################
+DEFAULT_LOGO = '/static/clearesult/images/clearesulttrainingservices.png'
+DEFAULT_REGISTERATION_URL = ''
+
+ADMIN_USERNAME_FOR_EMAIL_TASK = ''
+
+######################  Site Deafult Group Name  ###################
+SITE_DEFAULT_GROUP_NAME = "DEFAULT"
+
+###################### Email addresses to receieve support notifications ###################
+
+SUPPORT_DEST_EMAILS = []
 
 ######################## Setting for content libraries ########################
 MAX_BLOCKS_PER_CONTENT_LIBRARY = 1000

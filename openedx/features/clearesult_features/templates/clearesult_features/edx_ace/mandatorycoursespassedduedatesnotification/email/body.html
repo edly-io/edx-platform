@@ -1,0 +1,30 @@
+{% extends 'ace_common/edx_ace/common/base_body.html' %}
+
+{% load i18n %}
+{% load static %}
+{% block content %}
+<table width="100%" align="left" border="0" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+        <td>
+            <p>{% blocktrans %}Dear {% endblocktrans %}{{ platform_name }}{% blocktrans %} admin user,{% endblocktrans %}</p>
+
+            <p>{% blocktrans %}Please find below a list of users who haven't completed mandatory courses in the alloted time.{% endblocktrans %}</p>
+
+            {% for key,value in site_enrollments.items %}
+                <h3 style="font-weight:bold;">{{ value.course_name }}</h3>
+                <ol>
+                {% for user in value.users %}
+                    <li>{{ user.email }}</li>
+                {% endfor %}
+                </ol>
+            {% endfor %}
+
+            <p style="color: rgba(0,0,0,.75);">
+                {% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}, contact the Training team for further questions.{% endblocktrans %}
+                <br />
+            </p>
+
+        </td>
+    </tr>
+</table>
+{% endblock %}

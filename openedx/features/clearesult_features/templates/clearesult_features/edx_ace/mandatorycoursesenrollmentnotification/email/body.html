@@ -1,0 +1,73 @@
+{% extends 'ace_common/edx_ace/common/base_body.html' %}
+
+{% load i18n %}
+{% load static %}
+{% block content %}
+<table width="100%" align="left" border="0" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+        <td>
+            <p>
+                {% blocktrans %}You have been automatically enrolled in the following training(s) on the {{ platform_name }} portal:{% endblocktrans %}
+            </p>
+
+            {% if courses %}
+                <h3>{% blocktrans %}Course(s)</h3>{% endblocktrans %}
+                <ul>
+                {% for course in courses %}
+                    <li>{{ course }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+
+            {% if events %}
+                <h3>{% blocktrans %}Event(s)</h3>{% endblocktrans %}
+                <ul>
+                {% for event in events %}
+                    <li><span style="font-weight:bold">{{ event.name }}</span> on {{ event.date }}</li>
+                {% endfor %}
+                </ul>
+
+            {% endif %}
+
+            <p>{% blocktrans %}Please note that this training is mandatory.{% endblocktrans %}</p>
+
+            <p>
+                {% if events and courses %}
+                  {% blocktrans %}Don't forget to add the event(s) to your calendar. Go to your dashboard to view the calendar invite(s) and training details.{% endblocktrans %}
+                {% elif events %}
+                  {% blocktrans %}Don't forget to add the event(s) to your calendar. Go to your dashboard to download the calendar invite(s).{% endblocktrans %}
+                {% else %}
+                  {% blocktrans %}View your dashboard to get more details.{% endblocktrans %}
+                {% endif %}
+            </p>
+
+            <a
+                href="{{ dashboard_url }}"
+                class="blue pull-right"
+
+                style="
+                    color: #ffffff;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    -webkit-border-radius: 4px;
+                    -moz-border-radius: 4px;
+                    background-color: #005686;
+                    border-top: 12px solid #005686;
+                    border-bottom: 12px solid #005686;
+                    border-right: 50px solid #005686;
+                    border-left: 50px solid #005686;
+                    display: inline-block;
+                "
+            >
+                {% blocktrans %} <font color="#ffffff"><b>View Dashboard</b></font>{% endblocktrans %}
+            </a>
+
+            <p style="color: rgba(0,0,0,.75);">
+                {% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}{% endblocktrans %}
+                <br />
+            </p>
+
+        </td>
+    </tr>
+</table>
+{% endblock %}

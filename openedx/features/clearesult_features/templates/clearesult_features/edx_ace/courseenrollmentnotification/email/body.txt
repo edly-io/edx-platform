@@ -1,0 +1,9 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Dear {% endblocktrans %}{{ full_name }},
+
+{% blocktrans %}You have successfully enrolled in the course {% endblocktrans %}"{{ display_name }}".
+
+{% blocktrans %}Sign in to the Training portal to view the course description and details: {% endblocktrans %}{{ course_url }}
+
+{% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}{% endblocktrans %}
+{% endautoescape %}

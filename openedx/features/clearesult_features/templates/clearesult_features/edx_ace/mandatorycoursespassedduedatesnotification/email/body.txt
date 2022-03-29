@@ -1,0 +1,13 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Dear {% endblocktrans %}{{ platform_name }}{% blocktrans %} admin user,{% endblocktrans %}
+
+{% blocktrans %}Please find below a list of users who haven't completed mandatory courses in the alloted time.{% endblocktrans %}
+{% for key,value in site_enrollments.items %}
+  -----> {{ value.course_name }} - ( {{ key }})
+  {% for user in value.users %}
+    - {{ user.email }}
+  {% endfor %}
+{% endfor %}
+----
+{% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}, contact the Training team for further questions.{% endblocktrans %}
+{% endautoescape %}

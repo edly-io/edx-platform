@@ -600,6 +600,7 @@ if FEATURES.get('ENABLE_THIRD_PARTY_AUTH'):
         'social_core.backends.linkedin.LinkedinOAuth2',
         'social_core.backends.facebook.FacebookOAuth2',
         'social_core.backends.azuread.AzureADOAuth2',
+        'openedx.features.clearesult_features.auth_backend.ClearesultAzureADOAuth2',
         'common.djangoapps.third_party_auth.appleid.AppleIdAuth',  # vendored 'social_core.backends.apple.AppleIdAuth'
         'common.djangoapps.third_party_auth.identityserver3.IdentityServer3',
         'common.djangoapps.third_party_auth.saml.SAMLAuthBackend',
@@ -925,6 +926,95 @@ DASHBOARD_COURSE_LIMIT = ENV_TOKENS.get('DASHBOARD_COURSE_LIMIT', None)
 
 ######################## Setting for content libraries ########################
 MAX_BLOCKS_PER_CONTENT_LIBRARY = ENV_TOKENS.get('MAX_BLOCKS_PER_CONTENT_LIBRARY', MAX_BLOCKS_PER_CONTENT_LIBRARY)
+
+########################## Magento Configurations  #######################
+MAGENTO_REDIRECT_URL = ENV_TOKENS.get('MAGENTO_REDIRECT_URL', MAGENTO_REDIRECT_URL)
+MAGENTO_BASE_API_URL = ENV_TOKENS.get('MAGENTO_BASE_API_URL', MAGENTO_BASE_API_URL)
+MAGENTO_LMS_INTEGRATION_TOKEN = ENV_TOKENS.get('MAGENTO_LMS_INTEGRATION_TOKEN', MAGENTO_LMS_INTEGRATION_TOKEN)
+
+################### CLEARESULT SETTINGS ###############################
+CLEARESULT_BLOCKED_SUBPATH = ENV_TOKENS.get(
+    'CLEARESULT_BLOCKED_SUBPATH',
+    CLEARESULT_BLOCKED_SUBPATH
+)
+CLEARESULT_BLOCKED_FULL_PATH = ENV_TOKENS.get(
+    'CLEARESULT_BLOCKED_FULL_PATH',
+    CLEARESULT_BLOCKED_FULL_PATH
+)
+CLEARESULT_ALLOWED_SUB_PATHS = ENV_TOKENS.get(
+    'CLEARESULT_ALLOWED_SUB_PATHS',
+    CLEARESULT_ALLOWED_SUB_PATHS
+)
+CLEARESULT_ALLOWED_INCLUDED_PATHS = ENV_TOKENS.get(
+    'CLEARESULT_ALLOWED_INCLUDED_PATHS',
+    CLEARESULT_ALLOWED_INCLUDED_PATHS
+)
+CLEARESULT_CREDIT_PROVIDERS = ENV_TOKENS.get(
+    'CLEARESULT_CREDIT_PROVIDERS',
+    CLEARESULT_CREDIT_PROVIDERS
+)
+CORE_BLOCK_TYPES = ENV_TOKENS.get(
+    'CORE_BLOCK_TYPES',
+    CORE_BLOCK_TYPES
+)
+FILTER_BLOCKS_IN_UNIT = ENV_TOKENS.get(
+    'FILTER_BLOCKS_IN_UNIT',
+    FILTER_BLOCKS_IN_UNIT
+)
+CLEARESULT_LOGOUT_SERVICE_USER = ENV_TOKENS.get(
+    'CLEARESULT_LOGOUT_SERVICE_USER',
+    CLEARESULT_LOGOUT_SERVICE_USER
+)
+DRUPAL_API_CREDENTIALS = ENV_TOKENS.get(
+    'DRUPAL_API_CREDENTIALS',
+    DRUPAL_API_CREDENTIALS
+)
+CLEARESULT_REPORTS_TZ = ENV_TOKENS.get(
+    'CLEARESULT_REPORTS_TZ',
+    CLEARESULT_REPORTS_TZ
+)
+###################### SSO Provider configurations ###################
+
+GLOBALLY_ENABLED_SSO_PROVIDERS = ENV_TOKENS.get(
+    'GLOBALLY_ENABLED_SSO_PROVIDERS',
+    GLOBALLY_ENABLED_SSO_PROVIDERS
+)
+
+###################### Default Email Params ###################
+DEFAULT_LOGO = ENV_TOKENS.get(
+    'DEFAULT_LOGO',
+    DEFAULT_LOGO
+)
+
+ADMIN_USERNAME_FOR_EMAIL_TASK = ENV_TOKENS.get(
+    'ADMIN_USERNAME_FOR_EMAIL_TASK',
+    ADMIN_USERNAME_FOR_EMAIL_TASK
+)
+
+DEFAULT_REGISTERATION_URL = ENV_TOKENS.get(
+    'DEFAULT_REGISTERATION_URL',
+    DEFAULT_REGISTERATION_URL
+)
+
+###################### Site Default Group Name ###################
+
+SITE_DEFAULT_GROUP_NAME = ENV_TOKENS.get(
+    'SITE_DEFAULT_GROUP_NAME',
+    SITE_DEFAULT_GROUP_NAME
+)
+
+###################### Completion view time ###################
+COMPLETION_BY_VIEWING_DELAY_MS = ENV_TOKENS.get(
+    'COMPLETION_BY_VIEWING_DELAY_MS',
+    COMPLETION_BY_VIEWING_DELAY_MS
+)
+
+###################### Email addresses to receieve support notifications ###################
+
+SUPPORT_DEST_EMAILS = ENV_TOKENS.get(
+    'SUPPORT_DEST_EMAILS',
+    SUPPORT_DEST_EMAILS
+)
 
 ############################### Plugin Settings ###############################
 

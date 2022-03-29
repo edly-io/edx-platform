@@ -689,6 +689,9 @@ MIDDLEWARE = [
     # Instead of AuthenticationMiddleware, we use a cache-backed version
     'openedx.core.djangoapps.cache_toolbox.middleware.CacheBackedAuthenticationMiddleware',
 
+    # [CLEARESULT_CUSTOM]
+    'openedx.features.clearesult_features.middlewares.authentication.ClearesultAuthenticationMiddleware',
+
     'common.djangoapps.student.middleware.UserStandingMiddleware',
     'openedx.core.djangoapps.contentserver.middleware.StaticContentServer',
 
@@ -1536,8 +1539,39 @@ INSTALLED_APPS = [
     'openedx.core.djangoapps.content.learning_sequences.apps.LearningSequencesConfig',
 
     'ratelimitbackend',
+
+    #clearesult custom features
+    'openedx.features.clearesult_features'
 ]
 
+################### CLEARESULT SETTINGS ###############################
+CLEARESULT_BLOCKED_SUBPATH = [
+    '/course',
+    '/home'
+]
+CLEARESULT_BLOCKED_FULL_PATH = [
+    '/'
+]
+CLEARESULT_ALLOWED_SUB_PATHS = [
+    '/api'
+]
+
+CLEARESULT_ALLOWED_INCLUDED_PATHS = [
+    '/about'
+]
+
+CLEARESULT_CREDIT_PROVIDERS = [
+    'BPI',
+    'NATE',
+    'RESNET HERS Rater',
+    'AIA',
+    'AEE',
+    'LEED'
+]
+
+CLEARESULT_REPORTS_TZ = 'America/Jamaica' # EST timezone
+
+ADMIN_USERNAME_FOR_EMAIL_TASK = ''
 
 ################# EDX MARKETING SITE ##################################
 
@@ -1739,6 +1773,14 @@ ADVANCED_PROBLEM_TYPES = [
     },
     {
         'component': 'staffgradedxblock',
+        'boilerplate_name': None
+    },
+    {
+        'component': 'survey',
+        'boilerplate_name': None
+    },
+    {
+        'component': 'scormxblock',
         'boilerplate_name': None
     }
 ]
@@ -2299,6 +2341,8 @@ DISABLE_DEPRECATED_SIGNIN_URL = False
 # .. toggle_warnings: This url can be removed once it no longer has any real traffic.
 # .. toggle_tickets: ARCH-1253
 DISABLE_DEPRECATED_SIGNUP_URL = False
+
+FEATURES['ENABLE_DEFAULT_COURSE_MODE_CREATION'] = True
 
 ##### LOGISTRATION RATE LIMIT SETTINGS #####
 LOGISTRATION_RATELIMIT_RATE = '100/5m'
