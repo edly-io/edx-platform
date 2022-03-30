@@ -198,6 +198,8 @@ urlpatterns = [
     ),
     url(r'^api/discounts/', include(('openedx.features.discounts.urls', 'openedx.features.discounts'),
                                     namespace='api_discounts')),
+    url(r'^clearesult/', include(('openedx.features.clearesult_features.urls', 'openedx.features.clearesult_features'),
+                                 namespace='clearesult_features')),
 ]
 
 if settings.FEATURES.get('ENABLE_MOBILE_REST_API'):

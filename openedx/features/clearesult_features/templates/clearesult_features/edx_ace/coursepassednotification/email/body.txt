@@ -1,0 +1,10 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Dear {% endblocktrans %}{{ full_name }},
+
+{% blocktrans %}You have passed the course "{{ display_name }}".{% endblocktrans %}
+{% if is_course_graded %}
+    {% blocktrans %}Please visit this page to request your course certificate: {{ course_progress_url }}.{% endblocktrans %}
+{% endif %}
+----
+{% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}.{% endblocktrans %}
+{% endautoescape %}

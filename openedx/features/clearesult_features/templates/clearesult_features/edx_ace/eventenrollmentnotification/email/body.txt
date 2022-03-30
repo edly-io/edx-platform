@@ -1,0 +1,15 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Dear {% endblocktrans %}{{ full_name }},
+
+{% blocktrans %}You have been successfully registered for the following event:{% endblocktrans %}
+
+{% blocktrans %}Event Name: {% endblocktrans %}"{{ display_name }}".
+{% blocktrans %}Event Date: {% endblocktrans %}"{{ event_info }}".
+
+{% blocktrans %}Don't forget to mark your calendar. {% endblocktrans %}
+{% blocktrans %}Download File (ics) {% endblocktrans %}{{ event_url }}.
+
+{% blocktrans %}Sign in to your Training portal to view your dashboard: {% endblocktrans %}{{ dashboard_url }}
+
+{% blocktrans %}This email was automatically sent from {{ platform_name }} to {{ email }}{% endblocktrans %}
+{% endautoescape %}
