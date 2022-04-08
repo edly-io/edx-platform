@@ -55,7 +55,7 @@ var workerConfig = function() {
                     ]
                 },
                 resolve: {
-                    extensions: ['.js']
+                    extensions: ['.js', '.jsx']
                 }
             }
         };
@@ -118,6 +118,15 @@ module.exports = Merge.smart({
 
             AnnouncementsView: './openedx/features/announcements/static/announcements/jsx/Announcements.jsx',
             CookiePolicyBanner: './common/static/js/src/CookiePolicyBanner.jsx',
+
+            // Clearesult
+            ContinuingEducation: './openedx/features/clearesult_features/static/continuing_education/jsx/ContinuingEducation.jsx',
+            CatalogsManager: './openedx/features/clearesult_features/static/catalogs_manager/js/CatalogsManager.js',
+            GroupsManager: './openedx/features/clearesult_features/static/groups_manager/js/GroupsManager.js',
+            GroupCatalogsManager: './openedx/features/clearesult_features/static/group_catalogs_manager/js/GroupCatalogsManager.js',
+            AdminConfigurations: './openedx/features/clearesult_features/static/admin_configurations/js/AdminConfigurations.js',
+            Reports: './openedx/features/clearesult_features/static/clearesult_reports/js/Reports.js',
+            ParticipationCode: './openedx/features/clearesult_features/static/participation_code/js/ParticipationCode.js',
 
             // Common
             ReactRenderer: './common/static/js/src/ReactRenderer.jsx',
@@ -230,7 +239,8 @@ module.exports = Merge.smart({
                 {
                     test: /\.(js|jsx)$/,
                     include: [
-                        /paragon/
+                        /paragon/,
+                        /react-toasts/
                     ],
                     use: 'babel-loader'
                 },
@@ -444,4 +454,3 @@ module.exports = Merge.smart({
 
     }
 }, {web: xmoduleJS}, workerConfig());
-
