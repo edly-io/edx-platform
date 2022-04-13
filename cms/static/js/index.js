@@ -5,6 +5,7 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
         var CreateCourseUtils = new CreateCourseUtilsFactory({
             name: '.new-course-name',
             org: '.new-course-org',
+            site: '.new-course-site',
             number: '.new-course-number',
             run: '.new-course-run',
             save: '.new-course-save',
@@ -49,11 +50,13 @@ define(['domReady', 'jquery', 'underscore', 'js/utils/cancel_on_escape', 'js/vie
             var $newCourseForm = $(this).closest('#create-course-form');
             var display_name = $newCourseForm.find('.new-course-name').val();
             var org = $newCourseForm.find('.new-course-org').val();
+            var site = $newCourseForm.find('.new-course-site').val();
             var number = $newCourseForm.find('.new-course-number').val();
             var run = $newCourseForm.find('.new-course-run').val();
 
             var course_info = {
                 org: org,
+                site: site,
                 number: number,
                 display_name: display_name,
                 run: run

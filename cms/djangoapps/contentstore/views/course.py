@@ -16,6 +16,7 @@ import six
 from ccx_keys.locator import CCXLocator
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.contrib.sites.models import Site
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
 from django.shortcuts import redirect
@@ -47,6 +48,19 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 from openedx.core.djangolib.js_utils import dump_js_escaped_json
 from openedx.core.lib.course_tabs import CourseTabPluginManager
 from openedx.core.lib.courses import course_image_url
+from openedx.features.clearesult_features.api.v0.validators import validate_sites_for_local_admin
+from openedx.features.clearesult_features.models import (
+    ClearesultCourseCredit, ClearesultCreditProvider, ClearesultCourse, ClearesultCourseMetaTag
+)
+from openedx.features.clearesult_features.instructor_reports.utils import (
+    get_all_credits_provider_list,
+    get_available_credits_provider_list,
+    get_course_credits_list
+)
+from openedx.features.clearesult_features.utils import (
+    create_clearesult_course, get_clearesult_course_site_and_event,
+    is_local_admin_or_superuser
+)
 from openedx.features.content_type_gating.models import ContentTypeGatingConfig
 from openedx.features.content_type_gating.partitions import CONTENT_TYPE_GATING_SCHEME
 from openedx.features.course_experience.waffle import ENABLE_COURSE_ABOUT_SIDEBAR_HTML
@@ -558,6 +572,22 @@ def course_listing(request):
     active_courses, archived_courses = _process_courses_list(courses_iter, in_process_course_actions, split_archived)
     in_process_course_actions = [format_in_process_course_view(uca) for uca in in_process_course_actions]
 
+    allowed_sites = None
+    if request.user.is_superuser:
+        allowed_sites = [site.domain for site in Site.objects.filter(name__iendswith='LMS')]
+        allowed_sites.append("Public")
+    else:
+        error, allowed_sites = validate_sites_for_local_admin(request.user)
+        if allowed_sites:
+            allowed_sites = [site.domain for site in allowed_sites]
+            public_courses_ids = [six.text_type(course.course_id) for course in ClearesultCourse.objects.filter(site=None)]
+
+            # filter public courses out from course-listing on studio-home page for local admins
+            active_courses = [course for course in active_courses if course.get('course_key') not in public_courses_ids]
+
+            # filter public courses out from archived course-listing on studio-home page for local admins
+            archived_courses = [course for course in archived_courses if course.get('course_key') not in public_courses_ids]
+
     return render_to_response(u'index.html', {
         u'courses': active_courses,
         u'archived_courses': archived_courses,
@@ -573,7 +603,8 @@ def course_listing(request):
         u'rerun_creator_status': GlobalStaff().has_user(user),
         u'allow_unicode_course_id': settings.FEATURES.get(u'ALLOW_UNICODE_COURSE_ID', False),
         u'allow_course_reruns': settings.FEATURES.get(u'ALLOW_COURSE_RERUNS', True),
-        u'optimization_enabled': optimization_enabled
+        u'optimization_enabled': optimization_enabled,
+        u'local_admin_sites': allowed_sites,
     })
 
 
@@ -812,11 +843,12 @@ def _create_or_rerun_course(request):
     Returns the destination course_key and overriding fields for the new course.
     Raises DuplicateCourseError and InvalidKeyError
     """
-    if not auth.user_has_role(request.user, CourseCreatorRole()):
+    if not is_local_admin_or_superuser(request.user) and not auth.user_has_role(request.user, CourseCreatorRole()):
         raise PermissionDenied()
 
     try:
         org = request.json.get('org')
+        site = request.json.get('site')
         course = request.json.get('number', request.json.get('course'))
         display_name = request.json.get('display_name')
         # force the start date for reruns and allow us to override start via the client
@@ -847,6 +879,7 @@ def _create_or_rerun_course(request):
         if source_course_key:
             source_course_key = CourseKey.from_string(source_course_key)
             destination_course_key = rerun_course(request.user, source_course_key, org, course, run, fields)
+            create_clearesult_course(destination_course_key, source_course_key, site=None)
             return JsonResponse({
                 'url': reverse_url('course_handler'),
                 'destination_course_key': six.text_type(destination_course_key)
@@ -854,6 +887,7 @@ def _create_or_rerun_course(request):
         else:
             try:
                 new_course = create_new_course(request.user, org, course, run, fields)
+                create_clearesult_course(new_course.id, site=site)
                 return JsonResponse({
                     'url': reverse_course_url('course_handler', new_course.id),
                     'course_key': six.text_type(new_course.id),
@@ -1105,6 +1139,8 @@ def settings_handler(request, course_key_string):
 
             course_authoring_microfrontend_url = get_proctored_exam_settings_url(course_module)
 
+            clearesult_course_data = get_clearesult_course_site_and_event(course_key)
+
             settings_context = {
                 'context_course': course_module,
                 'course_locator': course_key,
@@ -1129,6 +1165,13 @@ def settings_handler(request, course_key_string):
                 'enable_extended_course_details': enable_extended_course_details,
                 'upgrade_deadline': upgrade_deadline,
                 'course_authoring_microfrontend_url': course_authoring_microfrontend_url,
+                'available_clearesult_providers': get_available_credits_provider_list(course_key_string),
+                'available_course_meta_tags': [
+                    i[0] for i in  ClearesultCourseMetaTag.objects.all().values_list('title')
+                ],
+                'associated_meta_tags': ClearesultCourse.objects.get(course_id=course_key).get_meta_tags(),
+                'course_credits': get_course_credits_list(course_key_string),
+                'course_site': clearesult_course_data.get('site'),
             }
             if is_prerequisite_courses_enabled():
                 courses, in_process_course_actions = get_courses_accessible_to_user(request)
@@ -1163,11 +1206,21 @@ def settings_handler(request, course_key_string):
         elif 'application/json' in request.META.get('HTTP_ACCEPT', ''):
             if request.method == 'GET':
                 course_details = CourseDetails.fetch(course_key)
-                return JsonResponse(
-                    course_details,
-                    # encoder serializes dates, old locations, and instances
-                    encoder=CourseSettingsEncoder
-                )
+                data = course_details.__dict__
+                clearesult_course_data = get_clearesult_course_site_and_event(course_key)
+                
+                data.update({
+                    'available_clearesult_providers': get_available_credits_provider_list(course_key_string),
+                    'available_course_meta_tags': [
+                        i[0] for i in  ClearesultCourseMetaTag.objects.all().values_list('title')
+                    ],
+                    'associated_meta_tags': ClearesultCourse.objects.get(course_id=course_key).get_meta_tags(),
+                    'course_credits': get_course_credits_list(course_key_string),
+                    'all_clearesult_providers': get_all_credits_provider_list(),
+                    'course_site': clearesult_course_data.get("site"),
+                    'is_event': clearesult_course_data.get("event")
+                })
+                return JsonResponse(data)
             # For every other possible method type submitted by the caller...
             else:
                 # if pre-requisite course feature is enabled set pre-requisite course
@@ -1213,6 +1266,55 @@ def settings_handler(request, course_key_string):
                     # and the course has an entrance exam attached...
                     elif not entrance_exam_enabled and course_entrance_exam_present:
                         delete_entrance_exam(request, course_key)
+
+                new_credits_values = request.json.get('course_credits') or []
+                old_credits_values = ClearesultCourseCredit.objects.filter(course_id=course_key_string)
+
+                # if provider exists => old credit values and new credit values both contain specific provider then
+                # update old provider credits with the new values.
+                if len(old_credits_values) > 0 and len(new_credits_values) > 0:
+                    for old_credit in old_credits_values:
+                        for new_credit in new_credits_values:
+                            if (new_credit.get('credit_type_code') == old_credit.credit_type.short_code):
+                                is_updated = False
+                                if float(new_credit.get('credits')) != old_credit.credit_value:
+                                    old_credit.credit_value = float(new_credit.get('credits'))
+                                    old_credit.save()
+                                    is_updated = True
+
+                                old_credits_values = old_credits_values.exclude(pk=old_credit.pk)
+                                new_credits_values.remove(new_credit)
+                                if is_updated:
+                                    break
+
+                # Delete existing old credits values.
+                if len(old_credits_values) > 0:
+                    old_credits_short_code = [credit.credit_type.short_code for credit in old_credits_values]
+                    ClearesultCourseCredit.objects.filter(course_id=course_key_string, credit_type__short_code__in=old_credits_short_code).delete()
+
+                # Add new credits values.
+                if len(new_credits_values) > 0:
+                    for new_credit in new_credits_values:
+                        provider = ClearesultCreditProvider.objects.get(short_code=new_credit.get('credit_type_code'))
+                        course_credit = ClearesultCourseCredit(
+                            course_id=course_key_string,
+                            credit_type=provider,
+                            credit_value=float(new_credit.get('credits'))
+                        )
+                        course_credit.save()
+
+                # update is_event and meta-tags settings settings
+                is_event = request.json.get('is_event', False)
+                meta_tags = ','.join(request.json.get('associated_meta_tags', []))
+                try:
+                    clearesult_course = ClearesultCourse.objects.get(course_id=course_key_string)
+                    clearesult_course.is_event = is_event
+                    clearesult_course.meta_tags = meta_tags
+                    clearesult_course.save()
+                except ClearesultCourse.DoesNotExist:
+                    log.exception("Clearesult Course object does not exist for course_id: {}".format(
+                        course_key_string
+                    ))
 
                 # Perform the normal update workflow for the CourseDetails model
                 return JsonResponse(
