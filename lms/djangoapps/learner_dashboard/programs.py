@@ -90,7 +90,8 @@ class ProgramDetailsFragmentView(EdxFragmentView):
 
         meter = ProgramProgressMeter(request.site, request.user, uuid=program_uuid)
         program_data = meter.programs[0]
-
+        print('program_data', program_data)
+        print(dir(program_data))
         if not program_data:
             raise Http404
 
@@ -100,6 +101,8 @@ class ProgramDetailsFragmentView(EdxFragmentView):
             mobile_only = False
 
         program_data = ProgramDataExtender(program_data, request.user, mobile_only=mobile_only).extend()
+        print('program data 2', program_data)
+        print(dir(program_data))
         course_data = meter.progress(programs=[program_data], count_only=False)[0]
         certificate_data = get_certificates(request.user, program_data)
 
