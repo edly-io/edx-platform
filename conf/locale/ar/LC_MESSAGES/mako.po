@@ -10326,10 +10326,8 @@ msgid "edX Partner Portal"
 msgstr "قصص من متعلمي edX"
 
 #: themes/edx.org/lms/templates/dashboard.html
-msgid ""
-"Browse recently launched courses and see what's new in your favorite "
-"subjects."
-msgstr ""
+msgid "Browse recently launched courses and see what's new in your favorite subjects."
+msgstr "تصفح الدورات التدريبية الحالية وتعرَّف على الذي يناسب اهتماماتك منها."
 
 #: themes/edx.org/lms/templates/dashboard.html
 msgid "Take advantage of free coaching!"
