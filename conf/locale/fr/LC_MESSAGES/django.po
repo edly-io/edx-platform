@@ -5505,6 +5505,8 @@ msgstr ""
 
 #: common/templates/student/edx_ace/accountrecovery/email/body.txt
 #: openedx/core/djangoapps/user_authn/templates/user_authn/edx_ace/passwordreset/email/body.txt
+#: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.txt
+#: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.txt
 msgid "Thanks for using our site!"
 msgstr "Merci d'utiliser notre site !"
 
@@ -12453,6 +12455,7 @@ msgid "Change my Password"
 msgstr "Créer un mot de passe"
 
 #: openedx/core/djangoapps/user_authn/templates/user_authn/edx_ace/passwordreset/email/body.txt
+#: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.txt
 msgid "Please go to the following page and choose a new password:"
 msgstr ""
 "Veuillez aller à la page suivante et choisissez un nouveau mot de passe :"
@@ -24458,29 +24461,13 @@ msgstr ""
 "Votre compte sur {platform_name} [{url}] a été désactivé. Si vous pensez "
 "quecela a été fait par erreur, veuillez nous contacter à {email}"
 
-#: themes/adroit/cms/templates/emails/account_access_denied.txt
-#: themes/adroit/cms/templates/emails/account_access_granted.txt
-#: themes/adroit/lms/templates/emails/account_access_denied.txt
-#: themes/adroit/lms/templates/emails/account_access_granted.txt
-#: themes/gestalt/cms/templates/emails/account_access_denied.txt
-#: themes/gestalt/cms/templates/emails/account_access_granted.txt
-#: themes/gestalt/lms/templates/emails/account_access_denied.txt
-#: themes/gestalt/lms/templates/emails/account_access_granted.txt
-#: themes/st-lutherx/cms/templates/emails/account_access_denied.txt
-#: themes/st-lutherx/cms/templates/emails/account_access_granted.txt
-#: themes/st-lutherx/lms/templates/emails/account_access_denied.txt
-#: themes/st-lutherx/lms/templates/emails/account_access_granted.txt
-#: themes/st-normanx/cms/templates/emails/account_access_denied.txt
-#: themes/st-normanx/cms/templates/emails/account_access_granted.txt
-#: themes/st-normanx/lms/templates/emails/account_access_denied.txt
-#: themes/st-normanx/lms/templates/emails/account_access_granted.txt
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusblocked/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusblocked/email/body.txt
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusunblocked/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusunblocked/email/body.txt
 msgid "Best,"
-msgstr ""
+msgstr "Meilleur,"
 
 #: themes/adroit/cms/templates/emails/account_access_denied.txt
 #: themes/adroit/cms/templates/emails/account_access_granted.txt
@@ -29792,11 +29779,14 @@ msgid ""
 "An account has been created for you in %(platform_name)s. Please use the "
 "link below to set your password and log in."
 msgstr ""
+"Un compte a été créé pour vous dans %(platform_name)s. Veuillez utiliser le "
+"lien ci-dessous pour définir votre mot de passe et vous connecter."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.txt
 msgid "If you don't want to join, you can ignore this email."
 msgstr ""
+"Si vous ne souhaitez pas vous inscrire, vous pouvez ignorer cet e-mail."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/passwordset/email/body.html
 msgid "Set Password"
@@ -29821,12 +29811,15 @@ msgid ""
 "Thank you for activating your %(platform_name)s account. To start exploring,"
 " visit: %(homepage_url)s. Enjoy your learning journey!"
 msgstr ""
+"Merci d'avoir activé votre compte %(platform_name)s. Pour commencer à "
+"explorer, visitez : %(homepage_url)s. Profitez de votre voyage "
+"d'apprentissage!"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/body.txt
 #, python-format
 msgid "The %(platform_name)s team."
-msgstr ""
+msgstr "L'équipe %(platform_name)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/body.txt
 #, python-format
@@ -29834,6 +29827,9 @@ msgid ""
 "Thank you for activating your %(platform_name)s account. To start exploring,"
 " visit: %(homepage_url)s. Enjoy your learning journey!."
 msgstr ""
+"Merci d'avoir activé votre compte %(platform_name)s. Pour commencer à "
+"explorer, visitez : %(homepage_url)s. Profitez de votre voyage "
+"d'apprentissage!."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusactivated/email/subject.txt
 #, python-format
@@ -29847,6 +29843,8 @@ msgid ""
 "Your account on %(platform_name)s has been blocked. If you think this was "
 "done in error, please reach out to us at %(contact_email)s."
 msgstr ""
+"Votre compte sur %(platform_name)s a été bloqué. Si vous pensez que cela "
+"aété fait par erreur, veuillez nous contacter à %(contact_email)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusblocked/email/subject.txt
 #, python-format
@@ -29855,7 +29853,7 @@ msgstr "Votre compte a été bloqué | %(platform_name)s"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.html
 msgid "Hi"
-msgstr ""
+msgstr "Salut"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.html
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/body.txt
@@ -29864,6 +29862,8 @@ msgid ""
 "Your account on %(platform_name)s has been deactivated. If you think this "
 "was done in error, please reach out to us at %(contact_email)s."
 msgstr ""
+"Votre compte sur %(platform_name)s a été désactivé. Si vous pensez que cela "
+"a été fait par erreur, veuillez nous contacter à %(contact_email)s."
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusdeactivated/email/subject.txt
 #, python-format
@@ -29877,6 +29877,9 @@ msgid ""
 "Your account has been unblocked. Please reset your password to continue your"
 " learning. To reset password, visit: %(password_reset_url)s"
 msgstr ""
+"notre compte a été débloqué. Veuillez réinitialiser votre mot de passe pour "
+"continuer votreapprentissage. Pour réinitialiser le mot de passe, visitez : "
+"%(password_reset_url)s"
 
 #: edly_panel_app/templates/edly_panel_app/edx_ace/userstatusunblocked/email/subject.txt
 #, python-format
