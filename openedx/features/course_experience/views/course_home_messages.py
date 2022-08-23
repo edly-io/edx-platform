@@ -150,7 +150,7 @@ def _register_course_home_messages(request, course, user_access, course_start_da
                        'Please contact your degree administrator or edX Support if you have questions.')),
                 title=title
             )
-        elif not course.invitation_only and not course_open_for_self_enrollment(course.id):
+        elif not course.invitation_only and course_open_for_self_enrollment(course.id):
             CourseHomeMessages.register_info_message(
                 request,
                 Text(_(
