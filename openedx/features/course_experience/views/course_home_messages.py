@@ -17,9 +17,9 @@ from web_fragments.fragment import Fragment
 
 from course_modes.models import CourseMode
 from lms.djangoapps.courseware.courses import (
+    course_open_for_self_enrollment,
     get_course_date_blocks,
     get_course_with_access,
-    course_open_for_self_enrollment,
 )
 from lms.djangoapps.course_goals.api import (
     get_course_goal,
