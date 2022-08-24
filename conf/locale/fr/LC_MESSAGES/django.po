@@ -15320,6 +15320,20 @@ msgstr "Détails"
 msgid "View"
 msgstr "Voir"
 
+#: cms/templates/emails/course_creator_granted.txt
+#: themes/adroit/cms/templates/emails/course_creator_granted.txt
+#: themes/gestalt/cms/templates/emails/course_creator_granted.txt
+#: themes/st-lutherx/cms/templates/emails/course_creator_granted.txt
+#: themes/st-normanx/cms/templates/emails/course_creator_granted.txt
+msgid ""
+"Your request for course creation rights to {studio_name} have been granted. To create your first course, visit\n"
+"\n"
+"{url}"
+msgstr ""
+"Votre demande de droits de création de cours pour {studio_name} a été accordée. Pour créer votre premier cours, visitez\n"
+"\n"
+"{url}"
+
 #: cms/templates/maintenance/_announcement_edit.html
 #: lms/templates/problem.html lms/templates/word_cloud.html
 msgid "Save"
@@ -31264,15 +31278,6 @@ msgstr "Votre compte a été débloqué | %(platform_name)s"
 
 #~ msgid "Video Uploads"
 #~ msgstr "Envoy des des vidéos"
-
-#~ msgid ""
-#~ "Your request for course creation rights to {studio_name} have been granted. To create your first course, visit\n"
-#~ "\n"
-#~ "{url}"
-#~ msgstr ""
-#~ "Votre demande de droits pour la création de cours dans {studio_name} a été acceptée. Pour créer votre premier cours, visitez la page\n"
-#~ "\n"
-#~ "{url}"
 
 #~ msgid "Current Library:"
 #~ msgstr "Bibliothèque actuelle :"

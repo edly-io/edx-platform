@@ -456,6 +456,9 @@ msgid ""
 "\n"
 "{url}"
 msgstr ""
+"Votre demande de droits de création de cours pour {studio_name} a été accordée. Pour créer votre premier cours, visitez\n"
+"\n"
+"{url}"
 
 #: cms/templates/maintenance/_announcement_edit.html
 #: lms/templates/problem.html lms/templates/problem.html
