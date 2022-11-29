@@ -754,8 +754,7 @@ class CourseMode(models.Model):
 
         # White-label uses course mode honor with a price
         # to indicate that the course is behind a paywall.
-        if cls.HONOR in modes_dict and len(modes_dict) == 1:
-            if modes_dict["honor"].min_price > 0 or modes_dict["honor"].suggested_prices != '':
+        if cls.HONOR in modes_dict:
                 return True
         return False
 
