@@ -754,8 +754,31 @@ class CourseMode(models.Model):
 
         # White-label uses course mode honor with a price
         # to indicate that the course is behind a paywall.
-        if cls.HONOR in modes_dict:
+        if cls.HONOR in modes_dict and len(modes_dict) == 1:
+            if modes_dict["honor"].min_price > 0 or modes_dict["honor"].suggested_prices != '':
                 return True
+        return False
+    
+    @classmethod
+    def has_honor_seat(cls, course_id, modes_dict=None):
+        """Check whether a course has an honor seat available.
+
+        Args:
+            course_id (CourseKey): The course to check.
+
+        Keyword Args:
+            modes_dict (dict): If provided, use these course modes.
+                Useful for avoiding unnecessary database queries.
+
+        Returns:
+            bool
+
+        """
+        if modes_dict is None:
+            modes_dict = cls.modes_for_course_dict(course_id)
+
+        if cls.HONOR in modes_dict:
+            return True
         return False
 
     @classmethod
