@@ -758,7 +758,7 @@ class CourseMode(models.Model):
             if modes_dict["honor"].min_price > 0 or modes_dict["honor"].suggested_prices != '':
                 return True
         return False
-    
+
     @classmethod
     def has_honor_seat(cls, course_id, modes_dict=None):
         """Check whether a course has an honor seat available.
