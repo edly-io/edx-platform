@@ -84,7 +84,7 @@ def is_edly_user_allowed_to_login_with_social_auth(request, user):
 
 def is_courses_limit_reached_for_plan():
     """
-        Checks if the limit for the current site for number of courses is reached.
+    Checks if the limit for the current site for number of courses is reached.
     """
     site_config = configuration_helpers.get_current_site_configuration()
     current_plan = site_config.get_value('DJANGO_SETTINGS_OVERRIDE').get('CURRENT_PLAN', ESSENTIALS)
