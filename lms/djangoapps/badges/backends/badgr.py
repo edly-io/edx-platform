@@ -52,20 +52,20 @@ class BadgrBackend(BadgeBackend):
     def _base_url(self):
         """
         """
-        return f"{settings.BADGR_BASE_URL}/v2/issuers/{settings.BADGR_ISSUER_SLUG}"
+        return "{}/v2/issuers/{}".format(settings.BADGR_BASE_URL, settings.BADGR_ISSUER_SLUG)
 
     @lazy
     def _badge_create_url(self):
         """
         URL for generating a new Badge specification
         """
-        return f"{self._base_url}/badgeclasses"
+        return "{}/badgeclasses".format(self._base_url)
 
     def _badge_url(self, slug):
         """
         Get the URL for a course's badge in a given mode.
         """
-        return f"{settings.BADGR_BASE_URL}/v2/badgeclasses/{slug}"
+        return "{}/v2/badgeclasses/{}".format(settings.BADGR_BASE_URL, slug)
 
     def _assertion_url(self, slug):
         """
