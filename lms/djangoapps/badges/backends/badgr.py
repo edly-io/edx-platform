@@ -33,14 +33,18 @@ class BadgrBackend(BadgeBackend):
     Backend for Badgr-Server by Concentric Sky. http://info.badgr.io/
     """
     badges = []
+    badgr_slug = None
+    badgr_username = None
+    badgr_password = None
 
-    def __init__(self):
+    def __init__(self, badgr_config=None):
+        if badgr_config:
+            self.badgr_slug = badgr_config.get('badgr_slug', None)
+            self.badgr_username = badgr_config.get('badgr_username', None)
+            self.badgr_password = badgr_config.get('badgr_password', None)
+
         super().__init__()
-        if None in (settings.BADGR_USERNAME,
-                    settings.BADGR_PASSWORD,
-                    settings.BADGR_TOKENS_CACHE_KEY,
-                    settings.BADGR_ISSUER_SLUG,
-                    settings.BADGR_BASE_URL):
+        if None in (settings.BADGR_TOKENS_CACHE_KEY, settings.BADGR_BASE_URL):
             error_msg = (
                 "One or more of the required settings are not defined. "
                 "Required settings: BADGR_USERNAME, BADGR_PASSWORD, "
@@ -52,7 +56,7 @@ class BadgrBackend(BadgeBackend):
     def _base_url(self):
         """
         """
-        return "{}/v2/issuers/{}".format(settings.BADGR_BASE_URL, settings.BADGR_ISSUER_SLUG)
+        return "{}/v2/issuers/{}".format(settings.BADGR_BASE_URL, self.badgr_slug)
 
     @lazy
     def _badge_create_url(self):
@@ -233,8 +237,8 @@ class BadgrBackend(BadgeBackend):
         Once tokens are created/renewed, encrypt the values and cache them.
         """
         data = {
-            'username': settings.BADGR_USERNAME,
-            'password': settings.BADGR_PASSWORD,
+            'username': self.badgr_username,
+            'password': self.badgr_password,
         }
         if refresh_token:
             data = {

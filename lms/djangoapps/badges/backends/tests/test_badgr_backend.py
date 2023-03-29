@@ -88,9 +88,9 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         Make sure the handler generates the correct URLs for different API tasks.
         """
         assert self.handler._base_url == 'https://example.com/v2/issuers/test-issuer'
-        # lint-amnesty, pylint: disable=no-member
+
         assert self.handler._badge_create_url == 'https://example.com/v2/issuers/test-issuer/badgeclasses'
-        # lint-amnesty, pylint: disable=no-member
+
         assert self.handler._badge_url('test_slug_here') ==\
                'https://example.com/v2/badgeclasses/test_slug_here'
         assert self.handler._assertion_url('another_test_slug') ==\
@@ -107,7 +107,7 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         Check to make sure the handler generates appropriate HTTP headers.
         """
         self.handler._get_access_token = Mock(return_value='12345')
-        self.check_headers(self.handler._get_headers())  # lint-amnesty, pylint: disable=no-member
+        self.check_headers(self.handler._get_headers())
 
     @patch('requests.post')
     def test_create_badge(self, post):
@@ -170,7 +170,7 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         assert BADGR_SERVER_SLUG not in BadgrBackend.badges
         self.handler._get_access_token = Mock(return_value='12345')
         self.handler._create_badge = Mock()
-        self.handler._ensure_badge_created(self.badge_class)  # lint-amnesty, pylint: disable=no-member
+        self.handler._ensure_badge_created(self.badge_class)
         assert self.handler._create_badge.called
         assert self.handler._create_badge.call_args == call(self.badge_class)
         assert BADGR_SERVER_SLUG in BadgrBackend.badges
@@ -189,7 +189,7 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         post.return_value = response
         self.recreate_tracker()
         self.handler._get_access_token = Mock(return_value='12345')
-        self.handler._create_assertion(self.badge_class, self.user, 'https://example.com/irrefutable_proof')  # lint-amnesty, pylint: disable=no-member
+        self.handler._create_assertion(self.badge_class, self.user, 'https://example.com/irrefutable_proof')
         args, kwargs = post.call_args
         assert args[0] == ((
             'https://example.com/v2/badgeclasses/' +
@@ -229,8 +229,8 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         }
         self._mock_badgr_tokens_api(result)
         self.handler._get_and_cache_oauth_tokens()
-        assert 'o/token' in httpretty.httpretty.last_request.path
-        assert httpretty.httpretty.last_request.parsed_body == {
+        assert 'o/token' in httpretty.httpretty.last_request.path  # lint-amnesty, pylint: disable=no-member
+        assert httpretty.httpretty.last_request.parsed_body == {  # lint-amnesty, pylint: disable=no-member
             'username': ['example@example.com'],
             'password': ['password']}
 
@@ -242,8 +242,8 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         }
         self._mock_badgr_tokens_api(result)
         self.handler._get_and_cache_oauth_tokens(refresh_token='67890')
-        assert 'o/token' in httpretty.httpretty.last_request.path
-        assert httpretty.httpretty.last_request.parsed_body == {
+        assert 'o/token' in httpretty.httpretty.last_request.path  # lint-amnesty, pylint: disable=no-member
+        assert httpretty.httpretty.last_request.parsed_body == {  # lint-amnesty, pylint: disable=no-member
             'grant_type': ['refresh_token'],
             'refresh_token': ['67890']}
 
@@ -278,8 +278,8 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         self._mock_badgr_tokens_api(result)
         access_token = self.handler._get_access_token()
         assert access_token == result.get('access_token')
-        assert 'o/token' in httpretty.httpretty.last_request.path
-        assert httpretty.httpretty.last_request.parsed_body == {
+        assert 'o/token' in httpretty.httpretty.last_request.path  # lint-amnesty, pylint: disable=no-member
+        assert httpretty.httpretty.last_request.parsed_body == {  # lint-amnesty, pylint: disable=no-member
             'grant_type': ['refresh_token'],
             'refresh_token': [self.handler._decrypt_token(
                 tokens.get('refresh_token'))]}
@@ -293,7 +293,7 @@ class BadgrBackendTestCase(ModuleStoreTestCase, EventTrackingTestCase):
         self._mock_badgr_tokens_api(result)
         access_token = self.handler._get_access_token()
         assert access_token == result.get('access_token')
-        assert 'o/token' in httpretty.httpretty.last_request.path
-        assert httpretty.httpretty.last_request.parsed_body == {
+        assert 'o/token' in httpretty.httpretty.last_request.path  # lint-amnesty, pylint: disable=no-member
+        assert httpretty.httpretty.last_request.parsed_body == {  # lint-amnesty, pylint: disable=no-member
             'username': ['example@example.com'],
             'password': ['password']}

@@ -354,8 +354,6 @@ FEATURES = {
     # .. toggle_description: Enables support for the creation of OpenBadges as a method of awarding credentials.
     # .. toggle_warnings: The following settings (all of which are in the same file) should be set or reviewed prior to
     #    enabling this setting: BADGING_BACKEND, BADGR_API_TOKEN, BADGR_BASE_URL, BADGR_ISSUER_SLUG, BADGR_TIMEOUT.
-    #    Full guide for setting up OpenBadges available here:
-    #    https://edx.readthedocs.io/projects/edx-installing-configuring-and-running/en/latest/configuration/enable_badging.html  pylint: disable=line-too-long,useless-suppression
     # .. toggle_use_cases: open_edx
     # .. toggle_creation_date: 2015-04-30
     # .. toggle_tickets: https://openedx.atlassian.net/browse/SOL-1325
@@ -1687,7 +1685,8 @@ ALLOWED_DJANGO_SETTINGS_OVERRIDE = [
     'CREDENTIALS_INTERNAL_SERVICE_URL', 'CREDENTIALS_PUBLIC_SERVICE_URL',
     'REGISTRATION_EXTRA_FIELDS',
     'CSRF_TRUSTED_ORIGINS', 'CORS_ORIGIN_WHITELIST', 'CURRENT_PLAN',
-    'LMS_SEGMENT_KEY', 'CMS_SEGMENT_KEY',
+    'LMS_SEGMENT_KEY', 'CMS_SEGMENT_KEY', 'BADGR_USERNAME', 'BADGR_PASSWORD',
+    'BADGR_ISSUER_SLUG',
 ]
 
 ENABLE_SUBSCRIPTIONS_ON_RUNTIME_SWITCH = 'enable_subscriptions'

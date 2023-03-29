@@ -66,6 +66,7 @@ class BadgeClass(models.Model):
     # Mode a badge was awarded for. Included for legacy/migration purposes.
     mode = models.CharField(max_length=100, default=u'', blank=True)
     image = models.ImageField(upload_to=u'badge_classes', validators=[validate_badge_image])
+    badgr_config = {}
 
     def __str__(self):
         return HTML(u"<Badge '{slug}' for '{issuing_component}'>").format(
@@ -75,7 +76,7 @@ class BadgeClass(models.Model):
     @classmethod
     def get_badge_class(
             cls, slug, issuing_component, display_name=None, description=None, criteria=None, image_file_handle=None,
-            mode='', course_id=None, create=True
+            mode='', course_id=None, create=True, badgr_server_slug=None,
     ):
         """
         Looks up a badge class by its slug, issuing component, and course_id and returns it should it exist.
@@ -105,6 +106,7 @@ class BadgeClass(models.Model):
             mode=mode,
             description=description,
             criteria=criteria,
+            badgr_server_slug=badgr_server_slug,
         )
         badge_class.image.save(image_file_handle.name, image_file_handle)
         badge_class.full_clean()
@@ -116,9 +118,8 @@ class BadgeClass(models.Model):
         """
         Loads the badging backend.
         """
-        module, klass = settings.BADGING_BACKEND.rsplit('.', 1)
-        module = import_module(module)
-        return getattr(module, klass)()
+        from badges.backends.badgr import BadgrBackend
+        return BadgrBackend(self.badgr_config)
 
     def get_for_user(self, user):
         """
