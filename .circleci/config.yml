@@ -13,13 +13,13 @@ jobs:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/share
       - run: sudo chown -R circleci:circleci "$(which python3)"
+      - run: sudo sed -i '/jessie-backports/d' /etc/apt/sources.list
+      - run: sudo sed -i '/jessie-updates/d' /etc/apt/sources.list
       - restore_cache:
           key: edx-test-deps-{{ checksum "requirements/edx/testing.txt" }}
       - run:
           name: "Install apt-get packages"
           command: |
-            sudo sed -i '/jessie-backports/d' /etc/apt/sources.list
-            sudo sed -i '/jessie-updates/d' /etc/apt/sources.list
             sudo apt-get update
             sudo apt-get install -y python-software-properties mongodb curl git python-dev libxml2-dev libxmlsec1-dev libgeos-dev
       - run:
