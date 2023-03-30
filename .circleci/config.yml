@@ -18,6 +18,8 @@ jobs:
       - run:
           name: "Install apt-get packages"
           command: |
+            sudo sed -i '/jessie-backports/d' /etc/apt/sources.list
+            sudo sed -i '/jessie-updates/d' /etc/apt/sources.list
             sudo apt-get update
             sudo apt-get install -y python-software-properties mongodb curl git python-dev libxml2-dev libxmlsec1-dev libgeos-dev
       - run:
