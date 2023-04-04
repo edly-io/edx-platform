@@ -124,7 +124,7 @@ class HtmlBlock(
             data = data.replace("%%USER_ID%%", self.system.anonymous_student_id)
             if getattr(self.system, 'get_real_user', None):
                 user = self.system.get_real_user(self.system.anonymous_student_id)
-                if user and user.is_authenticated():
+                if user and user.is_authenticated:
                     data = data.replace("%%USER_EMAIL%%", user.email)
         return data
 
