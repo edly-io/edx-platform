@@ -44,7 +44,7 @@ def write_to_csv(file_path, msgid, msgstr, source):
             writer.writerow([msgid, msgstr, source])
 
     except Exception as error:
-        logging.error(f"An error occurred while writing to CSV: {error}")
+        logging.error("An error occurred while writing to CSV: %s", error)
 
 
 def call_google_translation(text, target_language):
@@ -65,7 +65,7 @@ def call_google_translation(text, target_language):
         return result["translatedText"]
 
     except ValueError:
-        logging.error(f"API Error for msgid: '{text}'.")
+        logging.error("API Error for msgid: %s", text)
 
 
 def translate_with_google(po_file, target_language):
@@ -95,9 +95,9 @@ def translate_with_google(po_file, target_language):
                 pofile.save()
 
         except Exception as error:
-            logging.error(f" Error '{error}' while writing to .po file for msgid: '{entry.msgid}'.")
+            logging.error("Error '%s' while writing to .po file for msgid: '%s'.", error, entry.msgid)
 
-    logging.info(f"Translation completed for {target_language}.")
+    logging.info("Translation completed for %s.", target_language)
 
 
 def po_file_to_csv(csv_file_path, po_file_path):
@@ -140,13 +140,13 @@ if __name__ == "__main__":
     csv_path = args.csv_path or ""
 
     file = 'django'
-    file_path = f"../../../conf/locale/{language_code}/LC_MESSAGES/{file}.po"
+    file_path = "../../../conf/locale/%s/LC_MESSAGES/%s.po" % (language_code, file)
     translate_with_google(file_path, language_code)
     if args.csv:
-        po_file_to_csv(f"{csv_path}django_po.csv", file_path)
+        po_file_to_csv("%sdjango_po.csv" % csv_path, file_path)
 
     file = 'djangojs'
-    file_path = f"../../../conf/locale/{language_code}/LC_MESSAGES/{file}.po"
+    file_path = "../../../conf/locale/%s/LC_MESSAGES/%s.po" % (language_code, file)
     translate_with_google(file_path, language_code)
     if args.csv:
-        po_file_to_csv(f"{csv_path}django_js_po.csv", file_path)
+        po_file_to_csv("%sdjangojs_po.csv" % csv_path, file_path)
