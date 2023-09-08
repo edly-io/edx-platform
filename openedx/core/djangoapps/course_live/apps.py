@@ -26,5 +26,15 @@ class CourseLiveConfig(AppConfig):
                 PluginURLs.REGEX: r'^api/course_live/',
                 PluginURLs.RELATIVE_PATH: 'urls',
             },
+            'settings_config': {
+                'lms.djangoapp': {
+                    'common': {'relative_path': 'settings.common'},
+                    'production': {'relative_path': 'settings.production'},
+                },
+                'cms.djangoapp': {
+                    'common': {'relative_path': 'settings.common'},
+                    'production': {'relative_path': 'settings.production'},
+                },
+            },
         }
     }

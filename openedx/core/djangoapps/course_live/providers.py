@@ -81,7 +81,7 @@ class HasGlobalCredentials(ABC):
         raise NotImplementedError()
 
 
-class Zoom(LiveProvider):
+class Zoom(LiveProvider, HasGlobalCredentials):
     """
     Zoom LTI PRO live provider
     """
@@ -92,8 +92,48 @@ class Zoom(LiveProvider):
     ]
 
     @property
-    def is_enabled(self):
+    def has_free_tier(self) -> bool:
+        """
+        Check if free tier is enabled by checking for valid keys
+        """
+        return self.has_valid_global_keys()
+
+    @property
+    def is_enabled(self) -> bool:
         return True
+
+    @staticmethod
+    def get_global_keys() -> Dict:
+        """
+        Get keys from settings
+        """
+        try:
+            COURSE_LIVE_GLOBAL_CREDENTIALS = {
+                "KEY": settings.ENV_TOKENS.get(
+                    "ZOOM_BUTTON_GLOBAL_KEY", settings.ZOOM_BUTTON_GLOBAL_KEY
+                ),
+                "SECRET": settings.ENV_TOKENS.get(
+                    "ZOOM_BUTTON_GLOBAL_SECRET", settings.ZOOM_BUTTON_GLOBAL_SECRET
+                ),
+                "URL": settings.ENV_TOKENS.get(
+                    "ZOOM_BUTTON_GLOBAL_URL", settings.ZOOM_BUTTON_GLOBAL_URL
+                ),
+            }
+            return COURSE_LIVE_GLOBAL_CREDENTIALS
+        except AttributeError:
+            return {}
+
+    def has_valid_global_keys(self) -> bool:
+        """
+        Check if keys are valid and not None
+        """
+        credentials = self.get_global_keys()
+        if credentials:
+            self.key = credentials.get('KEY')
+            self.secret = credentials.get('SECRET')
+            self.url = credentials.get('URL')
+            return bool(self.key and self.secret and self.url)
+        return False
 
 
 class BigBlueButton(LiveProvider, HasGlobalCredentials):

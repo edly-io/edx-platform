@@ -3,9 +3,12 @@ View for course live app
 """
 from typing import Dict
 
+from django.conf import settings
 import edx_api_doc_tools as apidocs
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
-from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from edx_rest_framework_extensions.auth.session.authentication import (
+    SessionAuthenticationAllowInactiveUser,
+)
 from lti_consumer.api import get_lti_pii_sharing_state_for_course
 from opaque_keys.edx.keys import CourseKey
 from rest_framework import permissions, status
@@ -23,6 +26,33 @@ from .providers import ProviderManager
 from ...lib.api.view_utils import verify_course_exists
 from .models import CourseLiveConfiguration
 from .serializers import CourseLiveConfigurationSerializer
+
+
+def is_zoom_creds_global(serialized_data):
+    """
+    returns True or False if zoom creds are global or not respoectively
+    """
+    if serialized_data.get("provider_type", "") == "zoom":
+        key = serialized_data.get("lti_configuration", {}).get("lti_1p1_client_key", "")
+        url = serialized_data.get("lti_configuration", {}).get("lti_1p1_launch_url", "")
+        email = (
+            serialized_data.get("lti_configuration", {})
+            .get("lti_config", "")
+            .get("additional_parameters", {})
+            .get("custom_instructor_email", "")
+        )
+        global_key = settings.ENV_TOKENS.get(
+            "ZOOM_BUTTON_GLOBAL_SECRET", settings.ZOOM_BUTTON_GLOBAL_KEY
+        )
+        global_url = settings.ENV_TOKENS.get(
+            "ZOOM_BUTTON_GLOBAL_URL", settings.ZOOM_BUTTON_GLOBAL_URL
+        )
+        global_email = settings.ENV_TOKENS.get(
+            "ZOOM_INSTRUCTOR_EMAIL", settings.ZOOM_INSTRUCTOR_EMAIL
+        )
+        if key == global_key and url == global_url and email == global_email:
+            return True
+    return False
 
 
 class CourseLiveConfigurationView(APIView):
@@ -62,8 +92,12 @@ class CourseLiveConfigurationView(APIView):
             "pii_sharing_allowed": get_lti_pii_sharing_state_for_course(course_id),
             "course_id": course_id
         })
+        serialized_data = serializer.data
+        serialized_data["global_zoom_creds_enabled"] = is_zoom_creds_global(
+            serialized_data
+        )
 
-        return Response(serializer.data)
+        return Response(serialized_data)
 
     @apidocs.schema(
         parameters=[
@@ -136,7 +170,12 @@ class CourseLiveConfigurationView(APIView):
         if not serializer.is_valid():
             raise ValidationError(serializer.errors)
         serializer.save()
-        return Response(serializer.data)
+        serialized_data = serializer.data
+        serialized_data["global_zoom_creds_enabled"] = is_zoom_creds_global(
+            serialized_data
+        )
+
+        return Response(serialized_data)
 
 
 class CourseLiveProvidersView(APIView):
@@ -277,3 +316,80 @@ class CourseLiveIframeView(APIView):
             "iframe": iframe.content
         }
         return Response(data, status=status.HTTP_200_OK)
+
+
+class CourseLiveZoomView(APIView):
+    """
+    View for configuring Zoom Global Credentials settings.
+    """
+    @ensure_valid_course_key
+    @verify_course_exists()
+    def post(self, request, course_id: str) -> Response:
+        """
+        Handle HTTP/POST requests
+        """
+        request.data["enabled"] = True
+        request.data["lti_configuration"] = {
+            "lti_1p1_client_key": settings.ENV_TOKENS.get(
+                "ZOOM_BUTTON_GLOBAL_KEY", settings.ZOOM_BUTTON_GLOBAL_KEY
+            ),
+            "lti_1p1_client_secret": settings.ENV_TOKENS.get(
+                "ZOOM_BUTTON_GLOBAL_SECRET", settings.ZOOM_BUTTON_GLOBAL_SECRET
+            ),
+            "lti_1p1_launch_url": settings.ENV_TOKENS.get(
+                "ZOOM_BUTTON_GLOBAL_URL", settings.ZOOM_BUTTON_GLOBAL_URL
+            ),
+            "lti_config": {
+                "additional_parameters": {
+                    "custom_instructor_email": settings.ENV_TOKENS.get(
+                        "ZOOM_INSTRUCTOR_EMAIL", settings.ZOOM_INSTRUCTOR_EMAIL
+                    ),
+                }
+            },
+            "version": "lti_1p1",
+        }
+        request.data["provider_type"] = "zoom"
+        request.data["pii_sharing_allowed"] = True
+        request.data["free_tier"] = False
+
+        pii_sharing_allowed = get_lti_pii_sharing_state_for_course(course_id)
+        provider = (
+            ProviderManager()
+            .get_enabled_providers()
+            .get(request.data.get("provider_type"))
+        )
+
+        if not pii_sharing_allowed and provider.requires_pii_sharing():
+            return Response(
+                {
+                    "pii_sharing_allowed": pii_sharing_allowed,
+                    "message": "PII sharing is not allowed on this course",
+                }
+            )
+        if (
+            provider
+            and not provider.additional_parameters
+            and request.data.get("lti_configuration", False)
+        ):
+            # Add empty lti config if none is provided in case additional params are not required
+            request.data["lti_configuration"]["lti_config"] = {
+                "additional_parameters": {}
+            }
+        configuration = CourseLiveConfiguration.objects.filter(
+            course_key=course_id
+        ).last()
+        serializer = CourseLiveConfigurationSerializer(
+            configuration,
+            data=request.data,
+            context={
+                "pii_sharing_allowed": pii_sharing_allowed,
+                "course_id": course_id,
+                "provider": provider,
+            },
+        )
+        if not serializer.is_valid():
+            raise ValidationError(serializer.errors)
+        serializer.save()
+        serialized_data = serializer.data
+        serialized_data["global_zoom_creds_enabled"] = True
+        return Response(serialized_data)
