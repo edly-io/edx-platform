@@ -41,15 +41,9 @@ def is_zoom_creds_global(serialized_data):
             .get("additional_parameters", {})
             .get("custom_instructor_email", "")
         )
-        global_key = settings.ENV_TOKENS.get(
-            "ZOOM_BUTTON_GLOBAL_SECRET", settings.ZOOM_BUTTON_GLOBAL_KEY
-        )
-        global_url = settings.ENV_TOKENS.get(
-            "ZOOM_BUTTON_GLOBAL_URL", settings.ZOOM_BUTTON_GLOBAL_URL
-        )
-        global_email = settings.ENV_TOKENS.get(
-            "ZOOM_INSTRUCTOR_EMAIL", settings.ZOOM_INSTRUCTOR_EMAIL
-        )
+        global_key = settings.ZOOM_BUTTON_GLOBAL_KEY
+        global_url = settings.ZOOM_BUTTON_GLOBAL_URL
+        global_email = settings.ZOOM_INSTRUCTOR_EMAIL
         if key == global_key and url == global_url and email == global_email:
             return True
     return False
@@ -330,20 +324,12 @@ class CourseLiveZoomView(APIView):
         """
         request.data["enabled"] = True
         request.data["lti_configuration"] = {
-            "lti_1p1_client_key": settings.ENV_TOKENS.get(
-                "ZOOM_BUTTON_GLOBAL_KEY", settings.ZOOM_BUTTON_GLOBAL_KEY
-            ),
-            "lti_1p1_client_secret": settings.ENV_TOKENS.get(
-                "ZOOM_BUTTON_GLOBAL_SECRET", settings.ZOOM_BUTTON_GLOBAL_SECRET
-            ),
-            "lti_1p1_launch_url": settings.ENV_TOKENS.get(
-                "ZOOM_BUTTON_GLOBAL_URL", settings.ZOOM_BUTTON_GLOBAL_URL
-            ),
+            "lti_1p1_client_key": settings.ZOOM_BUTTON_GLOBAL_KEY,
+            "lti_1p1_client_secret": settings.ZOOM_BUTTON_GLOBAL_SECRET,
+            "lti_1p1_launch_url": settings.ZOOM_BUTTON_GLOBAL_URL,
             "lti_config": {
                 "additional_parameters": {
-                    "custom_instructor_email": settings.ENV_TOKENS.get(
-                        "ZOOM_INSTRUCTOR_EMAIL", settings.ZOOM_INSTRUCTOR_EMAIL
-                    ),
+                    "custom_instructor_email": settings.ZOOM_INSTRUCTOR_EMAIL,
                 }
             },
             "version": "lti_1p1",

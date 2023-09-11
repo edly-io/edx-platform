@@ -109,15 +109,9 @@ class Zoom(LiveProvider, HasGlobalCredentials):
         """
         try:
             COURSE_LIVE_GLOBAL_CREDENTIALS = {
-                "KEY": settings.ENV_TOKENS.get(
-                    "ZOOM_BUTTON_GLOBAL_KEY", settings.ZOOM_BUTTON_GLOBAL_KEY
-                ),
-                "SECRET": settings.ENV_TOKENS.get(
-                    "ZOOM_BUTTON_GLOBAL_SECRET", settings.ZOOM_BUTTON_GLOBAL_SECRET
-                ),
-                "URL": settings.ENV_TOKENS.get(
-                    "ZOOM_BUTTON_GLOBAL_URL", settings.ZOOM_BUTTON_GLOBAL_URL
-                ),
+                "KEY": settings.ZOOM_BUTTON_GLOBAL_KEY,
+                "SECRET": settings.ZOOM_BUTTON_GLOBAL_SECRET,
+                "URL": settings.ZOOM_BUTTON_GLOBAL_URL,
             }
             return COURSE_LIVE_GLOBAL_CREDENTIALS
         except AttributeError:
