@@ -25,7 +25,7 @@ from edx_django_utils.plugins import pluggable_override
 from common.djangoapps.edxmako.shortcuts import render_to_response
 from common.djangoapps.edxmako.template import Template
 from common.djangoapps.student.models import LinkedInAddToProfileConfiguration
-from common.djangoapps.util.date_utils import strftime_localized
+from common.djangoapps.util.date_utils import strftime_localized, convert_date_to_arabic, convert_number_to_arabic
 from common.djangoapps.util.views import handle_500
 from lms.djangoapps.badges.events.course_complete import get_completion_badge
 from lms.djangoapps.badges.utils import badges_enabled
@@ -124,7 +124,8 @@ def _update_certificate_context(context, course, course_overview, user_certifica
     else:
         date = display_date_for_certificate(course, user_certificate)
     # Translators:  The format of the date includes the full name of the month
-    context['certificate_date_issued'] = strftime_localized(date, settings.CERTIFICATE_DATE_FORMAT)
+    date = strftime_localized(date, "%B %-d, %Y")
+    context['certificate_date_issued'] = convert_date_to_arabic(date)
 
     # Translators:  This text represents the verification of the certificate
     context['document_meta_description'] = _('This is a valid {platform_name} certificate for {user_name}, '
@@ -243,10 +244,12 @@ def _update_context_with_basic_info(context, course_id, platform_name, configura
     )
 
 
-def _update_course_context(request, context, course, platform_name):
+def _update_course_context(request, context, course, platform_name, course_overview):
     """
     Updates context dictionary with course info.
     """
+    effort = course_overview and course_overview.effort or '8'
+    context['course_duration'] = convert_number_to_arabic(effort)
     context['full_course_image_url'] = request.build_absolute_uri(course_image_url(course))
     course_title_from_cert = context['certificate_data'].get('course_title', '')
     accomplishment_copy_course_name = course_title_from_cert if course_title_from_cert else course.display_name
@@ -616,7 +619,7 @@ def render_html_view(request, course_id, certificate=None):  # pylint: disable=t
         _update_organization_context(context, course)
 
         # Append course info
-        _update_course_context(request, context, course, platform_name)
+        _update_course_context(request, context, course, platform_name, course_overview)
 
         # Append course run info from discovery
         context.update(catalog_data)

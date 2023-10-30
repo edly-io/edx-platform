@@ -1,21 +1,21 @@
 @font-face {
   font-family: 'DIN Next LT Arabic';
-  src: url('../fonts/DIN-Next-LT-Arabic-Medium.woff2') format('woff2'),
-       url('../fonts/DIN-Next-LT-Arabic-Medium.woff') format('woff'),
-       url('../fonts/DIN-Next-LT-Arabic-Medium.ttf') format('truetype'),
-       url('../fonts/DIN-Next-LT-Arabic-Medium.eot') format('truetype'),
-       url('../fonts/DIN-Next-LT-Arabic-Medium.svg#din-next-lt-arabic-medium') format('svg');
+  src: url('./fonts/DIN-Next-LT-Arabic-Medium.woff2') format('woff2'),
+       url('./fonts/DIN-Next-LT-Arabic-Medium.woff') format('woff'),
+       url('./fonts/DIN-Next-LT-Arabic-Medium.ttf') format('truetype'),
+       url('./fonts/DIN-Next-LT-Arabic-Medium.eot') format('truetype'),
+       url('./fonts/DIN-Next-LT-Arabic-Medium.svg#din-next-lt-arabic-medium') format('svg');
   font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
   font-family: 'DIN Next LT Arabic';
-  src: url('../fonts/DIN-Next-LT-Arabic-Bold.woff2') format('woff2'),
-       url('../fonts/DIN-Next-LT-Arabic-Bold.woff') format('woff'),
-       url('../fonts/DIN-Next-LT-Arabic-Bold.ttf') format('truetype'),
-       url('../fonts/DIN-Next-LT-Arabic-Bold.eot') format('truetype'),
-       url('../fonts/DIN-Next-LT-Arabic-Bold.svg#din-next-lt-arabic-bold') format('svg');
+  src: url('./fonts/DIN-Next-LT-Arabic-Bold.woff2') format('woff2'),
+       url('./fonts/DIN-Next-LT-Arabic-Bold.woff') format('woff'),
+       url('./fonts/DIN-Next-LT-Arabic-Bold.ttf') format('truetype'),
+       url('./fonts/DIN-Next-LT-Arabic-Bold.eot') format('truetype'),
+       url('./fonts/DIN-Next-LT-Arabic-Bold.svg#din-next-lt-arabic-bold') format('svg');
   font-weight: 700;
   font-style: normal;
 }
@@ -126,7 +126,7 @@ body {
 }
 
 .certificate-main .main-title {
-  margin: 0 0 93px;
+  margin: 0 0 34px;
 }
 
 .certificate-main .sub-title {

@@ -104,6 +104,70 @@ DEFAULT_LONG_DATE_FORMAT = "%A, %B %d, %Y"
 DEFAULT_TIME_FORMAT = "%I:%M:%S %p"
 DEFAULT_DATE_TIME_FORMAT = "%b %d, %Y at %H:%M"
 DEFAULT_DAY_AND_TIME_FORMAT = "%A at %-I%P"
+arabic_numbers = {
+    "0": "٠",
+    "1": "١",
+    "2": "٢",
+    "3": "٣",
+    "4": "٤",
+    "5": "٥",
+    "6": "٦",
+    "7": "٧",
+    "8": "٨",
+    "9": "٩",
+}
+comma_sign_arabic = "،"
+english_months_list = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+urdu_months_list = [
+    "جنوری",
+    "فروری",
+    "مارچ",
+    "اپریل",
+    "مئی",
+    "جون",
+    "جولائی",
+    "اگست",
+    "ستمبر",
+    "اکتوبر",
+    "نومبر",
+    "دسمبر",
+]
+
+
+def convert_number_to_arabic(number):
+    if number.isnumeric():
+        for digit in number:
+            if digit.isnumeric():
+                number = number.replace(digit, arabic_numbers[digit])
+    return number
+
+
+def convert_date_to_arabic(date):
+    for char in date:
+        if char.isnumeric():
+            date = date.replace(char, arabic_numbers[char])
+        elif char == ",":
+            date = date.replace(char, comma_sign_arabic)
+
+    for idx, month in enumerate(english_months_list):
+        if month in date:
+            date = date.replace(month, urdu_months_list[idx])
+            break
+
+    return date
 
 
 def strftime_localized(dtime, format):      # pylint: disable=redefined-builtin
