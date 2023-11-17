@@ -149,8 +149,12 @@ def send_password_reset_email_for_user(user, request, preferred_email=None):
         preferred_email (str): Send email to this address if present, otherwise fallback to user's email address.
     """
     message_context, user_language_preference = get_user_default_email_params(user)
-    site_name = settings.AUTHN_MICROFRONTEND_DOMAIN if should_redirect_to_authn_microfrontend() \
+    site_name = (
+        configuration_helpers.get_value('DRUPAL_HOST', settings.DRUPAL_HOST)
+        or settings.AUTHN_MICROFRONTEND_DOMAIN
+        if should_redirect_to_authn_microfrontend()
         else configuration_helpers.get_value('SITE_NAME', settings.SITE_NAME)
+    )
     message_context.update({
         'request': request,  # Used by google_analytics_tracking_pixel
         # TODO: This overrides `platform_name` from `get_base_template_context` to make the tests passes
