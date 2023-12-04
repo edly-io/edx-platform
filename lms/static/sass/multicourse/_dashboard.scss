@@ -12,7 +12,7 @@
 
   // Contains main course card listings
   .main-container {
-    @include padding($baseline*2, $baseline, $baseline, $baseline*2);
+    @include padding($baseline*2, $baseline*2, $baseline, 0);
 
     flex-grow: 8;
     order: 1;
