@@ -6,6 +6,8 @@ import json
 from rest_framework import serializers
 
 from openedx.features.edly.utils import get_marketing_link
+from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization
+from django.contrib.auth import get_user_model
 
 
 class UserSiteSerializer(serializers.Serializer):
@@ -49,3 +51,25 @@ class UserSiteSerializer(serializers.Serializer):
         Returns mobile_enabled flag
         """
         return self.context['site_configuration'].get('MOBILE_ENABLED', False)
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = get_user_model()
+        fields = '__all__'
+
+
+class EdlySubOrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EdlySubOrganization
+        fields = '__all__'
+
+
+class EdlyMultisiteAccessSerializer(serializers.ModelSerializer):
+
+    user = UserSerializer()
+    sub_org = EdlySubOrganizationSerializer()
+
+    class Meta:
+        model = EdlyMultiSiteAccess
+        fields = ['user', 'sub_org']
