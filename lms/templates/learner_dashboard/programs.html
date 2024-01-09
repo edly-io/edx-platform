@@ -13,5 +13,6 @@ from openedx.core.djangolib.markup import HTML
 <%include file="_dashboard_navigation_programs.html"/>
 
 <main id="main" aria-label="Content" tabindex="-1">
+    <h2 class="programs-page-title">${_("Programs")}</h2>
     ${HTML(programs_fragment.body_html())}
 </main>
