@@ -15,9 +15,12 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: $white;
+  background: $body-bg;
+  color: $primary;
   font-family: $font-family-sans;
 }
+
+body { min-width: 320px; }
 
 // ------------------------------
 // #TYPOGRAPHY

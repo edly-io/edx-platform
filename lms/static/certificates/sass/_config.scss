@@ -16,6 +16,11 @@ $gray-transparent:       rgba(65, 65, 65, 0.5);
 $primary-accent:         rgba(41, 145, 195, 100);
 $primary-back:           rgba(204, 227, 240, 100);
 
+$body-bg:                #f9f8f5;
+$primary:                #1c355e;
+$secondary:              #ea6852;
+$success:                #31b994;
+
 // certificate characteristics
 $cert-base-color: $gray-dark;
 $cert-distinguished-color: $primary-accent;
@@ -121,9 +126,31 @@ $font-path: '../../certificates/fonts';
     url('#{$font-path}/OpenSans/OpenSans-BoldItalic-webfont.ttf') format('truetype');
 }
 
+@font-face {
+  font-family: 'DIN Next LT Arabic';
+  src: url('#{$font-path}/Din/DIN-Next-LT-Arabic-Medium.woff2') format('woff2'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Medium.woff') format('woff'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Medium.ttf') format('truetype'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Medium.eot') format('truetype'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Medium.svg#din-next-lt-arabic-medium') format('svg');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'DIN Next LT Arabic';
+  src: url('#{$font-path}/Din/DIN-Next-LT-Arabic-Bold.woff2') format('woff2'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Bold.woff') format('woff'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Bold.ttf') format('truetype'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Bold.eot') format('truetype'),
+       url('#{$font-path}/Din/DIN-Next-LT-Arabic-Bold.svg#din-next-lt-arabic-bold') format('svg');
+  font-weight: 700;
+  font-style: normal;
+}
+
 // typography: config - stacks
 $font-family-serif: 'Domine', serif;
-$font-family-sans: "Open Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
+$font-family-sans: "DIN Next LT Arabic", "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
 // vertical spacing
 $baseline-vertical:         2.5rem !default;

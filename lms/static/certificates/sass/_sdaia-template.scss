@@ -1,0 +1,252 @@
+html {
+  -webkit-text-size-adjust: 100%; /* 2 */
+}
+
+h1 {
+  font-size: 2em;
+  margin: 0.67em 0;
+}
+
+a {
+  background-color: transparent;
+}
+
+b,
+strong {
+  font-weight: 500;
+}
+
+img {
+  border-style: none;
+  max-width: 100%;
+  height: auto;
+}
+
+.hidden,
+[hidden] {
+  display: none;
+}
+
+.text-primary {
+  color: $success;
+}
+
+.text-secondary {
+  color: $secondary;
+}
+
+
+.certificate-wrapper {
+  background: url(../images/certificate-bg.png)  no-repeat;
+  background-size: 100% 100%;
+  padding: 174px 11.9% 179px;
+  color: $primary;
+  font-weight: 500;
+  margin: 0 auto;
+  line-height: 1.15;
+
+  @include media-breakpoint-down(sm) {
+    padding: 100px 11.9%;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
+
+.certificate-wrapper * {
+  box-sizing: border-box;
+}
+
+.certificate-header {
+  overflow: hidden;
+  padding: 0 0 66px;
+
+  @include media-breakpoint-down(sm) {
+    padding: 0;
+  }
+
+  img {
+    vertical-align: middle;
+
+    @include media-breakpoint-down(sm) {
+      width: 120px;
+    }
+
+    @include media-breakpoint-down(xs) {
+      display: block;
+      margin: 0 auto 10px;
+    }
+
+    &.sdaia-academy-logo {
+      margin-right: 19px;
+
+      @include media-breakpoint-down(sm) {
+        width: 150px;
+      }
+
+      @include media-breakpoint-down(xs) {
+        margin-right: auto;
+      }
+    }
+  }
+}
+
+.certificate-header-col {
+  float: right;
+  padding: 0 12px 0 0;
+
+  @include media-breakpoint-down(sm) {
+    float: none;
+    padding: 0 0 10px;
+    text-align: center;
+  }
+
+  &:first-child {
+    float: left;
+    padding: 2px 0 0 115px;
+
+    @include media-breakpoint-down(md) {
+      padding: 2px 0 0 47px;
+    }
+
+    @include media-breakpoint-down(sm) {
+      float: none;
+      padding: 0 0 10px;
+      text-align: center;
+    }
+  }
+}
+
+.certificate-heading {
+  padding: 0 0 33px;
+
+  @include media-breakpoint-down(sm) {
+    padding: 0;
+  }
+
+  h1 {
+    font-size: 71px;
+    margin: 0 0 17px;
+
+    @include media-breakpoint-down(sm) {
+      font-size: 40px;
+    }
+  }
+
+  .subtitle {
+    display: block;
+    font-size: 27px;
+    margin: 0 0 30px;
+
+    @include media-breakpoint-down(sm) {
+      font-size: 22px;
+      margin: 0 0 15px;
+    }
+
+    @include media-breakpoint-down(xs) {
+      font-size: 18px;
+    }
+  }
+}
+
+.certificate-body { text-align: center; }
+
+.certificate-main {
+  overflow: hidden;
+
+  p,
+  h2 {
+    margin: 0 0 30px;
+    font-size: 38px;
+    font-weight: 500;
+
+    @include media-breakpoint-down(sm) {
+      margin: 0 0 15px;
+      font-size: 20px;
+    }
+
+    @include media-breakpoint-down(xs) {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+  }
+
+  .sub-title,
+  .main-title {
+    margin: 0 0 34px;
+
+    @include media-breakpoint-down(sm) {
+      margin: 0 0 20px;
+    }
+  }
+
+  .limited-text {
+    max-width: 900px;
+    margin: 0 auto 97px;
+    text-align: right;
+
+    @include media-breakpoint-down(sm) {
+      margin: 0 0 40px;
+    }
+
+    @include media-breakpoint-down(xs) {
+      margin: 0 0 20px;
+    }
+
+    .text-secondary {
+      margin: 0 13px;
+
+      @include media-breakpoint-down(sm) {
+        margin: 0 6px;
+      }
+    }
+  }
+}
+
+@media print {
+  body {
+    margin: 0;
+  }
+
+  .certificate-header-col {
+
+    &:first-child {
+      padding-left: 100px;
+    }
+  }
+
+  .certificate-header {
+    padding: 0 0 40px;
+  }
+
+  .certificate-heading {
+    padding: 0;
+
+    h1 {
+      font-size: 50px;
+    }
+  }
+
+  .certificate-main {
+
+    p,
+    h2 {
+      margin: 0 0 25px;
+      font-size: 30px;
+      font-weight: 500;
+    }
+
+    .main-title {
+      margin: 0 0 25px;
+    }
+
+    .limited-text {
+      margin: 0 auto 50px;
+    }
+  }
+
+  .certificate-wrapper {
+    padding: 120px 11.9%;
+  }
+}
