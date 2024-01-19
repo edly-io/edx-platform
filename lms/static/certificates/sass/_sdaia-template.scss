@@ -79,14 +79,14 @@ img {
     }
 
     &.sdaia-academy-logo {
-      margin-right: 19px;
+      @include margin-right(19px);
 
       @include media-breakpoint-down(sm) {
         width: 150px;
       }
 
       @include media-breakpoint-down(xs) {
-        margin-right: auto;
+        @include margin-right(auto);
       }
     }
   }
