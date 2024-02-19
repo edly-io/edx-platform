@@ -122,7 +122,10 @@ module.exports = Merge.smart({
             ReactRenderer: './common/static/js/src/ReactRenderer.jsx',
             XModuleShim: './xmodule/js/src/xmodule.js',
             VerticalStudentView: './xmodule/assets/vertical/public/js/vertical_student_view.js',
-            commons: 'babel-polyfill'
+            commons: 'babel-polyfill',
+            
+            // SDAIA
+            GoogleCDNUpload: './openedx/features/google_cdn_uploads/static/google_cdn_uploads/js/GoogleCDNUpload.js', 
         },
 
         output: {

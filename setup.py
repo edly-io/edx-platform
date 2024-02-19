@@ -46,7 +46,7 @@ XBLOCKS_ASIDES = [
 
 setup(
     name="Open edX",
-    version='0.13',
+    version='0.14',
     install_requires=["setuptools"],
     requires=[],
     # NOTE: These are not the names we should be installing.  This tree should
@@ -173,6 +173,7 @@ setup(
             "user_authn = openedx.core.djangoapps.user_authn.apps:UserAuthnConfig",
             "instructor = lms.djangoapps.instructor.apps:InstructorConfig",
             "course_apps = openedx.core.djangoapps.course_apps.apps:CourseAppsConfig",
+            "google_cdn_uploads = openedx.features.google_cdn_uploads.apps:GoogleCDNUploadsConfig"
         ],
         'openedx.learning_context': [
             'lib = openedx.core.djangoapps.content_libraries.library_context:LibraryContextImpl',
