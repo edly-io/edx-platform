@@ -57,7 +57,12 @@ def send_user_course_progress_email(current_progress, progress_last_email_sent_a
     course_id = CourseKey.from_string(course_key)
     course = modulestore().get_course(course_id)
 
-    site = Site.objects.first() or Site.objects.get_current()
+    site_domain = configuration_helpers.get_value_for_org(
+        course.org,
+        'site_domain',
+        settings.LMS_HOST
+    )
+    site = Site.objects.get(domain=site_domain)
     message_context = get_base_template_context(site)
     course_home_url = get_learning_mfe_home_url(course_key=course_key, url_fragment='home')
     platform_name = configuration_helpers.get_value_for_org(
@@ -104,7 +109,12 @@ def send_user_course_completion_email(user_id, course_key):
     passing_grade = int(course_grade.percent * 100)
 
     course = modulestore().get_course(course_id)
-    site = Site.objects.first() or Site.objects.get_current()
+    site_domain = configuration_helpers.get_value_for_org(
+        course.org,
+        'site_domain',
+        settings.LMS_HOST
+    )
+    site = Site.objects.get(domain=site_domain)
     message_context = get_base_template_context(site)
     course_progress_url = get_learning_mfe_home_url(course_key=course_key, url_fragment='progress')
     platform_name = configuration_helpers.get_value_for_org(
