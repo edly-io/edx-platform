@@ -755,12 +755,15 @@ def do_email_change_request(user, new_email, activation_key=None, secondary_emai
 
     site = Site.objects.get_current()
     message_context = get_base_template_context(site)
+    drupal_host = configuration_helpers.get_value('DRUPAL_HOST', settings.DRUPAL_HOST)
+    site_name = configuration_helpers.get_value('SITE_NAME', settings.SITE_NAME)
+    site = (drupal_host or site_name) if not secondary_email_change_request else site_name
     message_context.update({
         'old_email': user.email,
         'new_email': new_email,
         'confirm_link': '{protocol}://{site}{link}'.format(
             protocol='https' if use_https else 'http',
-            site=configuration_helpers.get_value('SITE_NAME', settings.SITE_NAME),
+            site=site,
             link=confirm_link,
         ),
     })
