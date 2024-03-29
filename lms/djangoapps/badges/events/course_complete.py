@@ -125,5 +125,4 @@ def course_badge_check(user, course_key):
         LOGGER.info("Completion badge already exists for this user on this course.")
         # Badge already exists. Skip.
         return
-    evidence = evidence_url(user.id, course_key)
-    badge_class.award(user, evidence_url=evidence)
+    badge_class.award(user)
