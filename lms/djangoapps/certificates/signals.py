@@ -67,8 +67,10 @@ def listen_for_passing_grade(sender, user, course_id, **kwargs):  # pylint: disa
     Listen for a learner passing a course, send cert generation task,
     downstream signal from COURSE_GRADE_CHANGED
     """
+    log.info('I am working')
     course = CourseOverview.get_from_id(course_id)
     if not auto_certificate_generation_enabled():
+        log.info('I am auto generate working')
         return
 
     if fire_ungenerated_certificate_task(user, course_id):
@@ -159,11 +161,15 @@ def fire_ungenerated_certificate_task(user, course_key, expected_verification_st
         CourseMode.EXECUTIVE_EDUCATION,
     ]
     enrollment_mode, __ = CourseEnrollment.enrollment_mode_for_user(user, course_key)
+    log.info('Enrollment Mode {}'.format(enrollment_mode))
     cert = GeneratedCertificate.certificate_for_student(user, course_key)
+    log.info('Certificate {}'.format(cert))
 
     generate_learner_certificate = (
         enrollment_mode in allowed_enrollment_modes_list and (cert is None or cert.status == 'unverified')
     )
+
+    log.info('Generate Certifcate {}'.format(generate_learner_certificate))
 
     if generate_learner_certificate:
         kwargs = {
