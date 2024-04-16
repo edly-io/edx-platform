@@ -23,8 +23,11 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from edx_ace import ace
 from edx_ace.recipient import Recipient
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from eventtracking import tracker
 from django_ratelimit.decorators import ratelimit
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
@@ -36,6 +39,7 @@ from openedx.core.djangoapps.oauth_dispatch.api import destroy_oauth_tokens
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.theming.helpers import get_current_request, get_current_site
 from openedx.core.djangoapps.user_api import accounts, errors, helpers
+from openedx.core.djangoapps.user_authn.serializers import ChangePasswordSerializer
 from openedx.core.djangoapps.user_authn.toggles import should_redirect_to_authn_microfrontend
 from openedx.core.djangoapps.user_api.accounts.utils import is_secondary_email_feature_enabled
 from openedx.core.djangoapps.user_api.helpers import FormDescription
@@ -44,6 +48,7 @@ from openedx.core.djangoapps.user_api.preferences.api import get_user_preference
 from openedx.core.djangoapps.user_authn.message_types import PasswordReset, PasswordResetSuccess
 from openedx.core.djangoapps.user_authn.utils import check_pwned_password
 from openedx.core.djangolib.markup import HTML
+from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 from common.djangoapps.student.forms import send_account_recovery_email_for_user
 from common.djangoapps.student.models import AccountRecovery, LoginFailures
 from common.djangoapps.util.json_request import JsonResponse
@@ -243,6 +248,32 @@ class PasswordResetView(APIView):
     def get(self, request):
         return HttpResponse(get_password_reset_form().to_json(), content_type="application/json")  # lint-amnesty, pylint: disable=http-response-with-content-type-json
 
+
+class ChangePasswordAPIView(APIView):
+    authentication_classes = (
+        JwtAuthentication, BearerAuthenticationAllowInactiveUser, SessionAuthenticationAllowInactiveUser
+    )
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            current_password = serializer.validated_data['current_password']
+            new_password = serializer.validated_data['new_password']
+            user = request.user
+
+            # Check if the current password provided matches the user's actual password
+            if not user.check_password(current_password):
+                log.info(f"\nCurrent password is incorrect.")
+                return Response({"error": "Current password is incorrect."}, status=400)
+
+            # Change the user's password
+            user.set_password(new_password)
+            user.save()
+            log.info(f"\nPassword changed successfully.")
+            return Response({"message": "Password changed successfully."}, status=200)
+        else:
+            return Response(serializer.errors, status=400)
 
 @helpers.intercept_errors(errors.UserAPIInternalError, ignore_errors=[errors.UserAPIRequestError])
 def request_password_change(email, is_secure):

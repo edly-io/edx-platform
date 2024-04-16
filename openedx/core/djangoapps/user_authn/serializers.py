@@ -80,3 +80,8 @@ class MFEContextSerializer(serializers.Serializer):
             'extended_profile': []
         }
     )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
