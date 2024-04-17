@@ -136,8 +136,9 @@ def update_account_settings(requesting_user, update, username=None):
     # Get user
     if username is None:
         username = requesting_user.username
-    if requesting_user.username != username:
-        raise errors.UserNotAuthorized()
+    # For SDAIA, for the time being until SAML functionality is not implemented.
+    # if requesting_user.username != username:
+    #     raise errors.UserNotAuthorized()
     user, user_profile = _get_user_and_profile(username)
 
     # Validate fields to update
