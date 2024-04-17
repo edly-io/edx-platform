@@ -255,12 +255,14 @@ class ChangePasswordAPIView(APIView):
     )
     permission_classes = (IsAuthenticated,)
 
-    def post(self, request):
+    def post(self, request, username):
         serializer = ChangePasswordSerializer(data=request.data)
         if serializer.is_valid():
             current_password = serializer.validated_data['current_password']
             new_password = serializer.validated_data['new_password']
-            user = request.user
+            user = User.objects.filter(username=username).first()
+            if not user:
+                user = request.user
 
             # Check if the current password provided matches the user's actual password
             if not user.check_password(current_password):
