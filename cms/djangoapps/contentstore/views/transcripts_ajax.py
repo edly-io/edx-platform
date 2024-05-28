@@ -42,8 +42,9 @@ from xmodule.video_module.transcripts_utils import (
     get_transcript,
     get_transcript_for_video,
     get_transcript_from_val,
-    get_transcripts_from_youtube,
-    youtube_video_transcript_name
+    get_transcript_from_youtube,
+    get_transcript_link_from_youtube,
+    get_transcript_links_from_youtube,
 )
 
 __all__ = [
@@ -234,6 +235,8 @@ def upload_transcripts(request):
                 file_data=ContentFile(sjson_subs),
             )
 
+            video.transcripts['en'] = f"{edx_video_id}-en.srt"
+            video.save_with_metadata(request.user)
             if transcript_created is None:
                 response = JsonResponse({'status': 'Invalid Video ID'}, status=400)
 
@@ -341,26 +344,22 @@ def check_transcripts(request):
             except NotFoundError:
                 log.debug(u"Can't find transcripts in storage for youtube id: %s", youtube_id)
 
-            # youtube server
-            youtube_text_api = copy.deepcopy(settings.YOUTUBE['TEXT_API'])
-            youtube_text_api['params']['v'] = youtube_id
-            youtube_transcript_name = youtube_video_transcript_name(youtube_text_api)
-            if youtube_transcript_name:
-                youtube_text_api['params']['name'] = youtube_transcript_name
-            youtube_response = requests.get('http://' + youtube_text_api['url'], params=youtube_text_api['params'])
-
-            if youtube_response.status_code == 200 and youtube_response.text:
+            if get_transcript_link_from_youtube(youtube_id):
                 transcripts_presence['youtube_server'] = True
             #check youtube local and server transcripts for equality
             if transcripts_presence['youtube_server'] and transcripts_presence['youtube_local']:
                 try:
-                    youtube_server_subs = get_transcripts_from_youtube(
+                    transcript_links = get_transcript_links_from_youtube(
                         youtube_id,
                         settings,
                         item.runtime.service(item, "i18n")
                     )
-                    if json.loads(local_transcripts) == youtube_server_subs:  # check transcripts for equality
-                        transcripts_presence['youtube_diff'] = False
+                    for (_, link) in transcript_links.items():
+                        youtube_server_subs = get_transcript_from_youtube(
+                            link, youtube_id, item.runtime.service(item, "i18n")
+                        )
+                        if json.loads(local_transcripts) == youtube_server_subs:  # check transcripts for equality
+                            transcripts_presence['youtube_diff'] = False
                 except GetTranscriptsFromYouTubeException:
                     pass
 
@@ -632,7 +631,10 @@ def replace_transcripts(request):
         edx_video_id = link_video_to_component(video, request.user)
 
         # 3. Upload YT transcript to DS for the linked video ID.
-        success = save_video_transcript(edx_video_id, Transcript.SJSON, transcript_content, language_code=u'en')
+        success = True
+        for transcript in transcript_content:
+            [language_code, json_content] = transcript
+            success = save_video_transcript(edx_video_id, Transcript.SJSON, json_content, language_code)
         if success:
             response = JsonResponse({'edx_video_id': edx_video_id, 'status': 'Success'}, status=200)
         else:
