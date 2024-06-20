@@ -8,7 +8,7 @@
             </div>
         </div>
         <div class="post-extended-content thread-responses-wrapper">
-            <div class="response-btn-count-wrapper">
+            <div class="response-btn-count-wrapper response-action-holder">
                 <% if (!readOnly) { %>
                 <div class="add-response">
                     <button class="btn btn-outline-primary btn-small add-response-btn">
@@ -144,8 +144,10 @@
     <p class="sr-only field-help" id="edit-post-editor-description"><%- gettext('Edit your post below.') %></p>
     <div class="edit-post-body" aria-describedby="edit-post-editor-description" name="body"><%- body %></div>
 </div>
-<button type="submit" id="edit-post-submit" class="btn btn-primary submit post-update"><%- gettext("Update post") %></button>
-<button class="btn btn-outline-primary post-cancel"><%- gettext("Cancel") %></button>
+<div class="post-action-holder">
+    <button type="submit" id="edit-post-submit" class="btn btn-primary submit post-update"><%- gettext("Update post") %></button>
+    <button class="btn btn-outline-primary post-cancel"><%- gettext("Cancel") %></button>
+</div>
 </script>
 <script aria-hidden="true" type="text/template" id="thread-response-template">
 <div class="discussion-response"></div>
