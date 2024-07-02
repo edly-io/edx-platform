@@ -814,38 +814,47 @@ def create_user_unsubscribe_url(email, site):
     )
 
     if not url.startswith('https://'):
-            url = 'https://' + url
+        url = 'https://' + url
 
     return url
 
-def get_chatly_token():
+
+def obtain_token_from_chatly():
     """Obtain chatly token using client credentials."""
-    access_token_api_response = requests.post(
+    if any(
+        domain in settings.CHATLY_BACKEND_ORIGIN.lower()
+        for domain in ["http://", "https://"]
+    ):
+        access_token_api_response = requests.post(
             settings.CHATLY_BACKEND_ORIGIN + "/oauth2/token/",
             data={
-                'client_id': settings.CHATLY_CLIENT_ID,
-                'client_secret': settings.CHATLY_CLIENT_SECRET,
-                'grant_type': "client_credentials",
-                'token_type': "jwt",
+                "client_id": settings.CHATLY_CLIENT_ID,
+                "client_secret": settings.CHATLY_CLIENT_SECRET,
+                "grant_type": "client_credentials",
+                "token_type": "jwt",
             },
-            timeout=60
+            timeout=60,
         )
-    try:
-        return access_token_api_response.json()['access_token']
-    except KeyError:
-        return ""
+        try:
+            return access_token_api_response.json()["access_token"]
+        except KeyError:
+            return ""
+
+    return ""
 
 
-def is_chatly_integrated(email, org, access_token):
+def get_integration_status_from_chatly(email, org, access_token):
     """Method to check if chatly is integrated for given email and org combination by hitting chatly api."""
-    response = requests.get(
-        url=settings.CHATLY_BACKEND_ORIGIN + "/api/edly/integrate/",
-        headers={
-                'Authorization': '{0} {1}'.format('Bearer', access_token)
-            },
-        data={"email": email, "org": org}
-    )
-    if response.status_code == 200:
-        return True
+    if any(
+        domain in settings.CHATLY_BACKEND_ORIGIN.lower()
+        for domain in ["http://", "https://"]
+    ):
+        response = requests.get(
+            url=settings.CHATLY_BACKEND_ORIGIN + "/api/edly/integrate/",
+            headers={"Authorization": "{0} {1}".format("Bearer", access_token)},
+            data={"email": email, "org": org},
+        )
+        if response.status_code == 200:
+            return True
 
     return False

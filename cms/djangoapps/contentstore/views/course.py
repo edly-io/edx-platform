@@ -57,10 +57,11 @@ from openedx.features.content_type_gating.models import ContentTypeGatingConfig
 from openedx.features.content_type_gating.partitions import CONTENT_TYPE_GATING_SCHEME
 from openedx.features.course_experience.waffle import ENABLE_COURSE_ABOUT_SIDEBAR_HTML
 from openedx.features.course_experience.waffle import waffle as course_experience_waffle
+from openedx.features.edly.constants import CHATLY_COOKIE_NAME
 from openedx.features.edly.models import EdlySubOrganization
-from openedx.features.edly.utils import filter_courses_based_on_org, is_chatly_integrated, get_chatly_token, get_edly_sub_org_from_request, toggle_lti_user_parameters
+from openedx.features.edly.utils import filter_courses_based_on_org, get_edly_sub_org_from_request, toggle_lti_user_parameters
 from openedx.features.edly.chatly_helpers import (
-    get_chatly_integrate_status_token, get_context_data, save_course_outline, send_chatly_export_request_and_return_response
+    get_chatly_integrate_status, get_chatly_payload, get_chatly_token_from_cookie, get_context_data, save_course_outline, send_chatly_export_request_and_return_response
 )
 from openedx.features.edly.validators import is_courses_limit_reached_for_plan
 from common.djangoapps.student import auth
@@ -260,6 +261,28 @@ def _dismiss_notification(request, course_action_state_id):
     return JsonResponse({'success': True})
 
 
+def _sync_course_with_chatly(request, course_key_string):
+    """
+    Separate method to sync course data with chatly.
+    """
+    course_key = CourseKey.from_string(course_key_string)
+    course_module = get_course_and_check_access(course_key, request.user, depth=1)
+    course_outline = _course_outline_json(request, course_module)
+    save_course_outline(course_key_string, course_outline)
+    task_status = _latest_task_status(request, course_key_string, export_output_handler)
+    artifact = UserTaskArtifact.objects.get(status=task_status, name="Output")
+    if task_status and task_status.state == UserTaskStatus.SUCCEEDED:
+        try:
+            tarball = course_import_export_storage.open(artifact.file.name)
+            return send_chatly_export_request_and_return_response(
+                request, course_key_string, artifact, tarball
+            )
+        except UserTaskArtifact.DoesNotExist:
+            return JsonResponse(
+                {"error": "Failed to sync course data at the moment"}, status=400
+            )
+
+
 @login_required
 def course_handler(request, course_key_string=None):
     """
@@ -295,18 +318,7 @@ def course_handler(request, course_key_string=None):
                 if request.POST.get('export_course') != 'true':
                     return _create_or_rerun_course(request)
 
-                course_key = CourseKey.from_string(course_key_string)
-                course_module = get_course_and_check_access(course_key, request.user, depth=1)
-                course_outline = _course_outline_json(request, course_module)
-                save_course_outline(course_key_string, course_outline)
-                task_status = _latest_task_status(request, course_key_string, export_output_handler)
-                artifact = UserTaskArtifact.objects.get(status=task_status, name='Output')
-                if task_status and task_status.state == UserTaskStatus.SUCCEEDED:
-                    try:
-                        tarball = course_import_export_storage.open(artifact.file.name)
-                        return send_chatly_export_request_and_return_response(request, course_key_string, artifact, tarball)
-                    except UserTaskArtifact.DoesNotExist:
-                        return JsonResponse({'error': 'Failed to sync course data at the moment'}, status=400)
+                return _sync_course_with_chatly(request, course_key_string)
 
             elif not has_studio_write_access(request.user, CourseKey.from_string(course_key_string)):
                 raise PermissionDenied()
@@ -650,26 +662,18 @@ def course_listing(request):
     if len(frontend_url):
         frontent_redirect_url = '{}/panel/settings/billing'.format(frontend_url[0])
 
-    if 'chatly_token' in request.COOKIES:
-        chatly_token = request.COOKIES['chatly_token']
-        eval_string = "None"
-    else:
-        chatly_token = get_chatly_token()
-        eval_string = 'response.set_cookie("chatly_token", chatly_token, max_age=604600)'
+    eval_string, chatly_token = get_chatly_token_from_cookie(request)
+    chatly_integrated = get_chatly_integrate_status(request, chatly_token)
+    show_chatly_integration = (
+        site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]
+        .get("CHATLY", {})
+        .get("show_chatly_integration", True)
+    )
 
-    show_chatly_integration = site_config.site_values["DJANGO_SETTINGS_OVERRIDE"].get("CHATLY",{}).get("show_chatly_integration",True)
     try:
         destination_course_id = DESTINATION_COURSE_ID_PATTERN.format(org[0])
-        chatly_integrated = True
-        if not "CHATLY" in site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]:
-            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"] = {"chatly_integrated": False}
 
-        if not site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"]["chatly_integrated"]:
-            chatly_integrated = is_chatly_integrated(user.email, get_edly_sub_org_from_request(request).slug, chatly_token)
-            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"] = {"chatly_integrated": chatly_integrated}
-            site_config.save()
     except Exception:
-        chatly_integrated = False
         destination_course_id = "dummy"
 
     response = render_to_response(u'index.html', {
@@ -697,7 +701,7 @@ def course_listing(request):
         u'chatly_token': chatly_token,
         u'is_chatly_integrated': chatly_integrated,
         u'show_chatly_integration': show_chatly_integration,
-        u'logo':''
+        u'logo': site_config.site_values.get("BRANDING", {}).get("logo", ""),
     })
 
     eval(eval_string)
@@ -797,28 +801,8 @@ def course_index(request, course_key):
         # gather any errors in the currently stored proctoring settings.
         advanced_dict = CourseMetadata.fetch(course_module)
         proctoring_errors = CourseMetadata.validate_proctoring_settings(course_module, advanced_dict, request.user)
-        widget_data, chatly_data = get_context_data(course_key, course_structure)
-        chatly_integrated, chatly_token = get_chatly_integrate_status_token(request)
-        site_config = configuration_helpers.get_current_site_configuration()
-        show_chatly_integration = site_config.site_values["DJANGO_SETTINGS_OVERRIDE"].get("CHATLY",{}).get("show_chatly_integration",True)
 
         return render_to_response('course_outline.html', {
-            u'show_chatly_integration': show_chatly_integration,
-            'courselike_home_url': reverse_course_url("course_handler", course_key),
-            'status_url': reverse_course_url('export_status_handler', course_key),
-            'library': False,
-            'delta_count': chatly_data.get('delta_count'),
-            'section_length': len(chatly_data.get('section',[])),
-            'chatly_token': chatly_token,
-            'user': request.user,
-            u'sub_org': get_edly_sub_org_from_request(request).slug,
-            'is_chatly_integrated': chatly_integrated,
-            'is_enable': chatly_data.get('is_enable'),
-            'bot_key': chatly_data.get('bot_key'),
-            'widget_data': widget_data,
-            'chatly_data': json.dumps(chatly_data),
-            'logo':'',
-            'course_key': course_key,
             'language_code': request.LANGUAGE_CODE,
             'context_course': course_module,
             'lms_link': lms_link,
@@ -841,6 +825,7 @@ def course_index(request, course_key):
             'course_authoring_microfrontend_url': course_authoring_microfrontend_url,
             'advance_settings_url': reverse_course_url('advanced_settings_handler', course_module.id),
             'proctoring_errors': proctoring_errors,
+            **get_chatly_payload(request, course_key, course_structure)
         })
 
 

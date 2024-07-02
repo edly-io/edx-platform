@@ -1,9 +1,11 @@
+import json
 import logging
 import pytz
 from datetime import datetime
 import requests
 
 from django.utils.html import escapejs
+from cms.djangoapps.contentstore.utils import reverse_course_url
 from common.djangoapps.util.json_request import JsonResponse
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -11,14 +13,38 @@ from django.conf import settings
 from rest_framework import status
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
-from openedx.features.edly.constants import DEFAULT_QA_PROMPT
+from openedx.features.edly.constants import CHATLY_COOKIE_NAME, CHATLY_IMPORT_ERROR_MESSAGES, COURSE_SIZE_LIMIT, DEFAULT_QA_PROMPT
 from openedx.features.edly.models import ChatlyWidget
 from  openedx.features.edly.api.serializers import ChatlyWidgetSerializer
 from openedx.features.edly.utils import (
-    get_chatly_token, get_edly_sub_org_from_request, is_chatly_integrated
+    obtain_token_from_chatly, get_edly_sub_org_from_request, get_integration_status_from_chatly
 )
 
 logger = logging.getLogger(__name__)
+
+
+def get_chatly_token_from_cookie(request):
+    """
+    Method to retrieve chatly token from cookie if it exists else fetch from api.
+
+    Method will return chatly token, and a string that can be evaluated using eval()
+    to set the token if it was obtained from calling the api.
+
+    Returns:
+        eval_string: string
+        chatly_token: string
+
+    """
+    if CHATLY_COOKIE_NAME in request.COOKIES:
+        chatly_token = request.COOKIES[CHATLY_COOKIE_NAME]
+        eval_string = "None"
+    else:
+        chatly_token = obtain_token_from_chatly()
+        eval_string = (
+            f'response.set_cookie({CHATLY_COOKIE_NAME}, chatly_token, max_age=604600)'
+        )
+
+    return eval_string, chatly_token
 
 
 def send_chatly_request(request, endpoint, method, payload={}, post_files=None):
@@ -29,10 +55,10 @@ def send_chatly_request(request, endpoint, method, payload={}, post_files=None):
     reqUrl = "{}/api/{}".format(settings.CHATLY_BACKEND_ORIGIN, endpoint)
 
     token = ''
-    if 'chatly_token' in request.COOKIES:
-        token = request.COOKIES['chatly_token']    
+    if CHATLY_COOKIE_NAME in request.COOKIES:
+        token = request.COOKIES[CHATLY_COOKIE_NAME]
     else:
-        token = get_chatly_token()
+        token = obtain_token_from_chatly()
 
     headersList = {
         "Authorization": "Bearer {}".format(token),
@@ -68,17 +94,17 @@ def get_course_delta(course_outline, chatly_widget):
     chatly_data["last_sync_date"] = ""
     chatly_data["is_enable"] = False
     chatly_data["bot_key"] = ""
-    chatly_data["section"] = [ 
+    chatly_data["section"] = [
         {
-            "id":item.get("id"), 
-            "name":item.get("display_name"), 
+            "id":item.get("id"),
+            "name":item.get("display_name"),
             "modified_or_not_exist":True
         }
         for item in sections
     ]
     if not chatly_widget.exists():
         return chatly_data
-    
+
     chatly_widget = chatly_widget.first()
     chatly_data["is_enable"] = chatly_widget.is_enable
     chatly_data["bot_key"] = chatly_widget.bot_key
@@ -86,7 +112,7 @@ def get_course_delta(course_outline, chatly_widget):
     if not chatly_widget.last_sync_date:
         chatly_data["last_sync_date"] = ""
         return chatly_data
-    
+
     chatly_data["delta_count"] = 0
     chatly_data["last_sync_date"] = chatly_widget.last_sync_date.isoformat()
     for index,section in enumerate(sections):
@@ -102,7 +128,7 @@ def save_course_outline(course_key_string, course_outline):
     """Save a snapshot of the course outline for later delta calculation processing."""
     key_to_extract = ['id', 'edited_on']
     snap_json = {key: course_outline[key] for key in course_outline if key in key_to_extract}
-    snap_json['chapter'] = [ 
+    snap_json['chapter'] = [
         {
             'id':item.get('id'),
             'edited_on':item.get('edited_on'),
@@ -118,14 +144,14 @@ def save_course_outline(course_key_string, course_outline):
 
 def send_chatly_export_request_and_return_response(request, course_key_string, artifact, tarball):
     """This method sends the course export request and returns respective response."""
-    if tarball.size > 50 * 1024 * 1024:
+    if tarball.size > COURSE_SIZE_LIMIT:
         artifact.file.close()
         return JsonResponse({'error': 'Please make sure the course size is less than 50MB'}, status=400)
 
     send_chatly_request(
         request,
         'import/course/', 'POST',
-        { 
+        {
             "course_id": course_key_string,
             "prev_directory_id":  request.POST.get('directory_id'),
             "bot_id":  request.POST.get('bot_id'),
@@ -134,39 +160,42 @@ def send_chatly_export_request_and_return_response(request, course_key_string, a
         post_files = { "zip_file": tarball }
     )
     artifact.file.close()
-  
-    return JsonResponse({'ExportStatus': 1})
+
+    return JsonResponse({"ExportStatus": 1})
 
 
-def get_chatly_integrate_status_token(request):
-    """Check wheather chatly is integrated with studio or not."""
-    chatly_token= ''
-    chatly_integrated = False
-    site_config = configuration_helpers.get_current_site_configuration()  
+def get_chatly_integrate_status(request, chatly_token):
+    """Check whether chatly is integrated with studio or not."""
+    site_config = configuration_helpers.get_current_site_configuration()
     try:
-        if 'chatly_token' in request.COOKIES:
-            chatly_token = request.COOKIES['chatly_token']
-        else:
-            chatly_token = get_chatly_token()
-
         chatly_integrated = True
         if not "CHATLY" in site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]:
-            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"] = {"chatly_integrated": False}
+            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"] = {
+                "chatly_integrated": False
+            }
 
-        if not site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"]["chatly_integrated"]:
-            chatly_integrated = is_chatly_integrated(request.user.email, get_edly_sub_org_from_request(request).slug, chatly_token)
-            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"] = {"chatly_integrated": chatly_integrated}
+        if not site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"][
+            "chatly_integrated"
+        ]:
+            chatly_integrated = get_integration_status_from_chatly(
+                request.user.email,
+                get_edly_sub_org_from_request(request).slug,
+                chatly_token,
+            )
+            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]["CHATLY"] = {
+                "chatly_integrated": chatly_integrated
+            }
             site_config.save()
 
     except Exception:
         chatly_integrated = False
-    
-    return chatly_integrated, chatly_token
+
+    return chatly_integrated
 
 
 def get_context_data(course_key, course_structure):
     """Get the context data for chatly widget."""
-    chatly_widget = ChatlyWidget.objects.filter(course_key=course_key)      
+    chatly_widget = ChatlyWidget.objects.filter(course_key=course_key)
     chatly_data = get_course_delta(course_structure, chatly_widget)
     widget_data = {
         'prompt':escapejs(DEFAULT_QA_PROMPT),
@@ -176,7 +205,7 @@ def get_context_data(course_key, course_structure):
         widget_data = chatly_widget.values('is_enable', 'unable_to_answer_response', 'temperature', 'ai_output_focus', 'advanced_mode', 'prompt', 'bot_id', 'allowed_directories').first()
         widget_data['prompt'] = escapejs(widget_data['prompt'])
         widget_data['ai_output_focus'] = escapejs(widget_data['ai_output_focus'])
-    
+
     return widget_data, chatly_data
 
 
@@ -270,7 +299,7 @@ def update_bot_config(request, widget_obj):
         'prompt': serializer.data.get('prompt'),
     }
     response = send_chatly_request(
-        request, 
+        request,
         'botconfig/{}/'.format(widget_obj.bot_id),
         'PUT',
         payload
@@ -286,16 +315,44 @@ def update_bot_config(request, widget_obj):
 def get_updated_message(message):
     """Update the error message to a better viewable error for end user"""
 
-    logger.info('Error With chatly: {}'.format(message))
+    logger.info("Error With chatly: {}".format(message))
     if not message:
-        return 'something went wrong with syncing course data, please contact support'
-    elif message == 'The folder course/vertical is missing in uploaded zip':
-        message = 'The course have either no data for syncing or changes are not published'
-    elif message == 'The folder course/sequential is missing in uploaded zip':
-        message = 'The course have either no data for syncing or changes are not published'
-    elif message == 'The folder course/html is missing in uploaded zip':
-        message = 'The course have either no data for syncing or changes are not published'
-    else:
-        message = 'Something went wrong with the course data sync, please contact support'
+        return "something went wrong with syncing course data, please contact support"
 
-    return message
+    return CHATLY_IMPORT_ERROR_MESSAGES[message]
+
+
+def get_chatly_payload(request, course_key, course_structure):
+    """
+    Returns the chatly payload for the given course.
+    """
+    site_config = configuration_helpers.get_current_site_configuration()
+    show_chatly_integration = (
+        site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]
+        .get("CHATLY", {})
+        .get("show_chatly_integration", True)
+    )
+    widget_data, chatly_data = get_context_data(course_key, course_structure)
+    _, chatly_token = get_chatly_token_from_cookie(request)
+    chatly_integrated = get_chatly_integrate_status(request, chatly_token)
+
+    payload = {
+        "show_chatly_integration": show_chatly_integration,
+        "courselike_home_url": reverse_course_url("course_handler", course_key),
+        "status_url": reverse_course_url("export_status_handler", course_key),
+        "library": False,
+        "delta_count": chatly_data.get("delta_count", 0),
+        "section_length": len(chatly_data.get("section", [])),
+        "chatly_token": chatly_token,
+        "user": request.user,
+        "sub_org": get_edly_sub_org_from_request(request).slug,
+        "is_chatly_integrated": chatly_integrated,
+        "is_enable": chatly_data.get("is_enable", False),
+        "bot_key": chatly_data.get("bot_key", ""),
+        "widget_data": widget_data,
+        "chatly_data": json.dumps(chatly_data),
+        "logo": site_config.site_values.get("BRANDING", {}).get("logo", ""),
+        "course_key": course_key,
+    }
+
+    return payload

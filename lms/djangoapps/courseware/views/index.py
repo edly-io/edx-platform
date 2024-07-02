@@ -436,7 +436,11 @@ class CoursewareIndex(View):
             bot_key = chatly_widget.first().bot_key
 
         site_config = configuration_helpers.get_current_site_configuration()
-        show_chatly_integration = site_config.site_values["DJANGO_SETTINGS_OVERRIDE"].get("CHATLY",{}).get("show_chatly_integration",True)
+        show_chatly_integration = (
+            site_config.site_values["DJANGO_SETTINGS_OVERRIDE"]
+            .get("CHATLY", {})
+            .get("show_chatly_integration", True)
+        )
 
         courseware_context = {
             u'show_chatly_integration': show_chatly_integration,
