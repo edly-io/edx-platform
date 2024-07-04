@@ -35,14 +35,15 @@ def get_chatly_token_from_cookie(request):
         chatly_token: string
 
     """
+    eval_string = "None"
     if CHATLY_COOKIE_NAME in request.COOKIES:
         chatly_token = request.COOKIES[CHATLY_COOKIE_NAME]
-        eval_string = "None"
     else:
         chatly_token = obtain_token_from_chatly()
-        eval_string = (
-            f'response.set_cookie({CHATLY_COOKIE_NAME}, chatly_token, max_age=604600)'
-        )
+        if chatly_token:
+            eval_string = (
+                f'response.set_cookie("{CHATLY_COOKIE_NAME}", chatly_token, max_age=604600)'
+            )
 
     return eval_string, chatly_token
 
