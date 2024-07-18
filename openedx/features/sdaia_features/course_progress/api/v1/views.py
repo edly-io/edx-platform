@@ -73,21 +73,24 @@ class UserStatsAPIView(APIView):
         """
         user = request.user
         user_id = user.id
-        clickhouse_uri = (
-            f"{settings.CAIRN_CLICKHOUSE_HTTP_SCHEME}://{settings.CAIRN_CLICKHOUSE_USERNAME}:{settings.CAIRN_CLICKHOUSE_PASSWORD}@"
-            f"{settings.CAIRN_CLICKHOUSE_HOST}:{settings.CAIRN_CLICKHOUSE_HTTP_PORT}/?database={settings.CAIRN_CLICKHOUSE_DATABASE}"
-        )
-        query = f"SELECT SUM(duration) as `Watch time` FROM `openedx`.`video_view_segments` WHERE user_id={user_id};"
+        errors = {}
 
         ############ WATCH HOURS ############
         try:
+            clickhouse_uri = (
+                f"{settings.CAIRN_CLICKHOUSE_HTTP_SCHEME}://{settings.CAIRN_CLICKHOUSE_USERNAME}:{settings.CAIRN_CLICKHOUSE_PASSWORD}@"
+                f"{settings.CAIRN_CLICKHOUSE_HOST}:{settings.CAIRN_CLICKHOUSE_HTTP_PORT}/?database={settings.CAIRN_CLICKHOUSE_DATABASE}"
+            )
+            query = f"SELECT SUM(duration) as `Watch time` FROM `openedx`.`video_view_segments` WHERE user_id={user_id};"
             response = requests.get(clickhouse_uri, data=query.encode("utf8"))
             watch_time = float(response.content.decode().strip()) / (60 * 60)
         except Exception as e:
             log.error(
-                f"Unable to fetch watch for user {user_id} due to this exception: {str(e)}"
+                f"Unable to fetch watch time for user {user_id} due to this exception: {str(e)}"
             )
-            raise HTTPException(status_code=500, detail=str(e))
+            watch_time_error = "ERROR: Unable to Connect to Cairn Clickhouse"
+            errors["watch_hours"] = watch_time_error
+            watch_time = None
 
         ############ PROGRAMS COUNT ############
         meter = ProgramProgressMeter(request.site, user, mobile_only=False)
@@ -156,6 +159,7 @@ class UserStatsAPIView(APIView):
                 "score": score,
                 "user_certificates": user_certificates,
                 "user_badges": transformed_user_badges,
+                "errors": errors,
             },
         )
 
@@ -188,21 +192,24 @@ class DashboardStatsAPIView(APIView):
         user = request.user
         users_count = User.objects.all().count()
         certificates_count = GeneratedCertificate.objects.all().count()
-        clickhouse_uri = (
-            f"{settings.CAIRN_CLICKHOUSE_HTTP_SCHEME}://{settings.CAIRN_CLICKHOUSE_USERNAME}:{settings.CAIRN_CLICKHOUSE_PASSWORD}@"
-            f"{settings.CAIRN_CLICKHOUSE_HOST}:{settings.CAIRN_CLICKHOUSE_HTTP_PORT}/?database={settings.CAIRN_CLICKHOUSE_DATABASE}"
-        )
-        query = f"SELECT SUM(duration) as `Watch time` FROM `openedx`.`video_view_segments`;"
+        errors = {}
 
         ############ TOTAL WATCH HOURS ############
         try:
+            clickhouse_uri = (
+                f"{settings.CAIRN_CLICKHOUSE_HTTP_SCHEME}://{settings.CAIRN_CLICKHOUSE_USERNAME}:{settings.CAIRN_CLICKHOUSE_PASSWORD}@"
+                f"{settings.CAIRN_CLICKHOUSE_HOST}:{settings.CAIRN_CLICKHOUSE_HTTP_PORT}/?database={settings.CAIRN_CLICKHOUSE_DATABASE}"
+            )
+            query = f"SELECT SUM(duration) as `Watch time` FROM `openedx`.`video_view_segments`;"
             response = requests.get(clickhouse_uri, data=query.encode("utf8"))
             watch_time = float(response.content.decode().strip()) / (60 * 60)
         except Exception as e:
             log.error(
                 f"Unable to fetch total watch hours due to this exception: {str(e)}"
             )
-            raise HTTPException(status_code=500, detail=str(e))
+            watch_time_error = "ERROR: Unable to Connect to Cairn Clickhouse"
+            errors["total_watch_time"] = watch_time_error
+            watch_time = None
 
         ############ Response ############
         return Response(
@@ -211,5 +218,6 @@ class DashboardStatsAPIView(APIView):
                 "users_count": users_count,
                 "certificates_count": certificates_count,
                 "total_watch_time": watch_time,
+                "errors": errors,
             },
         )
