@@ -44,13 +44,13 @@ def is_ccx_course(course_key):
     return isinstance(course_key, CCXLocator) or isinstance(course_key, CCXBlockUsageLocator)
 
 
-def user_has_role(user, role):
+def user_has_role(user, role, check_auth=True):
     """
     Check whether this user has access to this role (either direct or implied)
     :param user:
     :param role: an AccessRole
     """
-    if not user.is_active:
+    if check_auth and not user.is_active:
         return False
     # do cheapest check first even tho it's not the direct one
     if GlobalStaff().has_user(user):
@@ -64,7 +64,7 @@ def user_has_role(user, role):
         if not settings.FEATURES.get('ENABLE_CREATOR_GROUP', False):
             return True
 
-    if role.has_user(user):
+    if role.has_user(user, check_auth):
         return True
     # if not, then check inferred permissions
     if (isinstance(role, (CourseStaffRole, CourseBetaTesterRole)) and
