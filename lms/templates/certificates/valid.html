@@ -1,16 +1,262 @@
-<%page expression_filter="h"/>
-<%inherit file="accomplishment-base.html" />
-<%! from django.utils.translation import ugettext as _ %>
+<!DOCTYPE html>
+<html lang="en">
 
-% if user.is_authenticated and user.id == int(accomplishment_user_id):
-<%include file="_accomplishment-banner.html" />
-% endif
-<%include file="_accomplishment-introduction.html" />
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SDAIA Academy - Certificate of completion</title>
+    <!-- <link rel="stylesheet" type="text/css" href="http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@sdaiatemplate.css"> -->
+    <!-- below styles can be pasted to a css file and file can be used in above link -->
+    <style>
+        @font-face {
+            font-family: 'Diodrum';
+            font-weight: 200;
+            src: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@DiodrumArabicExtralight.ttf') format('truetype');
+        }
 
-<%include file="_accomplishment-rendering.html" />
-<div class="wrapper-about">
-    <aside role="complementary" class="about" aria-label=${_("About {platform_name} Certificates").format(platform_name=settings.PLATFORM_NAME)}>
-        <%include file="_about-edx.html" />
-        <%include file="_about-accomplishments.html" />
-    </aside>
-</div>
+        @font-face {
+            font-family: 'Diodrum';
+            font-weight: 300;
+            src: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@DiodrumArabicLight.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'Diodrum';
+            font-weight: 400;
+            src: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@DiodrumArabicRegular.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'Diodrum';
+            font-weight: 500;
+            src: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@DiodrumArabicMedium.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'Diodrum';
+            font-weight: 600;
+            src: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@DiodrumArabicSemibold.ttf') format('truetype');
+        }
+
+        @font-face {
+            font-family: 'Diodrum';
+            font-weight: 700;
+            src: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@DiodrumArabicBold.ttf') format('truetype');
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Diodrum', sans-serif;
+        }
+
+        .certificateWrapper {
+            background: url('http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@certificatebg.png') no-repeat;
+            background-size: cover;
+            padding: 130px 12% 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 60px;
+            background-size: 100% 98%;
+        }
+
+        .certificateWrapper__header {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .certificateWrapper__bodywraper {
+            max-width: 1100px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .certificateWrapper__topWrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+        }
+
+        .certificateWrapper__mainTitleWrap {
+            text-align: center;
+            color: #32b994;
+            font-size: 45px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .certificateWrapper__titleAr {
+            font-weight: 100;
+        }
+
+        .certificateWrapper__title {
+            font-weight: bold;
+        }
+
+        .certificateWrapper__subTitleWrap {
+            display: flex;
+            justify-content: space-between;
+            font-size: 22px;
+            color: #1c355e;
+            font-weight: bold;
+            flex-direction: column;
+        }
+
+        .certificateWrapper__subTitleBody {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .certificateWrapper__innerDetailWrap {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .certificateWrapper__personWrap {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .certificateWrapper__listWraper {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .certificateWrapper__valueListWrap {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .certificateWrapper__personName {
+            font-size: 30px;
+        }
+
+        .certificateWrapper__list {
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            color: #1c355e;
+            gap: 10px;
+        }
+
+        .flex-small {
+            display: flex;
+            flex-shrink: 0;
+            gap: 4px;
+        }
+
+        .text-align {
+            text-align: right;
+        }
+
+        .primary-color {
+            color: #32b994;
+        }
+
+        .black-color {
+            color: #1c355e;
+        }
+
+        .stronger {
+            font-weight: 700;
+        }
+
+        .diodrumFontFamily {
+            font-family: 'Diodrum';
+            font-weight: 500;
+        }
+
+        [dir="rtl"] .text-align {
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="certificateWrapper" style="font-family:Diodrum" dir="ltr">
+        <div class="certificateWrapper__header">
+            <img src="http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@SDAIAAcademylogo.svg"
+                class="sdaia-academy-logo" alt="SDAIA Academy Logo" />
+            <img src="http://local.overhang.io:8000/asset-v1:Arbisoft+SE001+2024_S1+type@asset+block@SDAIAlogo.svg"
+                class="sdaia-logo" alt="SDAIA Logo" />
+        </div>
+        <div class="certificateWrapper__bodywraper">
+            <div class="certificateWrapper__topWrapper">
+                <h1 class="certificateWrapper__mainTitleWrap">
+                    <div class="certificateWrapper__titleAr diodrumFontFamily"><strong> شهادة إتمام دورة تدريبية
+                        </strong></div>
+                    <div class="certificateWrapper__title"> Training Course Completion Certificate </div>
+                </h1>
+
+                <div class="certificateWrapper__subTitleWrap">
+                    <div class="certificateWrapper__subTitleBody">
+                        <div class="certificateWrapper__subTitle stronger">
+                            Saudi Data and AI Authority (SDAIA) Certifies that
+                        </div>
+                        <div class="certificateWrapper__subTitleAR text-align diodrumFontFamily stronger">
+                            الهيئة السعودية للبيانات والذكاء الاصطناعي ( سدايا ) تمنح
+                        </div>
+                    </div>
+                    <div class="certificateWrapper__personWrap">
+                        <label
+                            class="certificateWrapper__personName primary-color stronger">{{accomplishment_copy_name}}
+                        </label>
+                        <label
+                            class="certificateWrapper__personName  text-align diodrumFontFamily primary-color stronger">
+                            {{accomplishment_copy_name_arabic}}
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="certificateWrapper__body">
+                <div class="certificateWrapper__listWraper">
+                    <div class="certificateWrapper__valueListWrap">
+                        <div class="certificateWrapper__list">
+                            <span> Has Completed the Training Course </span>
+                            <span class="diodrumFontFamily text-align"> شهادة إتمام الدورة التدريبية </span>
+                        </div>
+                        <div class="certificateWrapper__innerDetailWrap">
+                            <label class="certificateWrapper__valueName">
+                                <strong>{{accomplishment_copy_course_name}}</strong>
+                            </label>
+                            <label class="certificateWrapper__valueName text-align diodrumFontFamily">
+                                <strong>{{accomplishment_copy_arabic_course_name}}</strong>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="certificateWrapper__valueListWrap">
+                        <div class="certificateWrapper__list">
+                            <span class="flex-small">
+                                Consisting of
+                                <span class="">(<strong>{{course_duration}}</strong>)</span>
+                                hours</span>
+                            <span class="flex-small diodrumFontFamily text-align">ساعة تدريبية<span
+                                    class=" diodrumFontFamily">(<strong>{{arabic_course_duration}}</strong>)</span>بمعدل
+                            </span>
+                        </div>
+                        <div class="certificateWrapper__innerDetailWrap">
+                            <label class="certificateWrapper__valueName flex-small">
+                                <span class="black-color">on</span>
+                                <span class="">{{certificate_date_issued}}</span>
+                            </label>
+                            <label class="certificateWrapper__valueName flex-small">
+                                <span class=" diodrumFontFamily">{{arabic_certificate_date_issued}}</span>
+                                <span class="black-color diodrumFontFamily">بتاريخ</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

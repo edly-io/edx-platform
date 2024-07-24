@@ -8,11 +8,13 @@ import urllib
 from datetime import datetime
 from uuid import uuid4
 
+import pdfkit
 import pytz
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.template import RequestContext
+from django.template.loader import render_to_string
 from django.utils import translation
 from django.utils.encoding import smart_str
 from eventtracking import tracker
@@ -755,7 +757,7 @@ def _render_invalid_certificate(request, course_id, platform_name, configuration
 
 def _render_valid_certificate(request, context, custom_template=None):
     """
-    Renders certificate
+    Renders certificate as a PDF
     """
     if custom_template:
         template = Template(
@@ -766,6 +768,22 @@ def _render_valid_certificate(request, context, custom_template=None):
             encoding_errors='replace',
         )
         context = RequestContext(request, context)
-        return HttpResponse(template.render(context))
+        html_content = template.render(context)
     else:
-        return render_to_response("certificates/valid.html", context)
+        html_content = render_to_string("certificates/valid.html", context, request=request)
+    
+    path_wkhtmltopdf = '/usr/bin/wkhtmltopdf'
+    config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+    
+    options = {
+        'page-height': '200mm',
+        'page-width': '297mm',
+    }
+    pdf = pdfkit.from_string(html_content, False, configuration=config, options=options)  # Set output path to False to get a byte string
+    
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="certificate.pdf"'
+
+    ## TO-DO save it to GeneratedCertificate Model according to flow here or at the time of certificate creation
+    ## So that it can be sent to IBRAM - SDAIA
+    return response
