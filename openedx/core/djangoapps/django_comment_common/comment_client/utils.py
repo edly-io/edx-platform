@@ -8,7 +8,7 @@ from uuid import uuid4
 import requests
 from django.utils.translation import get_language
 
-from .settings import SERVICE_HOST as COMMENTS_SERVICE
+from .settings import PREFIX, PREFIX_V2, SERVICE_HOST as COMMENTS_SERVICE
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +28,10 @@ def extract(dic, keys):
         return strip_none({keys: dic.get(keys)})
     else:
         return strip_none({k: dic.get(k) for k in keys})
+
+
+def _get_forum_v2_url(url):
+    return url.replace(PREFIX, PREFIX_V2)
 
 
 def perform_request(method, url, data_or_params=None, raw=False,
@@ -70,6 +74,20 @@ def perform_request(method, url, data_or_params=None, raw=False,
         headers=headers,
         timeout=config.connection_timeout
     )
+
+    if method == 'get':
+        forum_v2_url = _get_forum_v2_url(url)
+        response_v2 = requests.request(
+            method,
+            forum_v2_url,
+            data=data,
+            params=params,
+            headers=headers,
+            timeout=config.connection_timeout
+        )
+        if response_v2 != response:
+            log.error(f"Forum v2 diff for endpoint {url} with params={params}. \
+                    Expected: {response}. Got: {response_v2}.")
 
     metric_tags.append(f'status_code:{response.status_code}')
     status_code = int(response.status_code)

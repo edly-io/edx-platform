@@ -245,6 +245,7 @@ ECOMMERCE_API_URL = 'http://edx.devstack.ecommerce:18130/api/v2'
 
 ############## Comments CONFIGURATION SETTINGS ###############
 COMMENTS_SERVICE_URL = 'http://edx.devstack.forum:4567'
+COMMENTS_SERVICE_V2_URL = 'http://localhost:8000'
 
 ############## Credentials CONFIGURATION SETTINGS ###############
 CREDENTIALS_INTERNAL_SERVICE_URL = 'http://edx.devstack.credentials:18150'

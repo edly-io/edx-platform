@@ -4328,6 +4328,7 @@ CREDENTIALS_INTERNAL_SERVICE_URL = 'http://localhost:8005'
 CREDENTIALS_PUBLIC_SERVICE_URL = 'http://localhost:8005'
 
 COMMENTS_SERVICE_URL = 'http://localhost:18080'
+COMMENTS_SERVICE_V2_URL = 'http://localhost:8000'
 COMMENTS_SERVICE_KEY = 'password'
 
 # Reverification checkpoint name pattern

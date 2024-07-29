@@ -2521,6 +2521,7 @@ ANALYTICS_DASHBOARD_URL = 'http://localhost:18110/courses'
 ANALYTICS_DASHBOARD_NAME = 'Your Platform Name Here Insights'
 
 COMMENTS_SERVICE_URL = 'http://localhost:18080'
+COMMENTS_SERVICE_V2_URL = 'http://localhost:8000'
 COMMENTS_SERVICE_KEY = 'password'
 
 EXAMS_SERVICE_URL = 'http://localhost:18740/api/v1'
