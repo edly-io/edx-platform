@@ -14,4 +14,4 @@ if hasattr(settings, "COMMENTS_SERVICE_V2_URL"):
 else:
     SERVICE_HOST_V2 = 'http://localhost:8000'
 
-PREFIX_V2 = SERVICE_HOST_V2 + '/api/v1'
+PREFIX_V2 = SERVICE_HOST_V2 + '/forum/forum_proxy/api/v1'
