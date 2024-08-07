@@ -4,6 +4,7 @@ Serializers for edly_api
 import json
 import logging
 
+from django.conf import settings
 from rest_framework import serializers
 
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
@@ -63,6 +64,7 @@ class MutiSiteAccessSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='sub_org.name', read_only=True)
     slug = serializers.CharField(source='sub_org.slug', read_only=True)
     panel_base_url =  serializers.SerializerMethodField()
+    user_panel_role =  serializers.SerializerMethodField()
 
     def get_panel_base_url(self, instance):
         """Add support to get the panel_base_url from site configuration"""
@@ -73,12 +75,26 @@ class MutiSiteAccessSerializer(serializers.ModelSerializer):
 
         return notification_url if notification_url.endswith("/") else f"{notification_url}/"
 
+    def get_user_panel_role(self, instance):
+        """get the user panel role of the respective mutisite object."""
+        groups = instance.groups.values_list('name', flat=True)
+        roles_list = {
+            'panel_admin': settings.EDLY_PANEL_ADMIN_USERS_GROUP,
+            'panel_user': settings.EDLY_PANEL_USERS_GROUP,
+            'insights_admin': settings.EDLY_INSIGHTS_GROUP,
+            'super_admin': settings.EDLY_PANEL_SUPER_ADMIN
+        }
+        panel_role = [
+            role for role, group in roles_list.items() if group in groups
+        ] or ['panel_restricted']
+        return panel_role[-1]
+
     class Meta:
         """
         Meta attribute for the MutiSiteAccess Model
         """
         model = EdlyMultiSiteAccess
-        fields = ['id', 'name', 'slug', 'panel_base_url']
+        fields = ['id', 'name', 'slug', 'panel_base_url', 'user_panel_role']
 
 
 class ChatlyWidgetSerializer(serializers.ModelSerializer):

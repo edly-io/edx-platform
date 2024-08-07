@@ -1,11 +1,12 @@
 """
 Views for user sites API
 """
-import urllib.parse 
+import urllib.parse
 
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
+from django.db.models import Case, IntegerField, When, Value
 
 from openedx.features.edly.api.serializers import MutiSiteAccessSerializer
 from openedx.core.lib.api.authentication import BearerAuthentication
@@ -35,20 +36,25 @@ class MultisitesViewset(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [BearerAuthentication, SessionAuthentication]
 
-
     def list(self, request, *args, **kwargs):
         """
-        Returns a list of Site linked with the user email 
+        Returns a list of Site linked with the user email
         """
-        email = request.GET.get('email', '')
+        email = request.GET.get("email", "")
         if email:
             queryset = EdlyMultiSiteAccess.objects.filter(user__email=urllib.parse.unquote(email))
         else:
             sub_org = get_edly_sub_org_from_request(request)
             queryset = EdlyMultiSiteAccess.objects.filter(
-                user=request.user, 
-                sub_org__edly_organization=sub_org.edly_organization
-            )
+                        user=request.user,
+                        sub_org__edly_organization=sub_org.edly_organization,
+                    ).annotate(
+                        priority=Case(
+                            When(sub_org=sub_org, then=Value(0)),
+                            default=Value(1),
+                            output_field=IntegerField(),
+                        )
+                    ).order_by("priority")
 
         serializer = MutiSiteAccessSerializer(queryset, many=True)
         return Response(serializer.data)
