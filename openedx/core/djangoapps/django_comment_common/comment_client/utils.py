@@ -8,7 +8,7 @@ from uuid import uuid4
 import requests
 from django.utils.translation import get_language
 
-from .settings import PREFIX, PREFIX_V2, SERVICE_HOST as COMMENTS_SERVICE
+from .settings import PREFIX, COMMENTS_SERVICE_PREFIX, SERVICE_HOST as COMMENTS_SERVICE
 
 log = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ def extract(dic, keys):
         return strip_none({k: dic.get(k) for k in keys})
 
 
-def _get_forum_v2_url(url):
-    return url.replace(PREFIX, PREFIX_V2)
+def _get_comment_service_url(url):
+    return url.replace(PREFIX, COMMENTS_SERVICE_PREFIX)
 
 
 def perform_request(method, url, data_or_params=None, raw=False,
@@ -75,22 +75,37 @@ def perform_request(method, url, data_or_params=None, raw=False,
         timeout=config.connection_timeout
     )
 
+    # For the better logging
+    log.info(
+        """
+        ======> FORUM <======
+        
+        method: {method}
+        url: {url}
+        params: {params}
+        data: {data}
+        response: {response}
+
+        ======> END <======
+        """.format(method=method, url=url, params=params, data=data, response=response.json())
+    )
+
     if method == "get":
-        forum_v2_url = _get_forum_v2_url(url)
-        response_v2 = requests.request(
+        forum_v1_url = _get_comment_service_url(url)
+        forum_v1_response = requests.request(
             method,
-            forum_v2_url,
+            forum_v1_url,
             data=data,
             params=params,
             headers=headers,
             timeout=config.connection_timeout,
         )
-        log.info(f"requested forum v1 url: {url}")
-        log.info(f"requested forum v2 url: {forum_v2_url}")
-        if response_v2.json() != response.json():
+        log.info(f"requested forum proxey url: {url}")
+        log.info(f"requested forum v1 url: {forum_v1_url}")
+        if forum_v1_response.json() != response.json():
             log.error(
-                f"Forum v2 difference, for endpoint {url} with params={params}. \
-                    Expected: {response.json()}. Got: {response_v2.json()}."
+                f"Forum v2 difference, for endpoint {forum_v1_url} with params={params}. \
+                    Expected: {forum_v1_response.json()}. Got: {response.json()}."
             )
 
     metric_tags.append(f'status_code:{response.status_code}')
