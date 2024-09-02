@@ -471,14 +471,18 @@ class CourseTabList(List):
     @classmethod
     def upgrade_tabs(cls, tabs):
         """
-        Reverse and Rename Courseware to Course and Course Info to Home Tabs.
+        Remove course_info tab, and rename courseware tab to Course if needed.
         """
         if tabs and len(tabs) > 1:
+            # Reverse them so that course_info is first, and rename courseware to Course
             if tabs[0].get('type') == 'courseware' and tabs[1].get('type') == 'course_info':
                 tabs[0], tabs[1] = tabs[1], tabs[0]
-                tabs[0]['name'] = _('Home')
                 tabs[1]['name'] = _('Course')
 
+            # NOTE: this check used for legacy courses containing the course_info tab. course_info
+            # should be removed according to https://github.com/openedx/public-engineering/issues/56.
+            if tabs[0].get('type') == 'course_info':
+                tabs.pop(0)
         return tabs
 
     @classmethod
@@ -489,22 +493,15 @@ class CourseTabList(List):
 
         Specific rules checked:
         - if no tabs specified, that's fine
-        - if tabs specified, first two must have type 'courseware' and 'course_info', in that order.
+        - if tabs specified, first must have type 'courseware'.
 
         """
         if tabs is None or len(tabs) == 0:
             return
 
-        if len(tabs) < 2:
-            raise InvalidTabsException("Expected at least two tabs.  tabs: '{0}'".format(tabs))
-
-        if tabs[0].get('type') != 'course_info':
+        if tabs[0].get('type') != 'courseware':
             raise InvalidTabsException(
-                "Expected first tab to have type 'course_info'.  tabs: '{0}'".format(tabs))
-
-        if tabs[1].get('type') != 'courseware':
-            raise InvalidTabsException(
-                "Expected second tab to have type 'courseware'.  tabs: '{0}'".format(tabs))
+                f"Expected first tab to have type 'courseware'.  tabs: '{tabs}'")
 
         # the following tabs should appear only once
         # TODO: don't import openedx capabilities from common
