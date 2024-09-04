@@ -7,7 +7,6 @@
     this.Sequence = (function() {
         function Sequence(element) {
             var self = this;
-            console.log("sequence loaded")
             this.removeBookmarkIconFromActiveNavItem = function(event) {
                 return Sequence.prototype.removeBookmarkIconFromActiveNavItem.apply(self, [event]);
             };
