@@ -97,7 +97,7 @@ class EnrollmentUserThrottle(UserRateThrottle, ApiKeyPermissionMixIn):
 
     # To see how the staff rate limit was selected, see https://github.com/openedx/edx-platform/pull/18360
     THROTTLE_RATES = {
-        'user': '40/minute',
+        'user': '50000/minute',
         'staff': '120/minute',
     }
 
