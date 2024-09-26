@@ -330,7 +330,7 @@ git+https://github.com/open-craft/xblock-vectordraw.git@v0.4#egg=vectordraw-xblo
 -e git+ssh://git@github.com/edly-io/edly-panel-edx-app.git@edly-3.3.0#egg=edly-panel-app==edly-3.3.0
 -e git+ssh://git@github.com/edly-io/figures.git@edly-3.0.1#egg=figures==edly-3.0.1
 -e git+ssh://git@github.com/edly-io/edly-rating-xblock.git@develop-juniper#egg=edlyrating-xblock==develop-juniper
--e git+ssh://git@github.com/edly-io/edx_xblock_scorm.git@v1.1.1#egg=scormxblock-xblock==v1.1.1
+-e git+https://github.com/edly-io/edx_xblock_scorm.git@manan/EDLY-6550#egg=scormxblock-xblock
 -e git+ssh://git@github.com/edly-io/xblock-video.git@dev#egg=video_xblock
 -e git+ssh://git@github.com/edly-io/xblock-poll.git@edly-1.0.0#egg=xblock-poll==edly-1.0.0
 -e git+ssh://git@github.com/edly-io/kwl-xblock.git@v1.0.0#egg=kwl-xblock
