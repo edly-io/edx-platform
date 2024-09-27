@@ -6,8 +6,11 @@ The ``xmodule`` folder contains a variety of old-yet-important functionality cor
 * the ModuleStore, edx-platform's "Version 1" learning content storage backend;
 * an XBlock Runtime implementation for ModuleStore-backed content;
 * the "partitions" framework for differentiated XBlock content;
-* implementations for the "stuctural" XBlocks: ``course``, ``chapter``, and ``sequential``; and
-* the implementations of several different content-level XBlocks, such as ``problem`` and ``html``.
+* implementations for the "stuctural" XBlocks: ``course``, ``chapter``, and ``sequential``;
+* the implementations of several different built-in content-level XBlocks, such as ``problem`` and ``html``; and
+* `assets for those built-in XBlocks`_.
+
+.. _assets for those built-in XBlocks: https://github.com/openedx/edx-platform/tree/master/xmodule/assets#readme
 
 Historical Context
 ******************

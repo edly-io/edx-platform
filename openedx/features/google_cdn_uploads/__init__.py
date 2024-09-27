@@ -1,0 +1,1 @@
+default_app_config = "openedx.features.google_cdn_uploads.apps:GoogleCDNUploadsConfig"
