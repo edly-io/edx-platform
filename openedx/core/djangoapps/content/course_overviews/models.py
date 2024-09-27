@@ -226,8 +226,7 @@ class CourseOverview(TimeStampedModel):
         course_overview.course_video_url = CourseDetails.fetch_video_url(course.id)
         course_overview.self_paced = course.self_paced
 
-        if not CatalogIntegration.is_enabled():
-            course_overview.language = course.language
+        course_overview.language = course.language
 
         return course_overview
 
