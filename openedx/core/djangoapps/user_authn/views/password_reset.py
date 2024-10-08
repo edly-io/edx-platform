@@ -199,13 +199,14 @@ class PasswordResetFormNoActive(PasswordResetForm):
         if not self.users_cache and is_secondary_email_feature_enabled():
             # Check if user has entered the secondary email.
             self.users_cache = User.objects.filter(
-                id__in=AccountRecovery.objects.filter(secondary_email__iexact=email, is_active=True).values_list('user')
+                id__in=AccountRecovery.objects.filter(
+                    secondary_email__iexact=email, is_active=True).values_list('user')
             )
             self.is_account_recovery = not bool(self.users_cache)
 
         if not self.users_cache:
             raise forms.ValidationError(self.error_messages['unknown'])
-        if any((user.password.startswith(UNUSABLE_PASSWORD_PREFIX) or not user.is_active) 
+        if any((user.password.startswith(UNUSABLE_PASSWORD_PREFIX) or not user.is_active)
                for user in self.users_cache):
             raise forms.ValidationError(self.error_messages['unusable'])
         return email
@@ -397,7 +398,7 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
                 return TemplateResponse(
                     request, 'registration/password_reset_confirm.html', context
                 )
-            
+
             self.user = User.objects.get(id=self.uid_int)
         except (ValueError, User.DoesNotExist):
             # if there's any error getting a user, just let django's
@@ -523,6 +524,7 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
     def dispatch(self, *args, **kwargs):
         self.uidb36 = kwargs.get('uidb36')
         self.token = kwargs.get('token')
+        self.isNewUser = kwargs.get('method', None) == 'new_password'
         self.uidb64 = _uidb36_to_uidb64(self.uidb36)
 
         # User can not get this link unless account recovery feature is enabled.
@@ -553,6 +555,9 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
                 if response_was_successful and not self.user.is_active:
                     self.user.is_active = True
                     self.user.save()
+
+                response.context_data['isNewUser'] = self.isNewUser
+
             return response
 
 
