@@ -58,7 +58,7 @@ urlpatterns = [
     # Password reset api views.
     url(r'^password_reset/$', password_reset.password_reset, name='password_reset'),
     url(
-        r'^password_reset_confirm/(?P<uidb36>[0-9A-Za-z]+)-(?P<token>.+)/$',
+        r'^password_reset_confirm/(?P<uidb36>[0-9A-Za-z]+)-(?P<token>.+?)(?:/(?P<method>new_password|reset_password))?/?$',
         PasswordResetConfirmWrapper.as_view(),
         name='password_reset_confirm',
     ),
