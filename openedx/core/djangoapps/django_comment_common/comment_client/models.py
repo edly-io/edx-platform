@@ -362,15 +362,19 @@ class Model:
             course_id = str(request_data["course_id"])
         except KeyError as e:
             raise e
-        response = forum_api.create_thread(
-            title=title,
-            body=body,
-            course_id=course_id,
-            user_id=user_id,
-            anonymous=request_data.get("anonymous", False),
-            anonymous_to_peers=request_data.get("anonymous_to_peers", False),
-            commentable_id=request_data.get("commentable_id", "course"),
-            thread_type=request_data.get("thread_type", "discussion"),
-            group_id=request_data.get("group_id", None),
-        )
+        
+        request_data = {
+            "title": title,
+            "body": body,
+            "course_id": course_id,
+            "user_id": user_id,
+            "anonymous": request_data.get("anonymous", None),
+            "anonymous_to_peers": request_data.get("anonymous_to_peers", None),
+            "commentable_id": request_data.get("commentable_id", None),
+            "thread_type": request_data.get("thread_type", None),
+            "group_id": request_data.get("group_id", None),
+            "context": request_data.get("context", None),
+        }
+        request_data = {k: v for k, v in request_data.items() if v is not None}
+        response = forum_api.create_thread(**request_data)
         return response
