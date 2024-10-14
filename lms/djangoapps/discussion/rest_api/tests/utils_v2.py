@@ -58,42 +58,6 @@ def _get_thread_callback(thread_data):
     return callback
 
 
-def _get_comment_callback(comment_data, thread_id, parent_id):
-    """
-    Get a callback function that will return a comment containing the given data
-    plus necessary dummy data, overridden by the content of the POST/PUT
-    request.
-    """
-
-    def callback(request, _uri, headers):
-        """
-        Simulate the comment creation or update endpoint as described above.
-        """
-        response_data = make_minimal_cs_comment(comment_data)
-        original_data = response_data.copy()
-        # thread_id and parent_id are not included in request payload but
-        # are returned by the comments service
-        response_data["thread_id"] = thread_id
-        response_data["parent_id"] = parent_id
-        for key, val_list in parsed_body(request).items():
-            val = val_list[0]
-            if key in ["anonymous", "anonymous_to_peers", "endorsed"]:
-                response_data[key] = val == "True"
-            elif key == "edit_reason_code":
-                response_data["edit_history"] = [
-                    {
-                        "original_body": original_data["body"],
-                        "author": comment_data.get("username"),
-                        "reason_code": val,
-                    },
-                ]
-            else:
-                response_data[key] = val
-        return response_data
-
-    return callback
-
-
 class CommentsServiceMockMixin:
     """Mixin with utility methods for mocking the comments service"""
 
@@ -141,13 +105,7 @@ class CommentsServiceMockMixin:
 
     def register_get_thread_error_response(self, thread_id, status_code):
         """Register a mock error response for GET on the CS thread endpoint."""
-        assert httpretty.is_enabled(), "httpretty must be enabled to mock calls."
-        httpretty.register_uri(
-            httpretty.GET,
-            f"http://localhost:4567/api/v1/threads/{thread_id}",
-            body="",
-            status=status_code,
-        )
+        self.mock_delete_thread.return_value = status_code
 
     def register_get_thread_response(self, thread):
         """Register a mock response for the get_thread method."""
@@ -347,14 +305,7 @@ class CommentsServiceMockMixin:
         """
         Register a mock response for POST on the CS 'read' endpoint
         """
-        assert httpretty.is_enabled(), "httpretty must be enabled to mock calls."
-        httpretty.register_uri(
-            httpretty.POST,
-            f"http://localhost:4567/api/v1/users/{user.id}/read",
-            params={"source_type": content_type, "source_id": content_id},
-            body=json.dumps({}),  # body is unused
-            status=200,
-        )
+        self.mock_mark_thread_as_read.return_value = {}
 
     def register_thread_flag_response(self, thread_id):
         """Register a mock response for PUT on the CS thread flag endpoints"""
@@ -368,13 +319,7 @@ class CommentsServiceMockMixin:
         """
         Register a mock response for DELETE on the CS thread instance endpoint
         """
-        assert httpretty.is_enabled(), "httpretty must be enabled to mock calls."
-        httpretty.register_uri(
-            httpretty.DELETE,
-            f"http://localhost:4567/api/v1/threads/{thread_id}",
-            body=json.dumps({}),  # body is unused
-            status=200,
-        )
+        self.mock_delete_thread.return_value = {}
 
     def register_delete_comment_response(self, comment_id):
         """
@@ -392,13 +337,7 @@ class CommentsServiceMockMixin:
         """
         Register a mock response for GET on the CS comment active threads endpoint
         """
-        assert httpretty.is_enabled(), "httpretty must be enabled to mock calls."
-        httpretty.register_uri(
-            httpretty.GET,
-            f"http://localhost:4567/api/v1/users/{user_id}/active_threads",
-            body=json.dumps(response),
-            status=200,
-        )
+        self.mock_get_user_active_threads.return_value = response
 
     def register_get_subscriptions(self, thread_id, response):
         """
@@ -420,11 +359,11 @@ class CommentsServiceMockMixin:
         actual_params.pop("request_id")  # request_id is random
         assert actual_params == expected_params
 
-    def assert_last_query_params(self, expected_params):
-        """
-        Assert that the last mock request had the expected query parameters
-        """
-        self.assert_query_params_equal(httpretty.last_request(), expected_params)
+    # def assert_last_query_params(self, expected_params):
+    #     """
+    #     Assert that the last mock request had the expected query parameters
+    #     """
+    #     self.assert_query_params_equal(httpretty.last_request(), expected_params)
 
     def request_patch(self, request_data):
         """
