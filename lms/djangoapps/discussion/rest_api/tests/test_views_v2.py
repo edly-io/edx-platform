@@ -134,42 +134,29 @@ class DiscussionAPIViewTestMixin(
         self.user.profile.save()
         CourseEnrollmentFactory.create(user=self.user, course_id=self.course.id)
         self.client.login(username=self.user.username, password=self.password)
-
-        patcher = mock.patch(
+        mock.patch(
+            "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
+            return_value=True,
+        ).start()
+        self.mock_get_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_thread"
-        )
-        self.mock_get_thread = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_update_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.update_thread"
-        )
-        self.mock_update_thread = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_parent_comment = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.get_parent_comment"
-        )
-        self.mock_get_parent_comment = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_update_comment = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.update_comment"
-        )
-        self.mock_update_comment = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_create_parent_comment = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.create_parent_comment"
-        )
-        self.mock_create_parent_comment = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_create_child_comment = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.create_child_comment"
-        )
-        self.mock_create_child_comment = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def assert_response_correct(self, response, expected_status, expected_content):
         """
@@ -258,18 +245,14 @@ class UploadFileViewTest(
         )
         self.url = reverse("upload_file", kwargs={"course_id": str(self.course.id)})
 
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def user_login(self):
         """
@@ -424,30 +407,20 @@ class CommentViewSetListByUserTest(
         self.addCleanup(httpretty.reset)
         self.addCleanup(httpretty.disable)
 
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user_threads = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user_threads"
-        )
-        self.mock_get_user_threads = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_thread"
-        )
-        self.mock_get_thread = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
         self.user = UserFactory.create(password=self.TEST_PASSWORD)
         self.register_get_user_response(self.user)
@@ -661,19 +634,14 @@ class CourseViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         self.url = reverse(
             "discussion_course", kwargs={"course_id": str(self.course.id)}
         )
-
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def test_404(self):
         response = self.client.get(
@@ -740,24 +708,17 @@ class RetireViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         self.retired_username = get_retired_username_by_username(self.user.username)
         self.url = reverse("retire_discussion_user")
 
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_retire_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.retire_user"
-        )
-        self.mock_retire_user = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def assert_response_correct(self, response, expected_status, expected_content):
         """
@@ -786,7 +747,9 @@ class RetireViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         response = self.superuser_client.post(self.url, data, **headers)
 
         self.mock_retire_user.assert_called_once_with(
-            str(self.user.id), get_retired_username_by_username(self.user.username)
+            user_id=str(self.user.id),
+            retired_username=get_retired_username_by_username(self.user.username),
+            course_id=None,
         )
 
         return response
@@ -857,24 +820,17 @@ class ReplaceUsernamesViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         self.new_username = "test_username_replacement"
         self.url = reverse("replace_discussion_username")
 
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_update_username = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.update_username"
-        )
-        self.mock_update_username = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def assert_response_correct(self, response, expected_status, expected_content):
         """
@@ -1023,28 +979,21 @@ class CourseTopicsViewV3Test(
             },
             topic_ids[0]: dict(discussion=0, question=0),
         }
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.rest_api.api.get_course_commentable_counts",
             mock.Mock(return_value=self.topic_stats),
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
         self.url = reverse(
             "course_topics_v3", kwargs={"course_id": str(self.course.id)}
         )
-
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def test_basic(self):
         response = self.client.get(self.url)
@@ -1094,29 +1043,20 @@ class ThreadViewSetListTest(
         super().setUp()
         self.author = UserFactory.create()
         self.url = reverse("thread-list")
-
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user_threads = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user_threads"
-        )
-        self.mock_get_user_threads = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_search_threads = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.search_threads"
-        )
-        self.mock_search_threads = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def create_source_thread(self, overrides=None):
         """
@@ -1512,22 +1452,17 @@ class ThreadViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
     def setUp(self):
         super().setUp()
         self.url = reverse("thread-list")
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_create_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.create_thread"
-        )
-        self.mock_create_thread = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def test_basic(self):
         self.register_get_user_response(self.user)
@@ -1550,15 +1485,16 @@ class ThreadViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
             self.url, json.dumps(request_data), content_type="application/json"
         )
         self.mock_create_thread.assert_called_once_with(
-            "Test Title",
-            "# Test \n This is a very long body but will not be truncated for the preview.",
-            str(self.course.id),
-            str(self.user.id),
-            False,
-            False,
-            "test_topic",
-            "discussion",
-            None,
+            title="Test Title",
+            body="# Test \n This is a very long body but will not be truncated for the preview.",
+            course_id=str(self.course.id),
+            user_id=str(self.user.id),
+            anonymous=False,
+            anonymous_to_peers=False,
+            commentable_id="test_topic",
+            thread_type="discussion",
+            group_id=None,
+            context=None,
         )
 
     def test_error(self):
@@ -1614,43 +1550,32 @@ class ThreadViewSetPartialUpdateTest(
                 }
             )
         )
-        patcher = mock.patch(
+        mock.patch(
             "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
             return_value=True,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_user = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
-        )
-        self.mock_get_user = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_course_id_by_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_course_id_by_thread"
-        )
-        self.mock_get_course_id_by_comment = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_get_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_thread"
-        )
-        self.mock_get_thread = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_update_thread = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.update_thread"
-        )
-        self.mock_update_thread = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_update_thread_flag = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.update_thread_flag"
-        )
-        self.mock_update_thread_flag = patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
+        ).start()
+        self.mock_update_thread_flag_in_comment = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.comment.forum_api.update_thread_flag"
-        )
-        self.mock_update_thread_flag_in_comment = patcher.start()
-        self.addCleanup(patcher.stop)
+        ).start()
+        self.mock_mark_thread_as_read = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.mark_thread_as_read"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
     def test_basic(self):
         self.register_get_user_response(self.user)
@@ -1672,22 +1597,19 @@ class ThreadViewSetPartialUpdateTest(
         }
         self.request_patch(request_data)
         self.mock_update_thread.assert_called_once_with(
-            "existing_thread",  # Use the correct thread ID
-            "Edited Title",  # Use the correct title
-            "Edited body",
-            str(self.course.id),
-            False,  # anonymous
-            False,  # anonymous_to_peers
-            False,  # closed
-            "edited_topic",  # Use the correct topic
-            str(self.user.id),
-            str(self.user.id),  # editing_user_id
-            False,  # pinned
-            "question",  # Use the correct thread type
-            None,  # edit_reason_code
-            None,  # close_reason_code
-            None,  # closing_user_id
-            None,  # endorsed
+            thread_id="existing_thread",  # Use the correct thread ID
+            title="Edited Title",  # Use the correct title
+            body="Edited body",
+            course_id=str(self.course.id),
+            anonymous=False,  # anonymous
+            anonymous_to_peers=False,  # anonymous_to_peers
+            closed=False,  # closed
+            commentable_id="edited_topic",  # Use the correct topic
+            user_id=str(self.user.id),
+            editing_user_id=str(self.user.id),  # editing_user_id
+            pinned=False,  # pinned
+            thread_type="question",  # Use the correct thread type
+            course_key=str(self.course.id),
         )
 
     def test_error(self):
@@ -1741,3 +1663,492 @@ class ThreadViewSetPartialUpdateTest(
         request_data = {field: value}
         response = self.request_patch(request_data)
         assert response.status_code == 400
+
+    def test_patch_read_owner_user(self):
+        self.register_get_user_response(self.user)
+        self.register_thread({"resp_total": 2})
+        self.register_read_response(self.user, "thread", "test_thread")
+        request_data = {"read": True}
+
+        response = self.request_patch(request_data)
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode("utf-8"))
+        assert response_data == self.expected_thread_data(
+            {
+                "comment_count": 1,
+                "read": True,
+                "editable_fields": [
+                    "abuse_flagged",
+                    "anonymous",
+                    "copy_link",
+                    "following",
+                    "raw_body",
+                    "read",
+                    "title",
+                    "topic_id",
+                    "type",
+                ],
+                "response_count": 2,
+            }
+        )
+        self.mock_mark_thread_as_read.assert_called_once_with(
+            str(self.user.id), "test_thread", course_id=str(self.course.id)
+        )
+
+    def test_patch_read_non_owner_user(self):
+        self.register_get_user_response(self.user)
+        thread_owner_user = UserFactory.create(password=self.password)
+        CourseEnrollmentFactory.create(user=thread_owner_user, course_id=self.course.id)
+        self.register_get_user_response(thread_owner_user)
+        self.register_thread(
+            {
+                "username": thread_owner_user.username,
+                "user_id": str(thread_owner_user.id),
+                "resp_total": 2,
+            }
+        )
+        self.register_read_response(self.user, "thread", "test_thread")
+
+        request_data = {"read": True}
+        self.request_patch(request_data)
+        self.mock_mark_thread_as_read.assert_called_once_with(
+            str(thread_owner_user.id), "test_thread", course_id=str(self.course.id)
+        )
+
+
+@httpretty.activate
+@disable_signal(api, "thread_deleted")
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class ThreadViewSetDeleteTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
+    """Tests for ThreadViewSet delete"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("thread-detail", kwargs={"thread_id": "test_thread"})
+        self.thread_id = "test_thread"
+        mock.patch(
+            "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
+            return_value=True,
+        ).start()
+        self.mock_get_user = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
+        ).start()
+        self.mock_get_course_id_by_thread = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_course_id_by_thread"
+        ).start()
+        self.mock_get_thread = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_thread"
+        ).start()
+        self.mock_delete_thread = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.delete_thread"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        cs_thread = make_minimal_cs_thread(
+            {
+                "id": self.thread_id,
+                "course_id": str(self.course.id),
+                "username": self.user.username,
+                "user_id": str(self.user.id),
+            }
+        )
+        self.register_get_thread_response(cs_thread)
+        self.register_delete_thread_response(self.thread_id)
+        response = self.client.delete(self.url)
+        assert response.status_code == 204
+        assert response.content == b""
+        self.mock_delete_thread.assert_called_once_with(
+            thread_id=self.thread_id, course_id=str(self.course.id)
+        )
+
+    # def test_delete_nonexistent_thread(self):
+    #     self.register_get_thread_error_response(self.thread_id, 404)
+    #     response = self.client.delete(
+    #         self.url,
+    #         {"course_id": str(self.course.id)},
+    #         "json",
+    #     )
+    #     assert response.status_code == 404
+    #     self.mock_delete_thread.assert_called_once_with(
+    #         thread_id=self.thread_id, course_id=str(self.course.id)
+    #     )
+
+
+@ddt.ddt
+@httpretty.activate
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class LearnerThreadViewAPITest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
+    """Tests for LearnerThreadView list"""
+
+    def setUp(self):
+        """
+        Sets up the test case
+        """
+        super().setUp()
+        self.author = self.user
+        self.remove_keys = [
+            "abuse_flaggers",
+            "body",
+            "children",
+            "commentable_id",
+            "endorsed",
+            "last_activity_at",
+            "resp_total",
+            "thread_type",
+            "user_id",
+            "username",
+            "votes",
+        ]
+        self.replace_keys = [
+            {"from": "unread_comments_count", "to": "unread_comment_count"},
+            {"from": "comments_count", "to": "comment_count"},
+        ]
+        self.add_keys = [
+            {"key": "author", "value": self.author.username},
+            {"key": "abuse_flagged", "value": False},
+            {"key": "author_label", "value": None},
+            {"key": "can_delete", "value": True},
+            {"key": "close_reason", "value": None},
+            {
+                "key": "comment_list_url",
+                "value": "http://testserver/api/discussion/v1/comments/?thread_id=test_thread",
+            },
+            {
+                "key": "editable_fields",
+                "value": [
+                    "abuse_flagged",
+                    "anonymous",
+                    "copy_link",
+                    "following",
+                    "raw_body",
+                    "read",
+                    "title",
+                    "topic_id",
+                    "type",
+                ],
+            },
+            {"key": "endorsed_comment_list_url", "value": None},
+            {"key": "following", "value": False},
+            {"key": "group_name", "value": None},
+            {"key": "has_endorsed", "value": False},
+            {"key": "last_edit", "value": None},
+            {"key": "non_endorsed_comment_list_url", "value": None},
+            {"key": "preview_body", "value": "Test body"},
+            {"key": "raw_body", "value": "Test body"},
+            {"key": "rendered_body", "value": "<p>Test body</p>"},
+            {"key": "response_count", "value": 0},
+            {"key": "topic_id", "value": "test_topic"},
+            {"key": "type", "value": "discussion"},
+            {
+                "key": "users",
+                "value": {
+                    self.user.username: {
+                        "profile": {
+                            "image": {
+                                "has_image": False,
+                                "image_url_full": "http://testserver/static/default_500.png",
+                                "image_url_large": "http://testserver/static/default_120.png",
+                                "image_url_medium": "http://testserver/static/default_50.png",
+                                "image_url_small": "http://testserver/static/default_30.png",
+                            }
+                        }
+                    }
+                },
+            },
+            {"key": "vote_count", "value": 4},
+            {"key": "voted", "value": False},
+        ]
+        self.url = reverse(
+            "discussion_learner_threads", kwargs={"course_id": str(self.course.id)}
+        )
+        mock.patch(
+            "lms.djangoapps.discussion.toggles.ENABLE_FORUM_V2.is_enabled",
+            return_value=True,
+        ).start()
+        self.mock_get_user = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user"
+        ).start()
+        self.mock_get_user_active_threads = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.user.forum_api.get_user_active_threads"
+        ).start()
+        self.mock_get_course_id_by_thread = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_course_id_by_thread"
+        ).start()
+        self.mock_get_thread = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_thread"
+        ).start()
+        self.mock_update_thread = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.update_thread"
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def update_thread(self, thread):
+        """
+        This function updates the thread by adding and remove some keys.
+        Value of these keys has been defined in setUp function
+        """
+        for element in self.add_keys:
+            thread[element["key"]] = element["value"]
+        for pair in self.replace_keys:
+            thread[pair["to"]] = thread.pop(pair["from"])
+        for key in self.remove_keys:
+            thread.pop(key)
+        thread["comment_count"] += 1
+        return thread
+
+    def test_basic(self):
+        """
+        Tests the data is fetched correctly
+
+        Note: test_basic is required as the name because DiscussionAPIViewTestMixin
+              calls this test case automatically
+        """
+        self.register_get_user_response(self.user)
+        expected_cs_comments_response = {
+            "collection": [
+                make_minimal_cs_thread(
+                    {
+                        "id": "test_thread",
+                        "course_id": str(self.course.id),
+                        "commentable_id": "test_topic",
+                        "user_id": str(self.user.id),
+                        "username": self.user.username,
+                        "created_at": "2015-04-28T00:00:00Z",
+                        "updated_at": "2015-04-28T11:11:11Z",
+                        "title": "Test Title",
+                        "body": "Test body",
+                        "votes": {"up_count": 4},
+                        "comments_count": 5,
+                        "unread_comments_count": 3,
+                        "closed_by_label": None,
+                        "edit_by_label": None,
+                    }
+                )
+            ],
+            "page": 1,
+            "num_pages": 1,
+        }
+        self.register_user_active_threads(self.user.id, expected_cs_comments_response)
+        self.url += f"?username={self.user.username}"
+        response = self.client.get(self.url)
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode("utf-8"))
+        expected_api_response = expected_cs_comments_response["collection"]
+
+        for thread in expected_api_response:
+            self.update_thread(thread)
+
+        assert response_data["results"] == expected_api_response
+        assert response_data["pagination"] == {
+            "next": None,
+            "previous": None,
+            "count": 1,
+            "num_pages": 1,
+        }
+        params = {
+            "course_id": "course-v1:x+y+z",
+            "page": 1,
+            "per_page": 10,
+            "user_id": "2",
+            "group_id": None,
+            "count_flagged": False,
+            "thread_type": None,
+            "sort_key": "activity",
+        }
+        self.mock_get_user_active_threads.assert_called_once_with(**params)
+
+    def test_not_authenticated(self):
+        """
+        Override the parent implementation of this, we JWT auth for this API
+        """
+        pass  # lint-amnesty, pylint: disable=unnecessary-pass
+
+    def test_no_username_given(self):
+        """
+        Tests that 404 response is returned when no username is passed
+        """
+        response = self.client.get(self.url)
+        assert response.status_code == 404
+
+    def test_not_authenticated(self):
+        """
+        This test is called by DiscussionAPIViewTestMixin and is not required in
+        our case
+        """
+        assert True
+
+    @ddt.data("None", "discussion", "question")
+    def test_thread_type_by(self, thread_type):
+        """
+        Tests the thread_type parameter
+
+        Arguments:
+            thread_type (str): Value of thread_type can be 'None',
+                          'discussion' and 'question'
+        """
+        threads = [
+            make_minimal_cs_thread(
+                {
+                    "id": "test_thread",
+                    "course_id": str(self.course.id),
+                    "commentable_id": "test_topic",
+                    "user_id": str(self.user.id),
+                    "username": self.user.username,
+                    "created_at": "2015-04-28T00:00:00Z",
+                    "updated_at": "2015-04-28T11:11:11Z",
+                    "title": "Test Title",
+                    "body": "Test body",
+                    "votes": {"up_count": 4},
+                    "comments_count": 5,
+                    "unread_comments_count": 3,
+                }
+            )
+        ]
+        expected_cs_comments_response = {
+            "collection": threads,
+            "page": 1,
+            "num_pages": 1,
+        }
+        self.register_get_user_response(self.user)
+        self.register_user_active_threads(self.user.id, expected_cs_comments_response)
+        response = self.client.get(
+            self.url,
+            {
+                "course_id": str(self.course.id),
+                "username": self.user.username,
+                "thread_type": thread_type,
+            },
+        )
+        assert response.status_code == 200
+        params = {
+            "course_id": "course-v1:x+y+z",
+            "page": 1,
+            "per_page": 10,
+            "user_id": "2",
+            "group_id": None,
+            "count_flagged": False,
+            "thread_type": thread_type,
+            "sort_key": "activity",
+        }
+        self.mock_get_user_active_threads.assert_called_once_with(**params)
+
+    @ddt.data(
+        ("last_activity_at", "activity"),
+        ("comment_count", "comments"),
+        ("vote_count", "votes"),
+    )
+    @ddt.unpack
+    def test_order_by(self, http_query, cc_query):
+        """
+        Tests the order_by parameter for active threads
+
+        Arguments:
+            http_query (str): Query string sent in the http request
+            cc_query (str): Query string used for the comments client service
+        """
+        threads = [
+            make_minimal_cs_thread(
+                {
+                    "id": "test_thread",
+                    "course_id": str(self.course.id),
+                    "commentable_id": "test_topic",
+                    "user_id": str(self.user.id),
+                    "username": self.user.username,
+                    "created_at": "2015-04-28T00:00:00Z",
+                    "updated_at": "2015-04-28T11:11:11Z",
+                    "title": "Test Title",
+                    "body": "Test body",
+                    "votes": {"up_count": 4},
+                    "comments_count": 5,
+                    "unread_comments_count": 3,
+                }
+            )
+        ]
+        expected_cs_comments_response = {
+            "collection": threads,
+            "page": 1,
+            "num_pages": 1,
+        }
+        self.register_get_user_response(self.user)
+        self.register_user_active_threads(self.user.id, expected_cs_comments_response)
+        response = self.client.get(
+            self.url,
+            {
+                "course_id": str(self.course.id),
+                "username": self.user.username,
+                "order_by": http_query,
+            },
+        )
+        assert response.status_code == 200
+        params = {
+            "course_id": "course-v1:x+y+z",
+            "page": 1,
+            "per_page": 10,
+            "user_id": "2",
+            "group_id": None,
+            "count_flagged": False,
+            "thread_type": None,
+            "sort_key": cc_query,
+        }
+        self.mock_get_user_active_threads.assert_called_once_with(**params)
+
+    @ddt.data("flagged", "unanswered", "unread", "unresponded")
+    def test_status_by(self, post_status):
+        """
+        Tests the post_status parameter
+
+        Arguments:
+            post_status (str): Value of post_status can be 'flagged',
+                          'unanswered' and 'unread'
+        """
+        threads = [
+            make_minimal_cs_thread(
+                {
+                    "id": "test_thread",
+                    "course_id": str(self.course.id),
+                    "commentable_id": "test_topic",
+                    "user_id": str(self.user.id),
+                    "username": self.user.username,
+                    "created_at": "2015-04-28T00:00:00Z",
+                    "updated_at": "2015-04-28T11:11:11Z",
+                    "title": "Test Title",
+                    "body": "Test body",
+                    "votes": {"up_count": 4},
+                    "comments_count": 5,
+                    "unread_comments_count": 3,
+                }
+            )
+        ]
+        expected_cs_comments_response = {
+            "collection": threads,
+            "page": 1,
+            "num_pages": 1,
+        }
+        self.register_get_user_response(self.user)
+        self.register_user_active_threads(self.user.id, expected_cs_comments_response)
+        response = self.client.get(
+            self.url,
+            {
+                "course_id": str(self.course.id),
+                "username": self.user.username,
+                "status": post_status,
+            },
+        )
+        if post_status == "flagged":
+            assert response.status_code == 403
+        else:
+            assert response.status_code == 200
+            params = {
+                "course_id": "course-v1:x+y+z",
+                "page": 1,
+                "per_page": 10,
+                "user_id": "2",
+                "group_id": None,
+                "count_flagged": False,
+                "thread_type": None,
+                "sort_key": "activity",
+                post_status: True,
+            }
+            self.mock_get_user_active_threads.assert_called_once_with(**params)

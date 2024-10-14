@@ -78,7 +78,10 @@ class Model:
         response = None
         if is_forum_v2_enabled(course_key):
             if self.type == "comment":
-                response = forum_api.get_parent_comment(comment_id=self.attributes["id"], course_id=str(course_key))
+                response = forum_api.get_parent_comment(
+                    comment_id=self.attributes["id"],
+                    course_id=str(course_key) if course_key else course_key
+                )
             if response is None:
                 raise CommentClientRequestError("Forum v2 API call is missing")
         else:
@@ -177,9 +180,15 @@ class Model:
         if is_forum_v2_enabled(course_key):
             response = None
             if self.type == "comment":
-                response = forum_api.delete_comment(comment_id=self.attributes["id"], course_id=str(course_key))
+                response = forum_api.delete_comment(
+                    comment_id=self.attributes["id"],
+                    course_id=str(course_key) if course_key else course_key
+                )
             elif self.type == "thread":
-                response = forum_api.delete_thread(thread_id=self.attributes["id"], course_id=str(course_key))
+                response = forum_api.delete_thread(
+                    thread_id=self.attributes["id"],
+                    course_id=str(course_key) if course_key else course_key
+                )
             if response is None:
                 raise CommentClientRequestError("Forum v2 API call is missing")
         else:
@@ -225,11 +234,11 @@ class Model:
         if is_forum_v2_enabled(course_key):
             response = None
             if self.type == "comment":
-                response = self.handle_update_comment(request_params, str(course_key))
+                response = self.handle_update_comment(request_params, str(course_key) if course_key else course_key)
             elif self.type == "thread":
-                response = self.handle_update_thread(request_params, str(course_key))
+                response = self.handle_update_thread(request_params, str(course_key) if course_key else course_key)
             elif self.type == "user":
-                response = self.handle_update_user(request_params, str(course_key))
+                response = self.handle_update_user(request_params, str(course_key) if course_key else course_key)
             if response is None:
                 raise CommentClientRequestError("Forum v2 API call is missing")
         else:
@@ -320,9 +329,9 @@ class Model:
         if is_forum_v2_enabled(course_key):
             response = None
             if self.type == "comment":
-                response = self.handle_create_comment(str(course_key))
+                response = self.handle_create_comment(str(course_key) if course_key else course_key)
             elif self.type == "thread":
-                response = self.handle_create_thread(str(course_key))
+                response = self.handle_create_thread(str(course_key) if course_key else course_key)
             if response is None:
                 raise CommentClientRequestError("Forum v2 API call is missing")
         else:
