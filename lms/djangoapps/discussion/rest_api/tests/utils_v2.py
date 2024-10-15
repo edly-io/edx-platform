@@ -105,7 +105,7 @@ class CommentsServiceMockMixin:
 
     def register_get_thread_error_response(self, thread_id, status_code):
         """Register a mock error response for GET on the CS thread endpoint."""
-        self.mock_delete_thread.return_value = status_code
+        self.mock_get_thread.return_value = {"error": status_code}
 
     def register_get_thread_response(self, thread):
         """Register a mock response for the get_thread method."""
@@ -143,7 +143,7 @@ class CommentsServiceMockMixin:
         response_data["parent_id"] = parent_id
         response_data["id"] = comment_data["id"]
         for key, val_list in comment_data.items():
-            val = val_list[0] if isinstance(val_list, list) else val_list
+            val = val_list[0] if (isinstance(val_list, list) and val_list) else val_list
             if key in ["anonymous", "anonymous_to_peers", "endorsed"]:
                 response_data[key] = val == "True"
             elif key == "edit_reason_code":
@@ -300,6 +300,7 @@ class CommentsServiceMockMixin:
         """Register a mock response for PUT on the CS flag endpoints"""
         self.mock_update_thread_flag.return_value = {}
         self.mock_update_thread_flag_in_comment.return_value = {}
+        self.mock_update_comment_flag.return_value = {}
 
     def register_read_response(self, user, content_type, content_id):
         """
@@ -325,13 +326,7 @@ class CommentsServiceMockMixin:
         """
         Register a mock response for DELETE on the CS comment instance endpoint
         """
-        assert httpretty.is_enabled(), "httpretty must be enabled to mock calls."
-        httpretty.register_uri(
-            httpretty.DELETE,
-            f"http://localhost:4567/api/v1/comments/{comment_id}",
-            body=json.dumps({}),  # body is unused
-            status=200,
-        )
+        self.mock_delete_comment.return_value = {}
 
     def register_user_active_threads(self, user_id, response):
         """
