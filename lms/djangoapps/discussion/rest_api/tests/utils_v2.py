@@ -239,20 +239,12 @@ class CommentsServiceMockMixin:
 
     def register_course_stats_response(self, course_key, stats, page, num_pages):
         """Register a mock response for GET on the CS user course stats instance endpoint"""
-        assert httpretty.is_enabled(), "httpretty must be enabled to mock calls."
-        httpretty.register_uri(
-            httpretty.GET,
-            f"http://localhost:4567/api/v1/users/{course_key}/stats",
-            body=json.dumps(
-                {
-                    "user_stats": stats,
-                    "page": page,
-                    "num_pages": num_pages,
-                    "count": len(stats),
-                }
-            ),
-            status=200,
-        )
+        self.mock_get_user_course_stats.return_value = {
+            "user_stats": stats,
+            "page": page,
+            "num_pages": num_pages,
+            "count": len(stats),
+        }
 
     def register_subscription_response(self, user):
         """
