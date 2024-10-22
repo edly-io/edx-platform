@@ -38,7 +38,28 @@ from cms.djangoapps.contentstore.toggles import (
     exam_setting_view_enabled,
     libraries_v1_enabled,
     libraries_v2_enabled,
+    split_library_view_on_dashboard,
+    use_new_advanced_settings_page,
+    use_new_course_outline_page,
+    use_new_certificates_page,
+    use_new_export_page,
+    use_new_files_uploads_page,
+    use_new_grading_page,
+    use_new_group_configurations_page,
+    use_new_course_team_page,
+    use_new_home_page,
+    use_new_import_page,
+    use_new_schedule_details_page,
+    use_new_text_editor,
+    use_new_textbooks_page,
+    use_new_unit_page,
+    use_new_updates_page,
+    use_new_video_editor,
+    use_new_video_uploads_page,
+    use_new_custom_pages,
 )
+from cms.djangoapps.models.settings.course_grading import CourseGradingModel
+from cms.djangoapps.models.settings.course_metadata import CourseMetadata
 from common.djangoapps.course_action_state.models import CourseRerunUIStateManager, CourseRerunState
 from common.djangoapps.course_action_state.managers import CourseActionStateItemNotFoundError
 from common.djangoapps.course_modes.models import CourseMode
@@ -79,29 +100,6 @@ from openedx.core.lib.html_to_text import html_to_text
 from openedx.features.content_type_gating.models import ContentTypeGatingConfig
 from openedx.features.content_type_gating.partitions import CONTENT_TYPE_GATING_SCHEME
 from openedx.features.course_experience.waffle import ENABLE_COURSE_ABOUT_SIDEBAR_HTML
-from cms.djangoapps.contentstore.toggles import (
-    split_library_view_on_dashboard,
-    use_new_advanced_settings_page,
-    use_new_course_outline_page,
-    use_new_certificates_page,
-    use_new_export_page,
-    use_new_files_uploads_page,
-    use_new_grading_page,
-    use_new_group_configurations_page,
-    use_new_course_team_page,
-    use_new_home_page,
-    use_new_import_page,
-    use_new_schedule_details_page,
-    use_new_text_editor,
-    use_new_textbooks_page,
-    use_new_unit_page,
-    use_new_updates_page,
-    use_new_video_editor,
-    use_new_video_uploads_page,
-    use_new_custom_pages,
-)
-from cms.djangoapps.models.settings.course_grading import CourseGradingModel
-from cms.djangoapps.models.settings.course_metadata import CourseMetadata
 from xmodule.library_tools import LegacyLibraryToolsService
 from xmodule.course_block import DEFAULT_START_DATE  # lint-amnesty, pylint: disable=wrong-import-order
 from xmodule.data import CertificatesDisplayBehaviors
@@ -429,6 +427,18 @@ def get_course_outline_url(course_locator) -> str:
         if mfe_base_url:
             course_outline_url = course_mfe_url
     return course_outline_url
+
+
+def get_library_content_picker_url(course_locator) -> str:
+    """
+    Gets course authoring microfrontend library content picker URL for the given parent block.
+    """
+    content_picker_url = None
+    if libraries_v2_enabled():
+        mfe_base_url = get_course_authoring_url(course_locator)
+        content_picker_url = f'{mfe_base_url}/component-picker'
+
+    return content_picker_url
 
 
 def get_unit_url(course_locator, unit_locator) -> str:
@@ -2045,6 +2055,7 @@ def get_container_handler_context(request, usage_key, course, xblock):  # pylint
         'user_clipboard': user_clipboard,
         'is_fullwidth_content': is_library_xblock,
         'course_sequence_ids': course_sequence_ids,
+        'library_content_picker_url': get_library_content_picker_url(course.id),
     }
     return context
 
@@ -2248,22 +2259,9 @@ def clean_html_body(html_body):
     Get html body, remove tags and limit to 500 characters
     """
     html_body = BeautifulSoup(Truncator(html_body).chars(500, html=True), 'html.parser')
-
-    tags_to_remove = [
-        "a", "link",  # Link Tags
-        "img", "picture", "source",  # Image Tags
-        "video", "track",  # Video Tags
-        "audio",  # Audio Tags
-        "embed", "object", "iframe",  # Embedded Content
-        "script"
-    ]
-
-    # Remove the specified tags while keeping their content
-    for tag in tags_to_remove:
-        for match in html_body.find_all(tag):
-            match.unwrap()
-
-    return str(html_body)
+    text_content = html_body.get_text(separator=" ").strip()
+    text_content = text_content.replace('\n', '').replace('\r', '')
+    return text_content
 
 
 def send_course_update_notification(course_key, content, user):

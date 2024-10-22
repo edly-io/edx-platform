@@ -617,7 +617,13 @@ class LibraryBlockView(APIView):
     @convert_exceptions
     def get(self, request, usage_key_str):
         """
-        Get metadata about an existing XBlock in the content library
+        Get metadata about an existing XBlock in the content library.
+
+        This API doesn't support versioning; most of the information it returns
+        is related to the latest draft version, or to all versions of the block.
+        If you need to get the display name of a previous version, use the
+        similar "metadata" API from djangoapps.xblock, which does support
+        versioning.
         """
         key = LibraryUsageLocatorV2.from_string(usage_key_str)
         api.require_permission_for_library_key(key.lib_key, request.user, permissions.CAN_VIEW_THIS_CONTENT_LIBRARY)
@@ -814,6 +820,20 @@ class LibraryBlockAssetView(APIView):
         except ValueError:
             raise ValidationError("Invalid file path")  # lint-amnesty, pylint: disable=raise-missing-from
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@method_decorator(non_atomic_requests, name="dispatch")
+@view_auth_classes()
+class LibraryBlockPublishView(APIView):
+    """
+    Commit/publish all of the draft changes made to the component.
+    """
+
+    @convert_exceptions
+    def post(self, request, usage_key_str):
+        key = LibraryUsageLocatorV2.from_string(usage_key_str)
+        api.publish_component_changes(key, request.user)
+        return Response({})
 
 
 @method_decorator(non_atomic_requests, name="dispatch")
