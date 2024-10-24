@@ -183,7 +183,7 @@ class Thread(models.Model):
             response = forum_api.get_thread(
                 thread_id=self.id,
                 params=request_params,
-                course_id=str(course_key)
+                course_id=str(course_key) if course_key else course_key
             )
         else:
             response = utils.perform_request(
@@ -202,7 +202,12 @@ class Thread(models.Model):
             raise utils.CommentClientRequestError("Can only flag/unflag threads or comments")
         course_key = utils.get_course_key(self.attributes.get("course_id"))
         if is_forum_v2_enabled(course_key):
-            response = forum_api.update_thread_flag(voteable.id, "flag", user.id, str(course_key))
+            response = forum_api.update_thread_flag(
+                voteable.id,
+                "flag",
+                user.id,
+                str(course_key) if course_key else course_key
+            )
         else:
             params = {'user_id': user.id}
             response = utils.perform_request(
@@ -226,7 +231,7 @@ class Thread(models.Model):
                 action="unflag",
                 user_id=user.id,
                 update_all=bool(removeAll),
-                course_id=str(course_key)
+                course_id=str(course_key) if course_key else course_key
             )
         else:
             params = {'user_id': user.id}
@@ -249,7 +254,7 @@ class Thread(models.Model):
             response = forum_api.pin_thread(
                 user_id=user.id,
                 thread_id=thread_id,
-                course_id=str(course_key)
+                course_id=str(course_key) if course_key else course_key
             )
         else:
             url = _url_for_pin_thread(thread_id)
@@ -269,7 +274,7 @@ class Thread(models.Model):
             response = forum_api.unpin_thread(
                 user_id=user.id,
                 thread_id=thread_id,
-                course_id=str(course_key)
+                course_id=str(course_key) if course_key else course_key
             )
         else:
             url = _url_for_un_pin_thread(thread_id)
