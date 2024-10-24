@@ -127,6 +127,10 @@ def get_course_with_access(user, action, course_key, depth=0, check_if_enrolled=
       be plugged in as additional callback checks for different actions.
     """
     course = get_course_by_id(course_key, depth)
+    current_site_orgs = configuration_helpers.get_current_site_orgs()
+    if course.org not in current_site_orgs:
+        raise Http404(u"Course not found: {}.".format(six.text_type(course_key)))
+
     check_course_access_with_redirect(course, user, action, check_if_enrolled, check_survey_complete, check_if_authenticated)
     return course
 
