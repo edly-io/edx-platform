@@ -41,7 +41,7 @@ class Subscription(models.Model):
                 thread_id=thread_id,
                 page=params["page"],
                 per_page=params["per_page"],
-                course_id=str(course_key)
+                course_id=str(course_key) if course_key else course_key
             )
         else:
             response = utils.perform_request(
