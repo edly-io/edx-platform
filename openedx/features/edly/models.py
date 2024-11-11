@@ -92,6 +92,11 @@ class EdlyUserProfile(models.Model):
         verbose_name='Blocked',
         help_text=_('Block/Unblock user from logging in to the platform.')
     )
+    is_social_user =  models.BooleanField(
+        default=False,
+        verbose_name='social user',
+        help_text=_('Record that the user is linked with social oauth through free trial.')
+    )
 
     @property
     def get_linked_edly_sub_organizations(self):

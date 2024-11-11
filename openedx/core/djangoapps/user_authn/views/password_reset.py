@@ -42,6 +42,7 @@ from openedx.core.djangoapps.user_api.preferences.api import get_user_preference
 from openedx.core.djangoapps.user_authn.message_types import PasswordReset, PasswordResetSuccess
 from openedx.core.djangolib.markup import HTML
 from openedx.features.edly.utils import user_belongs_to_edly_sub_organization
+from openedx.features.edly.models import EdlyUserProfile
 from common.djangoapps.student.forms import send_account_recovery_email_for_user
 from common.djangoapps.student.models import AccountRecovery
 from common.djangoapps.util.json_request import JsonResponse
@@ -623,8 +624,15 @@ def password_change_request_handler(request):
 
     if email:
         try:
-            request_password_change(email, request.is_secure())
             user = user if user.is_authenticated else _get_user_from_email(email=email)
+            profile = EdlyUserProfile.objects.filter(user=user).first()
+            if profile and profile.is_social_user:
+                return HttpResponse(
+                    _("Your account uses social login; password reset isn't available."),
+                    status=400
+                )
+
+            request_password_change(email, request.is_secure())
             destroy_oauth_tokens(user)
         except errors.UserNotFound:
             AUDIT_LOG.info("Invalid password reset attempt")

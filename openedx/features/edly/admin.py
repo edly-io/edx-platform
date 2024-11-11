@@ -8,6 +8,7 @@ from openedx.features.edly.models import (
     EdlyMultiSiteAccess,
     EdlyOrganization,
     EdlySubOrganization,
+    EdlyUserProfile,
     StudentCourseProgress,
 )
 
@@ -79,8 +80,17 @@ class EdlyMultisiteAccessAdmin(admin.ModelAdmin):
     def user_email(self, obj):
         return obj.user.email
 
+class EdlyUserProfileAdmin(admin.ModelAdmin):
+    """
+    Admin interface for the "EdlyMultiSiteAccess" object.
+    """
+    list_display = ["user", "is_blocked", "is_social_user"]
+    list_filter = ["is_blocked", "is_social_user"]
+    search_fields = ["user__username", "user__email"]
+
 
 admin.site.register(StudentCourseProgress, StudentCourseProgressAdmin)
 admin.site.register(EdlyOrganization, EdlyOrganizationAdmin)
 admin.site.register(EdlySubOrganization, EdlySubOrganizationAdmin)
 admin.site.register(EdlyMultiSiteAccess, EdlyMultisiteAccessAdmin)
+admin.site.register(EdlyUserProfile, EdlyUserProfileAdmin)
