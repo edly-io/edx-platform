@@ -138,9 +138,6 @@ WEBPACK_CONFIG_PATH = 'webpack.dev.config.js'
 
 FEATURES['AUTOMATIC_VERIFY_STUDENT_IDENTITY_FOR_TESTING'] = True
 
-# HOTJAR ANALYTICS
-HOTJAR_TRACKING_ID = None
-
 ########################### External REST APIs #################################
 FEATURES['ENABLE_OAUTH2_PROVIDER'] = True
 FEATURES['ENABLE_MOBILE_REST_API'] = True
