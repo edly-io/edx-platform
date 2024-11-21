@@ -523,6 +523,15 @@ def searchable_doc_for_collection(
             has_published=True,
         ).count()
 
+        draft_num_children = authoring_api.filter_publishable_entities(
+            collection.entities,
+            has_draft=True,
+        ).count()
+        published_num_children = authoring_api.filter_publishable_entities(
+            collection.entities,
+            has_published=True,
+        ).count()
+
         doc.update({
             Fields.context_key: str(collection_key.context_key),
             Fields.org: str(collection_key.org),
