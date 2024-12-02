@@ -1,9 +1,12 @@
 from math import floor
 
+from mixpanel import Mixpanel
+
 from django.conf import settings
 from edxmako.shortcuts import marketing_link
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.lib.mobile_utils import is_request_from_mobile_app
+from common.djangoapps.student.models import CourseAccessRole
 
 DEFAULT_SERVICES_NOTIFICATIONS_COOKIE_EXPIRY = 180  # value in seconds
 DEFAULT_COLOR_DICT = {
@@ -39,6 +42,37 @@ def dynamic_theming_context(request):  # pylint: disable=unused-argument
     return theming_context
 
 
+def get_user_role(user):
+    """
+    Returns the user role
+    """
+    user_roles = CourseAccessRole.objects.filter(user=user)
+
+    if user_roles.filter(role='global_course_creator').exists():
+        return 'staff'
+    elif user_roles.filter(role='course_creator_group').exists():
+        return 'course_creator'
+
+    return 'learner'
+
+
+def get_email_and_register_mixpanel(user):
+    """
+    Get the email of the authenticated user.
+    """
+
+    if not user.is_authenticated:
+        return None
+
+    mixpanel = Mixpanel(settings.MIXPANEL_PROJECT_TOKEN)
+    mixpanel.people_set_once(user.email, {
+        '$name': user.username,
+        '$email': user.email,
+        'department': get_user_role(user),
+    })
+    return user.email
+
+
 def edly_app_context(request):  # pylint: disable=unused-argument
     """
     Context processor responsible for edly.
@@ -69,6 +103,7 @@ def edly_app_context(request):  # pylint: disable=unused-argument
             'ga_id': configuration_helpers.get_value('GA_ID'),
             'mixpanel_project_token': settings.MIXPANEL_PROJECT_TOKEN,
             'usetiful_token': settings.USETIFUL_TOKEN,
+            'email': get_email_and_register_mixpanel(request.user),
             'is_mobile_app': is_request_from_mobile_app(request)
         }
     )
