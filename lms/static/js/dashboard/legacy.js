@@ -138,12 +138,10 @@
                  method: 'GET',
                  dataType: 'json'
              });
-             if (coursePaymentUrl.has_user_paid) {
-                $('#unenroll_form .submit-button').prop('disabled', true);
-             }
              request.success(function(data, textStatus, xhr) {
+                $('#unenroll_form .submit-button').prop('disabled', data.has_user_paid);
                  if (xhr.status === 200) {
-                     dialogMessageAttr = setDialogAttributes(certNameLong, courseNumber, courseName, enrollmentMode, coursePaymentUrl.has_user_paid);
+                     dialogMessageAttr = setDialogAttributes(certNameLong, courseNumber, courseName, enrollmentMode, data.has_user_paid);
 
                      $('#track-info').empty();
                      $('#refund-info').empty();
