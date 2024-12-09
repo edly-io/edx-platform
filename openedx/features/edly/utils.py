@@ -21,6 +21,7 @@ from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from edx_ace import ace
 from edx_ace.recipient import Recipient
+from mixpanel import Mixpanel
 from student.message_types import CertificateGeneration
 from student.models import CourseAccessRole, CourseEnrollment
 from student.roles import CourseInstructorRole, CourseStaffRole, GlobalCourseCreatorRole, GlobalStaff, UserBasedRole
@@ -39,7 +40,7 @@ from openedx.core.djangoapps.theming.helpers import get_config_value_from_site_o
 from openedx.core.djangoapps.user_api.preferences import api as preferences_api
 from openedx.core.lib.celery.task_utils import emulate_http_request
 from openedx.features.edly.constants import ESSENTIALS, DEFAULT_COURSE_IMAGE, DEFAULT_COURSE_IMAGE_PATH
-from openedx.features.edly.context_processor import Colour
+from openedx.features.edly.context_processor import Colour, get_user_role
 from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization
 from common.djangoapps.student.models import UserProfile
 from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS, COMMON_SYMBOLS
@@ -899,3 +900,15 @@ def get_enrolled_learners_count(course_run_ids):
     ).exclude(user__in=staff_users).values('user').distinct().count()
 
     return enrolled_learners_count
+
+
+def register_user_on_mixpanel(user):
+    """
+    Register a user on mixpanel.
+    """
+    mixpanel = Mixpanel(settings.MIXPANEL_PROJECT_TOKEN)
+    mixpanel.people_set(user.email, {
+        '$name': user.username,
+        '$email': user.email,
+        'department': get_user_role(user),
+    })
