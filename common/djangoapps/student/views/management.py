@@ -258,6 +258,29 @@ def course_run_refund_status(request, course_id):
     return JsonResponse({'course_refundable_status': refundable_status}, status=200)
 
 
+@login_required
+def user_paid_for_course(request, course_id):
+    """
+    Check if a user has paid for a course.
+
+    Arguments:
+        request: The request object.
+        course_id (str): The unique identifier for the course.
+
+    Returns:
+        JsonResponse indicating the paid status.
+    """
+    try:
+        course_key = CourseKey.from_string(course_id)
+        course_enrollment = CourseEnrollment.get_enrollment(request.user, course_key)
+    except InvalidKeyError:
+        logging.exception("The course key used to get refund status caused InvalidKeyError during look up.")
+        return JsonResponse({'has_user_paid': False}, status=406)
+
+    paid_status = course_enrollment.get_order_attribute_value('order_number')
+    return JsonResponse({'has_user_paid': paid_status is not None}, status=200)
+
+
 def _update_email_opt_in(request, org):
     """
     Helper function used to hit the profile API if email opt-in is enabled.
