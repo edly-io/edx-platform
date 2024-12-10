@@ -84,34 +84,25 @@
              return properties;
          }
 
-         function setDialogAttributes(isPaidCourse, certNameLong,
-                                        courseNumber, courseName, enrollmentMode, showRefundOption, courseKey) {
-             var diagAttr = {};
-
-             if (isPaidCourse) {
-                 if (showRefundOption) {
-                     diagAttr['data-refund-info'] = gettext('You will be refunded the amount you paid.');
-                 } else {
-                     diagAttr['data-refund-info'] = gettext('You will not be refunded the amount you paid.');
-                 }
-                 diagAttr['data-track-info'] = gettext('Are you sure you want to unenroll from the purchased course ' +
-                                                   '{courseName} ({courseNumber})?');
-             } else if (enrollmentMode !== 'verified') {
-                 diagAttr['data-track-info'] = gettext('Are you sure you want to unenroll from {courseName} ' +
-                                                   '({courseNumber})?');
-             } else if (showRefundOption) {
-                 diagAttr['data-track-info'] = gettext('Are you sure you want to unenroll from the verified ' +
-                                                   '{certNameLong}  track of {courseName}  ({courseNumber})?');
-                 diagAttr['data-refund-info'] = gettext('You will be refunded the amount you paid.');
-             } else {
-                 diagAttr['data-track-info'] = gettext('Are you sure you want to unenroll from the verified ' +
-                                                   '{certNameLong} track of {courseName} ({courseNumber})?');
-                 diagAttr['data-refund-info'] = gettext('The refund deadline for this course has passed,' +
-                     'so you will not receive a refund.');
-             }
-
-             return diagAttr;
-         }
+         function setDialogAttributes(certNameLong, courseNumber, courseName, enrollmentMode, userHasPaid) {
+            var diagAttr = {};
+        
+            if (userHasPaid) {
+                diagAttr['data-track-info'] = gettext('You cannot unenroll from the purchased course ' +
+                                                       '{courseName} ({courseNumber})');
+                return diagAttr;
+            }
+        
+            if (enrollmentMode !== 'verified') {
+                diagAttr['data-track-info'] = gettext('Are you sure you want to unenroll from {courseName} ' +
+                                                      '({courseNumber})?');
+            } else {
+                diagAttr['data-track-info'] = gettext('Are you sure you want to unenroll from the verified ' +
+                                                      '{certNameLong} track of {courseName} ({courseNumber})?');
+            }
+        
+            return diagAttr;
+        }   
 
          $('#failed-verification-button-dismiss').click(function() {
              $.ajax({
@@ -138,19 +129,19 @@
                  enrollmentMode = $(event.target).data('course-enrollment-mode'),
                  courseNumber = $(event.target).data('course-number'),
                  courseName = $(event.target).data('course-name'),
-                 courseRefundUrl = $(event.target).data('course-refund-url'),
+                 coursePaymentUrl = $(event.target).data('course-payment-url'),
                  courseKey = $(event.target).data('course-id'),
                  dialogMessageAttr;
 
              var request = $.ajax({
-                 url: courseRefundUrl,
+                 url: coursePaymentUrl,
                  method: 'GET',
                  dataType: 'json'
              });
              request.success(function(data, textStatus, xhr) {
+                $('#unenroll_form .submit-button').prop('disabled', data.has_user_paid);
                  if (xhr.status === 200) {
-                     dialogMessageAttr = setDialogAttributes(isPaidCourse, certNameLong,
-                                    courseNumber, courseName, enrollmentMode, data.course_refundable_status, courseKey);
+                     dialogMessageAttr = setDialogAttributes(certNameLong, courseNumber, courseName, enrollmentMode, data.has_user_paid);
 
                      $('#track-info').empty();
                      $('#refund-info').empty();
@@ -175,11 +166,6 @@
                              )
                          }, true)
                      );
-
-
-                     if ('data-refund-info' in dialogMessageAttr) {
-                         $('#refund-info').text(dialogMessageAttr['data-refund-info']);
-                     }
 
                      $('#unenroll_course_id').val($(event.target).data('course-id'));
                  } else {

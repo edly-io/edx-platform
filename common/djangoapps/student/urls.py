@@ -23,6 +23,10 @@ urlpatterns = [
         views.course_run_refund_status,
         name="course_run_refund_status"),
 
+    url(r'^course_run/{}/user_paid_for_course$'.format(settings.COURSE_ID_PATTERN),
+        views.user_paid_for_course,
+        name='user_paid_for_course'),
+
     url(
         r'^activate_secondary_email/(?P<key>[^/]*)$',
         views.activate_secondary_email,
