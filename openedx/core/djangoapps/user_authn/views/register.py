@@ -70,6 +70,7 @@ from openedx.features.edly.utils import (
     is_config_enabled,
     generate_password,
     get_edly_sub_org_from_request,
+    register_user_on_mixpanel,
     get_username_and_name_by_email
 )
 from common.djangoapps.student.helpers import (
@@ -230,6 +231,8 @@ def create_account_with_params(request, params):
 
     edly_access_user = create_edly_access_role(request, user)
     create_learner_link_with_permission_groups(edly_access_user)
+    sub_org = get_edly_sub_org_from_request(request)
+    register_user_on_mixpanel(request.user, sub_org)
 
     # Sites using multiple languages need to record the language used during registration.
     # If not, compose_and_send_activation_email will be sent in site's default language only.

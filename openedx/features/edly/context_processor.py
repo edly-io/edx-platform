@@ -43,6 +43,9 @@ def edly_app_context(request):  # pylint: disable=unused-argument
     """
     Context processor responsible for edly.
     """
+    # Prevent a circular import.
+    from openedx.features.edly.utils import get_email_and_register_mixpanel
+
     edly_context = {}
     panel_services_notifications_url = ''
 
@@ -69,6 +72,7 @@ def edly_app_context(request):  # pylint: disable=unused-argument
             'ga_id': configuration_helpers.get_value('GA_ID'),
             'mixpanel_project_token': settings.MIXPANEL_PROJECT_TOKEN,
             'usetiful_token': settings.USETIFUL_TOKEN,
+            'email': get_email_and_register_mixpanel(request),
             'is_mobile_app': is_request_from_mobile_app(request)
         }
     )

@@ -21,9 +21,10 @@ from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from edx_ace import ace
 from edx_ace.recipient import Recipient
+from mixpanel import Mixpanel
 from student.message_types import CertificateGeneration
 from student.models import CourseAccessRole, CourseEnrollment
-from student.roles import CourseInstructorRole, CourseStaffRole, GlobalCourseCreatorRole, GlobalStaff, UserBasedRole
+from student.roles import CourseInstructorRole, CourseStaffRole, CourseCreatorRole, GlobalCourseCreatorRole, GlobalStaff, UserBasedRole
 from util.organizations_helpers import get_organizations
 from xmodule.modulestore.django import modulestore
 from xmodule.contentstore.content import StaticContent
@@ -45,6 +46,7 @@ from common.djangoapps.student.models import UserProfile
 from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS, COMMON_SYMBOLS
 
 LOGGER = logging.getLogger(__name__)
+MIXPANEL = Mixpanel(settings.MIXPANEL_PROJECT_TOKEN)
 
 
 def is_edly_sub_org_active(edly_sub_org):
@@ -899,3 +901,51 @@ def get_enrolled_learners_count(course_run_ids):
     ).exclude(user__in=staff_users).values('user').distinct().count()
 
     return enrolled_learners_count
+
+
+def get_user_lms_role(user, edly_sub_org):
+    """
+    Get the lms role for user
+    """
+    # Prevent a circular import.
+    from student import auth
+
+    lms_role = 'learner'
+    if user.is_superuser:
+        lms_role = 'super_admin'
+    elif auth.user_has_role(user, GlobalCourseCreatorRole(edly_sub_org.slug), False):
+        lms_role = 'staff'
+    elif auth.user_has_role(user, CourseCreatorRole(), False):
+        lms_role = 'course_creator'
+
+    return lms_role
+
+
+def build_mixpanel_user_properties(user, edly_sub_org):
+    """
+    Build the user properties dictionary to send to Mixpanel.
+    """
+    return {
+        '$name': user.username,
+        '$email': user.email,
+        'department': get_user_lms_role(user, edly_sub_org),
+    }
+
+
+def get_email_and_register_mixpanel(request):
+    """
+    Get the email of the authenticated user.
+    """
+    if not request.user.is_authenticated:
+        return None
+
+    edly_sub_org = get_edly_sub_org_from_request(request)
+    MIXPANEL.people_set_once(request.user.email, build_mixpanel_user_properties(request.user, edly_sub_org))
+    return request.user.email
+
+
+def register_user_on_mixpanel(user, edly_sub_org):
+    """
+    Register a user on mixpanel.
+    """
+    MIXPANEL.people_set(user.email, build_mixpanel_user_properties(user, edly_sub_org))
