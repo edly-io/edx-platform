@@ -32,3 +32,11 @@ ACTIVATION_EMAIL = 'activation_email'
 # DEFAULT COURSE IMAGE
 DEFAULT_COURSE_IMAGE = "images_course_image.jpg"
 DEFAULT_COURSE_IMAGE_PATH = 'images/images_course_image.jpg'
+
+# USER LMS ROLES
+LMS_ROLES = {
+    'LEARNER': 'learner',
+    'SUPER_ADMIN': 'super_admin',
+    'STAFF': 'staff',
+    'COURSE_CREATOR': 'course_creator'
+}

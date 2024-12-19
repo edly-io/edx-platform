@@ -21,9 +21,10 @@ from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from edx_ace import ace
 from edx_ace.recipient import Recipient
+from mixpanel import Mixpanel
 from student.message_types import CertificateGeneration
 from student.models import CourseAccessRole, CourseEnrollment
-from student.roles import CourseInstructorRole, CourseStaffRole, GlobalCourseCreatorRole, GlobalStaff, UserBasedRole
+from student.roles import CourseInstructorRole, CourseStaffRole, CourseCreatorRole, GlobalCourseCreatorRole, GlobalStaff, UserBasedRole
 from util.organizations_helpers import get_organizations
 from xmodule.modulestore.django import modulestore
 from xmodule.contentstore.content import StaticContent
@@ -38,13 +39,14 @@ from openedx.core.djangoapps.site_configuration.helpers import get_current_site_
 from openedx.core.djangoapps.theming.helpers import get_config_value_from_site_or_settings, get_current_site
 from openedx.core.djangoapps.user_api.preferences import api as preferences_api
 from openedx.core.lib.celery.task_utils import emulate_http_request
-from openedx.features.edly.constants import ESSENTIALS, DEFAULT_COURSE_IMAGE, DEFAULT_COURSE_IMAGE_PATH
+from openedx.features.edly.constants import ESSENTIALS, DEFAULT_COURSE_IMAGE, DEFAULT_COURSE_IMAGE_PATH, LMS_ROLES
 from openedx.features.edly.context_processor import Colour
 from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization
 from common.djangoapps.student.models import UserProfile
 from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS, COMMON_SYMBOLS
 
 LOGGER = logging.getLogger(__name__)
+MIXPANEL = Mixpanel(settings.MIXPANEL_PROJECT_TOKEN)
 
 
 def is_edly_sub_org_active(edly_sub_org):
@@ -899,3 +901,51 @@ def get_enrolled_learners_count(course_run_ids):
     ).exclude(user__in=staff_users).values('user').distinct().count()
 
     return enrolled_learners_count
+
+
+def get_user_lms_role(user, edly_sub_org):
+    """
+    Get the lms role for user
+    """
+    # Prevent a circular import.
+    from student import auth
+
+    lms_role = LMS_ROLES['LEARNER']
+
+    if user.is_superuser:
+        lms_role = LMS_ROLES['SUPER_ADMIN']
+    elif auth.user_has_role(user, GlobalCourseCreatorRole(edly_sub_org.slug), False):
+        lms_role = LMS_ROLES['STAFF']
+    elif auth.user_has_role(user, CourseCreatorRole(), False):
+        lms_role = LMS_ROLES['COURSE_CREATOR']
+
+    return lms_role
+
+
+def build_mixpanel_user_properties(user, edly_sub_org):
+    """
+    Build the user properties dictionary to send to Mixpanel.
+    """
+    return {
+        '$name': user.username,
+        '$email': user.email,
+        'department': get_user_lms_role(user, edly_sub_org),
+    }
+
+
+def register_authenticated_user_on_mixpanel(request):
+    """
+    Registers the user if authenticated and not already registered.
+    """
+    if not request.user.is_authenticated:
+        return
+
+    edly_sub_org = get_edly_sub_org_from_request(request)
+    MIXPANEL.people_set_once(request.user.email, build_mixpanel_user_properties(request.user, edly_sub_org))
+
+
+def register_new_user_on_mixpanel(user, edly_sub_org):
+    """
+    Register new user on mixpanel.
+    """
+    MIXPANEL.people_set(user.email, build_mixpanel_user_properties(user, edly_sub_org))
