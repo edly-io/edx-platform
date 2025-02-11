@@ -22,7 +22,7 @@ from openedx.features.edly.utils import get_edx_org_from_cookie
 from openedx.features.course_experience.utils import dates_banner_should_display
 from common.djangoapps.track import views as track_views
 from common.djangoapps.edxmako.shortcuts import render_to_response
-from common.djangoapps.student.roles import GlobalCourseCreatorRole, GlobalStaff
+from common.djangoapps.student.roles import CourseCreatorRole, GlobalCourseCreatorRole, GlobalStaff
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +82,18 @@ def require_global_staff(func):
                     platform_name=settings.PLATFORM_NAME
                 )
             )
+    return login_required(wrapped)
+
+
+def require_global_staff_or_course_creator(func):
+    """View decorator that allows global staff or Course Creator Role users."""
+    @wraps(func)
+    def wrapped(request, *args, **kwargs):
+        user = request.user
+        if GlobalStaff().has_user(user) or CourseCreatorRole().has_user(user):
+            return func(request, *args, **kwargs)
+        else:
+            return HttpResponseForbidden("Access Denied: Must be global staff or Course Creator.")
     return login_required(wrapped)
 
 
