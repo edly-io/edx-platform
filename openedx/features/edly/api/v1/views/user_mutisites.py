@@ -6,12 +6,16 @@ import urllib.parse
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
+from django.contrib.sites.shortcuts import get_current_site
+from django.core.management import call_command
 from django.db.models import Case, IntegerField, When, Value
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 
 from openedx.features.edly.api.serializers import MutiSiteAccessSerializer
 from openedx.core.lib.api.authentication import BearerAuthentication
-from openedx.features.edly.models import EdlyMultiSiteAccess
+from openedx.features.edly.models import EdlySubOrganization, EdlyMultiSiteAccess
 from openedx.features.edly.utils import get_edly_sub_org_from_request
+from openedx.features.edly.api.v1.helper import get_users_for_site
 
 
 class MultisitesViewset(viewsets.ViewSet):
@@ -58,3 +62,70 @@ class MultisitesViewset(viewsets.ViewSet):
 
         serializer = MutiSiteAccessSerializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class EdlySiteUsersViewSet(viewsets.ViewSet):
+    """
+    **Use Case**
+
+        Get information about users in the current site.
+
+    **Example Request**
+
+        GET /api/v1/site_users/
+
+    **Response Values**
+
+        If the request is successful, the request returns an HTTP 200 "OK" response.
+
+        The HTTP 200 response has the following values.
+
+        * list of users in the current site
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [BearerAuthentication, SessionAuthentication]
+
+    def list(self, request, *args, **kwargs):
+        """
+        Returns a list of users in the current site
+        """
+        sub_org = EdlySubOrganization.objects.filter(slug=request.GET.get('sub_org', ''))
+        if not sub_org.exists(): 
+            return Response({"error": "Sub Organization not found", 'results':[]}, status=400)
+
+        sub_org = sub_org.first()
+        users = get_users_for_site(sub_org).filter(site_count=1)
+        return Response({'results':users, 'success':True}, status=200)  
+
+
+class EdlySiteDeletionViewSet(viewsets.ViewSet):
+    """
+    **Use Case**
+
+        Get information about users in the current site.
+
+    **Example Request**
+
+        POST /api/v1/delete_site/
+
+    **Response Values**
+
+        If the request is successful, the request returns an HTTP 200 "OK" response.
+
+        The HTTP 200 response has the following values.
+
+        * deletion of entire site data. 
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JwtAuthentication, SessionAuthentication, BearerAuthentication]
+
+    def post(self, request):
+        """
+        POST /api/v1/delete_site/
+        """
+        try:
+            site = get_current_site(request)
+            call_command('delete_cloud_site', site=site.domain)
+            return Response({'success':'LMS site deletion was successful'}, status=200)
+        except Exception as e:
+            return Response({'error':str(e), 'success':False}, status=400)
