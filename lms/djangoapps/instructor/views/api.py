@@ -2607,7 +2607,7 @@ def start_certificate_generation(request, course_id):
 @transaction.non_atomic_requests
 @ensure_csrf_cookie
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
-@require_global_staff
+@require_global_staff_or_course_creator
 @require_POST
 @common_exceptions_400
 def start_certificate_regeneration(request, course_id):
