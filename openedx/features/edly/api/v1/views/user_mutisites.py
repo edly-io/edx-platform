@@ -99,23 +99,7 @@ class EdlySiteUsersViewSet(viewsets.ViewSet):
 
 
 class EdlySiteDeletionViewSet(viewsets.ViewSet):
-    """
-    **Use Case**
-
-        Get information about users in the current site.
-
-    **Example Request**
-
-        POST /api/v1/delete_site/
-
-    **Response Values**
-
-        If the request is successful, the request returns an HTTP 200 "OK" response.
-
-        The HTTP 200 response has the following values.
-
-        * deletion of entire site data. 
-    """
+    """Deletion of current site and linked user."""
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JwtAuthentication, SessionAuthentication, BearerAuthentication]
 
