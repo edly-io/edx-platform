@@ -90,6 +90,7 @@ class EdlySiteUsersViewSet(viewsets.ViewSet):
         Returns a list of users in the current site
         """
         sub_org = EdlySubOrganization.objects.filter(slug=request.GET.get('sub_org', ''))
+        # sub_org = EdlySubOrganization.objects.filter(slug='test100')
         if not sub_org.exists(): 
             return Response({"error": "Sub Organization not found", 'results':[]}, status=400)
 
