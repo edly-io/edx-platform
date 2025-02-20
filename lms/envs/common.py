@@ -2901,6 +2901,10 @@ INSTALLED_APPS = [
     'openedx.core.djangoapps.content.learning_sequences.apps.LearningSequencesConfig',
 
     'ratelimitbackend',
+
+    # Journal xblocks
+    'journal_xblock',
+    'journal_xblock.journal_djangoapp',
 ]
 
 ######################### CSRF #########################################

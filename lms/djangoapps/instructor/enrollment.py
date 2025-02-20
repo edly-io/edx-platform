@@ -326,6 +326,12 @@ def reset_student_attempts(course_id, student, module_state_key, requesting_user
                 )
         else:
             _reset_module_attempts(studentmodule)
+        
+    if module_state_key.block_type == 'journal_xblock':
+        from django.apps import apps
+        journal_model = apps.get_model('journal_djangoapp', 'JournalModel')
+        journal_model.objects.filter(user=student.id, course_id=course_id, scope_id=module_state_key).delete()
+        return
 
     team = None
     if teams_enabled:
