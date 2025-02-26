@@ -76,6 +76,7 @@ class User(models.Model):
                 source_id=source.id,
                 course_id=str(course_key)
             )
+
         else:
             params = {'source_type': source.type, 'source_id': source.id}
             utils.perform_request(
