@@ -6,7 +6,7 @@ import urllib.parse
 from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
-from django.contrib.sites.shortcuts import get_current_site
+from django.contrib.sites.models import Site
 from django.core.management import call_command
 from django.db.models import Case, IntegerField, When, Value
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
@@ -109,7 +109,8 @@ class EdlySiteDeletionViewSet(viewsets.ViewSet):
         POST /api/v1/delete_site/
         """
         try:
-            site = get_current_site(request)
+            site_domain = request.data.get('delete_site_url', '')
+            site = Site.objects.get(domain=site_domain)
             call_command('delete_cloud_site', site=site.domain)
             return Response({'success':'LMS site deletion was successful'}, status=200)
         except Exception as e:
