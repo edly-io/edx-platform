@@ -47,15 +47,15 @@ class Command(BaseCommand):
                 username = user.get('user__username', '')
                 email = user.get('user__email', '')
                 try:
-                    # call_command(
-                    #     'manage_user', 
-                    #     username,
-                    #     email,
-                    #     '--remove',
-                    # )
-                    self.stderr.write(f"Successfully deleted user: {user.get('user__id', '')}, {email}")
+                    call_command(
+                        'manage_user', 
+                        username,
+                        email,
+                        '--remove',
+                    )
+                    logger.info(f"Successfully deleted user: {user.get('user__id', '')}, {email}")
                 except Exception as e:
-                    logger.error(f"Failed to delete user {username}: {str(e)}")
+                    logger.exception(f"Failed to delete user {username}: {str(e)}")
 
     def _delete_courses(self, site):
         """
@@ -105,6 +105,7 @@ class Command(BaseCommand):
         """Deletion of site, that are passed from the site"""
         try:
             site = options.get('site')
+            logger.info(f"Deleting current site: {site}")
             site = Site.objects.get(domain=site)
             sub_org = EdlySubOrganization.objects.get(lms_site_id=site.id)
             if not sub_org:
