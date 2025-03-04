@@ -64,7 +64,7 @@ class Command(BaseCommand):
         course_ids = get_course_keys_for_site(site)
         delete_course_cmd = DeleteCourseCommand()
         delete_course_cmd.stdout = self.stdout
-        
+        logger.info(f'Deleting following course Id: {course_ids}')
         for course_id in course_ids:
             try:
                 delete_course_cmd.handle(
@@ -88,7 +88,7 @@ class Command(BaseCommand):
         sub_org.lms_site.delete()
         sub_org.studio_site.delete()
         sub_org.preview_site.delete()    
-        # sub_org.edx_organization.delete()
+        sub_org.edx_organization.delete()
         sub_org.delete()
 
     def _delete_site_data(self, site, edly_sub_org):
