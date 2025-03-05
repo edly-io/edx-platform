@@ -45,17 +45,16 @@ class Command(BaseCommand):
         for user in user_obj:
             if user.get('site_count', 1) < 2: 
                 username = user.get('user__username', '')
-                email = user.get('user__email', '')
+                user_email = user.get('user__email', '')
                 try:
                     call_command(
-                        'manage_user', 
+                        'retire_user', 
                         username,
-                        email,
-                        '--remove',
+                        user_email
                     )
-                    logger.info(f"Successfully deleted user: {user.get('user__id', '')}, {email}")
+                    logger.info(f"Successfully retired user: {user.get('user__id', '')}, {username}, {user_email}")
                 except Exception as e:
-                    logger.exception(f"Failed to delete user {username}: {str(e)}")
+                    logger.exception(f"Failed to retired user {username}: {str(e)}")
 
     def _delete_courses(self, site):
         """
