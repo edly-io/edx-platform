@@ -112,5 +112,7 @@ class EdlySiteDeletionViewSet(viewsets.ViewSet):
             site = Site.objects.get(domain=site_domain)
             call_command('delete_cloud_site', site=site.domain)
             return Response({'success':'LMS site deletion was successful'}, status=200)
+        except Site.DoesNotExist:
+            return Response({'error':'Site not found', 'success':False}, status=200)
         except Exception as e:
             return Response({'error':str(e), 'success':False}, status=400)

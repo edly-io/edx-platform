@@ -49,19 +49,21 @@ class Command(BaseCommand):
                 try:
                     call_command(
                         'retire_user', 
-                        username,
-                        user_email
+                        username=username,
+                        user_email=user_email
                     )
                     logger.info(f"Successfully retired user: {user.get('user__id', '')}, {username}, {user_email}")
                 except Exception as e:
                     logger.exception(f"Failed to retired user {username}: {str(e)}")
 
-    def _delete_courses(self, site):
+    def _delete_courses(self, site, org_slug):
         """
         Delete courses using the imported delete_course command.
         """
         course_ids = get_course_keys_for_site(site)
+        course_ids.append(f'course-v1:{org_slug}+get_started_with+Edly')
         delete_course_cmd = DeleteCourseCommand()
+        import pdb; pdb.set_trace();
         delete_course_cmd.stdout = self.stdout
         logger.info(f'Deleting following course Id: {course_ids}')
         for course_id in course_ids:
@@ -80,22 +82,24 @@ class Command(BaseCommand):
         """
         Delete the Django sub organization.
         """
+        sub_org.lms_site.delete()
+        sub_org.studio_site.delete()
+        sub_org.preview_site.delete()
+        if sub_org.edx_organization:
+            sub_org.edx_organization.delete()
+
         count = EdlySubOrganization.objects.filter(edly_organization=sub_org.edly_organization).count()
         if count == 1:
             sub_org.edly_organization.delete()
-
-        sub_org.lms_site.delete()
-        sub_org.studio_site.delete()
-        sub_org.preview_site.delete()    
-        sub_org.edx_organization.delete()
         sub_org.delete()
+        logger.info(f"Successfully deleted sub organization: {sub_org}")
 
     def _delete_site_data(self, site, edly_sub_org):
         """
         Delete all the site data for a give site configuration. 
         """
         with transaction.atomic():
-            self._delete_courses(site)
+            self._delete_courses(site, edly_sub_org.slug)
             user_obj = get_users_for_site(edly_sub_org)
             self._delete_users(user_obj)
             self.delete_django_sub_org(edly_sub_org)
@@ -111,6 +115,6 @@ class Command(BaseCommand):
                 raise CommandError(f"sub-organzation not found: {site}")
             
             self._delete_site_data(site, sub_org)
-            
+
         except Exception as e:
             raise CommandError(f"Failed to delete site: {str(e)}")
