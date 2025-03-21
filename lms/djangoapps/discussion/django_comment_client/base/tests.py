@@ -1,8 +1,7 @@
-import pytest
 # pylint: skip-file
 """Tests for django comment client views."""
 
-
+import pytest
 import json
 import logging
 from contextlib import contextmanager
