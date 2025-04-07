@@ -1,5 +1,5 @@
 """
-A management command to update formus sites
+A management command to delete a site.
 """
 # pylint: disable=broad-except
 
@@ -63,7 +63,6 @@ class Command(BaseCommand):
         course_ids = get_course_keys_for_site(site)
         course_ids.append(f'course-v1:{org_slug}+get_started_with+Edly')
         delete_course_cmd = DeleteCourseCommand()
-        import pdb; pdb.set_trace();
         delete_course_cmd.stdout = self.stdout
         logger.info(f'Deleting following course Id: {course_ids}')
         for course_id in course_ids:

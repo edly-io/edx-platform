@@ -21,6 +21,7 @@ STAFF_USERS = 'staff_users'
 WP_ADMIN_USERS = 'wp_admin_users'
 COURSE_AUTHORS = 'course_authors'
 PANEL_ADMINS = 'panel_admins'
+EDLY_PANEL_WORKER_USER = 'edly_panel_worker'
 
 # EMAIL CONFIGS
 ACCOUNT_STATUS = 'account_status'

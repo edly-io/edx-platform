@@ -16,6 +16,7 @@ from openedx.core.lib.api.authentication import BearerAuthentication
 from openedx.features.edly.models import EdlySubOrganization, EdlyMultiSiteAccess
 from openedx.features.edly.utils import get_edly_sub_org_from_request
 from openedx.features.edly.api.v1.helper import get_users_for_site
+from openedx.features.edly.permissions import CanAccessSiteDeletion
 
 
 class MultisitesViewset(viewsets.ViewSet):
@@ -100,7 +101,7 @@ class EdlySiteUsersViewSet(viewsets.ViewSet):
 
 class EdlySiteDeletionViewSet(viewsets.ViewSet):
     """Deletion of current site and linked user."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanAccessSiteDeletion]
     authentication_classes = [JwtAuthentication, SessionAuthentication, BearerAuthentication]
 
     def post(self, request):
