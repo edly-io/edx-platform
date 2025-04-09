@@ -15,6 +15,7 @@ from django.db.utils import DatabaseError
 from edx_django_utils.monitoring import set_custom_attribute, set_custom_attributes_for_course_key, set_code_owner_attribute
 from opaque_keys.edx.keys import CourseKey, UsageKey
 from opaque_keys.edx.locator import CourseLocator
+from openedx.features.edly.utils import locked
 from submissions import api as sub_api
 
 from lms.djangoapps.courseware.model_data import get_score
@@ -173,6 +174,7 @@ def recalculate_course_and_subsection_grades_for_user(self, **kwargs):  # pylint
     max_retries=2,
     default_retry_delay=RETRY_DELAY_SECONDS
 )
+@locked(expiry_seconds=RECALCULATE_GRADE_DELAY_SECONDS, key='user_id')
 def recalculate_subsection_grade_v3(self, **kwargs):
     """
     Latest version of the recalculate_subsection_grade task.  See docstring

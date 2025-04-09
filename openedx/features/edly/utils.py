@@ -3,7 +3,7 @@ Utilities for edly app.
 """
 import json
 import logging
-from functools import partial
+from functools import partial, wraps
 from datetime import datetime
 import random
 import string
@@ -17,6 +17,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.sites.models import Site
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.cache import cache
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from edx_ace import ace
@@ -984,3 +985,17 @@ def register_new_user_on_mixpanel(user, edly_sub_org):
     Register new user on mixpanel.
     """
     handle_mixpanel_event(user, edly_sub_org, 'people_set')
+
+
+def locked(expiry_seconds, key):
+    def task_decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            cache_key = '{}-{}'.format(func.__name__, kwargs[key])
+            if cache.add(cache_key, "true", expiry_seconds):
+                LOGGER.info(u'Locking task in cache with key: %s for %s seconds', cache_key, expiry_seconds)
+                return func(*args, **kwargs)
+            else:
+                LOGGER.info('Task with key %s already exists in cache', cache_key)
+        return wrapper
+    return task_decorator
