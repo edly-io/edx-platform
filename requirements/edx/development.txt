@@ -322,6 +322,7 @@ xblock==1.4.0             # via -r requirements/edx/testing.txt, acid-xblock, cr
 xmlsec==1.3.9             # via -r requirements/edx/testing.txt, python3-saml
 xss-utils==0.1.3          # via -r requirements/edx/testing.txt
 zipp==1.0.0               # via -c requirements/edx/../constraints.txt, -r requirements/edx/testing.txt, importlib-metadata, importlib-resources
+openedx-scorm-xblock==19.0.2
 git+https://github.com/open-craft/xblock-vectordraw.git@v0.4#egg=vectordraw-xblock==v0.4
 
 # edly forked apps
