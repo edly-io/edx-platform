@@ -50,4 +50,4 @@ class CanAccessSiteDeletion(BasePermission):
         """
         Checks for user's permission for current site.
         """
-        return request.user.is_staff or request.user.username == EDLY_PANEL_WORKER_USER
+        return request.user.username == EDLY_PANEL_WORKER_USER
