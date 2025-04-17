@@ -58,6 +58,13 @@ class Command(BaseCommand):
                  'Be careful! These assets may be associated with another course',
         )
 
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            default=False,
+            help='Skip confirmation prompts and delete immediately',
+        )
+
     def handle(self, *args, **options):
         try:
             # a course key may have unicode chars in it
@@ -75,8 +82,8 @@ class Command(BaseCommand):
 
         print(u'Preparing to delete course %s from module store....' % options['course_key'])
 
-        if query_yes_no(u'Are you sure you want to delete course {}?'.format(course_key), default='no'):
-            if query_yes_no(u'Are you sure? This action cannot be undone!', default='no'):
+        if options['force'] or query_yes_no(u'Are you sure you want to delete course {}?'.format(course_key), default='no'):
+            if options['force'] or query_yes_no(u'Are you sure? This action cannot be undone!', default='no'):
                 delete_course(course_key, ModuleStoreEnum.UserID.mgmt_command, options['keep_instructors'])
 
                 if options['remove_assets']:
