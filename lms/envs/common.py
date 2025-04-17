@@ -3251,6 +3251,8 @@ BADGR_TIMEOUT = 10
 # the ones that contain information other than grades.
 GRADES_DOWNLOAD_ROUTING_KEY = HIGH_MEM_QUEUE
 
+USER_ACTIONS_ROUTING_KEY = HIGH_PRIORITY_QUEUE
+
 POLICY_CHANGE_GRADES_ROUTING_KEY = 'edx.lms.core.default'
 
 RECALCULATE_GRADES_ROUTING_KEY = 'edx.lms.core.default'

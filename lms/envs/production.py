@@ -978,9 +978,50 @@ FAVICON_URL = ENV_TOKENS.get('FAVICON_URL', FAVICON_URL)
 
 # Defines alternate environment tasks, as a dict of form { task_name: alternate_queue }
 ALTERNATE_ENV_TASKS = {}
+USER_ACTIONS_ROUTING_KEY = ENV_TOKENS.get('USER_ACTIONS_ROUTING_KEY', USER_ACTIONS_ROUTING_KEY)
 
 # Defines the task -> alternate worker queue to be used when routing.
 EXPLICIT_QUEUES = {
+    'figures.views.send_learners_data_pdf':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'figures.edly_views.edly_reports._prepare_learner_data':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'figures.edly_views.edly_reports._prepare_learners_data':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'figures.edly_views.edly_reports._prepare_courses_data':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'figures.edly_views.edly_reports._prepare_advance_course_data':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'edly_panel_app.tasks.clone_course_for_site_user':{
+        'queue': USER_ACTIONS_ROUTING_KEY},	
+    'edly_panel_app.api.v1.helpers.submit_bulk_users_registrations':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'edly_panel_app.api.v1.helpers.email_report_with_attachment':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'edly_panel_app.api.v1.helpers.download_backup_task':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'edly_panel_app.api.v1.helpers.send_maus_report_with_users':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.instructor_task.tasks.calculate_problem_responses_csv.v2':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.instructor_task.tasks.calculate_students_features_csv':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.ccx.tasks.send_ccx_course_published':{
+        'queue': USER_ACTIONS_ROUTING_KEY},	
+    'lms.djangoapps.instructor_task.tasks.bulk_users_enrollments':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.instructor_task.tasks.send_bulk_course_email':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.instructor_task.tasks.rescore_problem':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.instructor_task.tasks.override_problem_score':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'lms.djangoapps.instructor_task.tasks.reset_problem_attempts':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'student.send_activation_email':{
+        'queue': USER_ACTIONS_ROUTING_KEY},
+    'edly_panel_app.api.v1.helpers.send_maus_report':{
+        'queue': GRADES_DOWNLOAD_ROUTING_KEY},
     'openedx.core.djangoapps.content.course_overviews.tasks.async_course_overview_update': {
         'queue': GRADES_DOWNLOAD_ROUTING_KEY},
     'lms.djangoapps.bulk_email.tasks.send_course_email': {

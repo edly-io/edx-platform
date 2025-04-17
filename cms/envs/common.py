@@ -2139,6 +2139,9 @@ MOBILE_STORE_URLS = {}
 # Queue to use for updating persistent grades
 RECALCULATE_GRADES_ROUTING_KEY = DEFAULT_PRIORITY_QUEUE
 
+# All the user action are routed to the high priority queue
+USER_ACTIONS_ROUTING_KEY = HIGH_PRIORITY_QUEUE
+
 # Queue to use for updating grades due to grading policy change
 POLICY_CHANGE_GRADES_ROUTING_KEY = 'edx.lms.core.default'
 
