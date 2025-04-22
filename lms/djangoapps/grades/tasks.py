@@ -174,7 +174,7 @@ def recalculate_course_and_subsection_grades_for_user(self, **kwargs):  # pylint
     max_retries=2,
     default_retry_delay=RETRY_DELAY_SECONDS
 )
-@locked(expiry_seconds=RECALCULATE_GRADE_DELAY_SECONDS, key='user_id')
+@locked(key='user_id')
 def recalculate_subsection_grade_v3(self, **kwargs):
     """
     Latest version of the recalculate_subsection_grade task.  See docstring
