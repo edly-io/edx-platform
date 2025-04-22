@@ -160,6 +160,8 @@ class Thread(models.Model):
         }
         request_params = utils.strip_none(request_params)
         course_id = kwargs.get("course_id")
+        if not course_id:
+            _, course_id = is_forum_v2_enabled_for_thread(self.id)
         if user_id := request_params.get('user_id'):
             request_params['user_id'] = str(user_id)
         response = forum_api.get_thread(
