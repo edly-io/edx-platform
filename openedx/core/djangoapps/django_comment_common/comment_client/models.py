@@ -73,6 +73,8 @@ class Model:
 
     def _retrieve(self, *args, **kwargs):
         course_id = self.attributes.get("course_id") or kwargs.get("course_key")
+        if not course_id:
+            _, course_id = is_forum_v2_enabled_for_comment(self.id)
         if self.type == "comment":
             response = forum_api.get_parent_comment(comment_id=self.attributes["id"], course_id=course_id)
         else:
