@@ -987,15 +987,19 @@ def register_new_user_on_mixpanel(user, edly_sub_org):
     handle_mixpanel_event(user, edly_sub_org, 'people_set')
 
 
-def locked(expiry_seconds, key):
+def locked(key):
     def task_decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            cache_key = '{}-{}'.format(func.__name__, kwargs[key])
-            if cache.add(cache_key, "true", expiry_seconds):
-                LOGGER.info(u'Locking task in cache with key: %s for %s seconds', cache_key, expiry_seconds)
-                return func(*args, **kwargs)
+            cache_key = f"{func.__name__}-{kwargs.get(key)}"
+            if cache.add(cache_key, "true", timeout=20):
+                LOGGER.info("Locking task in cache with key: %s", cache_key)
+                try:
+                    return func(*args, **kwargs)
+                finally:
+                    cache.delete(cache_key)
+                    LOGGER.info("Released lock for key: %s", cache_key)
             else:
-                LOGGER.info('Task with key %s already exists in cache', cache_key)
+                LOGGER.info("Task with key %s already exists in cache", cache_key)
         return wrapper
     return task_decorator

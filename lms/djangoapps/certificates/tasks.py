@@ -10,6 +10,7 @@ from celery_utils.persist_on_failure import LoggedPersistOnFailureTask
 from django.contrib.auth.models import User
 from opaque_keys.edx.keys import CourseKey
 
+from lms.djangoapps.certificates.models import GeneratedCertificate, CertificateStatuses
 from lms.djangoapps.verify_student.services import IDVerificationService
 
 from .api import generate_user_certificates
@@ -35,6 +36,16 @@ def generate_certificate(self, **kwargs):
     original_kwargs = kwargs.copy()
     student = User.objects.get(id=kwargs.pop('student'))
     course_key = CourseKey.from_string(kwargs.pop('course_key'))
+    cert = GeneratedCertificate.certificate_for_student(student, course_key)
+    if cert is not None:
+        if CertificateStatuses.is_passing_status(cert.status):
+            logger.info(
+                u'Certificate already generated for user {user} in course {course}'.format(
+                    user=student.id,
+                    course=course_key
+                ))
+            return
+
     expected_verification_status = kwargs.pop('expected_verification_status', None)
     if expected_verification_status:
         actual_verification_status = IDVerificationService.user_status(student)
