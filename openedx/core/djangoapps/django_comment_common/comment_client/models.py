@@ -319,6 +319,8 @@ class Model:
             "anonymous": request_data.get("anonymous", False),
             "anonymous_to_peers": request_data.get("anonymous", False),
         }
+        if 'endorsed' in request_data:
+            params['endorsed'] = request_data['endorsed']
         if parent_id := self.attributes.get("parent_id"):
             params["parent_comment_id"] = parent_id
             response = forum_api.create_child_comment(**params)
