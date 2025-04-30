@@ -664,7 +664,7 @@ class ViewsTestCase(
             "create_sub_comment",
             {"comment_id": "dummy", "course_id": str(self.course_id)},
             {},
-            ["get_thread", "create_parent_comment"],
+            ["get_thread", "get_parent_comment"],
         )
 
     def test_create_sub_comment_empty_body(self):
