@@ -2010,43 +2010,6 @@ class ForumEventTestCase(
 
         self.assertIn("thread", event_receiver.call_args.kwargs)
 
-    # TODO: Check if Taimoor has already moved this.
-    # @ddt.data('follow_thread', 'unfollow_thread',)
-    # @patch('eventtracking.tracker.emit')
-    # def test_thread_followed_event(self, view_name, mock_emit):
-    #     event_receiver = Mock()
-    #     for signal in views.TRACKING_LOG_TO_EVENT_MAPS.values():
-    #         signal.connect(event_receiver)
-
-    #     mock_is_forum_v2_enabled.return_value = False
-    #     self._set_mock_request_data(mock_request, {
-    #         'closed': False,
-    #         'commentable_id': 'test_commentable_id',
-    #         'username': 'test_user',
-    #     })
-    #     request = RequestFactory().post('dummy_url', {})
-    #     request.user = self.student
-    #     request.view_name = view_name
-    #     view_function = getattr(views, view_name)
-    #     kwargs = dict(course_id=str(self.course.id))
-    #     kwargs['thread_id'] = 'thread_id'
-    #     view_function(request, **kwargs)
-
-    #     assert mock_emit.called
-    #     event_name, event_data = mock_emit.call_args[0]
-    #     action_name = 'followed' if view_name == 'follow_thread' else 'unfollowed'
-    #     expected_action_value = True if view_name == 'follow_thread' else False
-    #     assert event_name == f'edx.forum.thread.{action_name}'
-    #     assert event_data['commentable_id'] == 'test_commentable_id'
-    #     assert event_data['id'] == 'thread_id'
-    #     assert event_data['followed'] == expected_action_value
-    #     assert event_data['user_forums_roles'] == ['Student']
-    #     assert event_data['user_course_roles'] == ['Wizard']
-
-    #     # In case of events that doesn't have a correspondig Open edX events signal
-    #     # we need to check that none of the openedx signals is called.
-    #     # This is tested for all the events that are not tested above.
-    #     event_receiver.assert_not_called()
 
 
 @disable_signal(views, "thread_edited")
@@ -2286,6 +2249,7 @@ class CreateSubCommentUnicodeTestCase(
     def tearDownClass(cls):
         """Stop patches after tests complete."""
         super().tearDownClass()
+        super().disposeForumMocks()
 
     @classmethod
     def setUpTestData(cls):
