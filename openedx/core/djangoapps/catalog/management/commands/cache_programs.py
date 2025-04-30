@@ -11,6 +11,8 @@ from django.core.cache import cache
 from django.core.management import BaseCommand
 from six import text_type
 
+from common.djangoapps.util.query import read_replica_or_default
+from figures.helpers import get_site_ids_filter_by_plan
 from openedx.core.djangoapps.catalog.cache import (
     COURSE_PROGRAMS_CACHE_KEY_TPL,
     CATALOG_COURSE_PROGRAMS_CACHE_KEY_TPL,
@@ -29,6 +31,9 @@ from openedx.core.djangoapps.catalog.utils import (
     create_catalog_api_client,
     normalize_program_type
 )
+from openedx.features.edly.constants import DEACTIVATED, TRIAL_EXPIRED
+from openedx.features.edly.models import EdlySubOrganization
+
 
 logger = logging.getLogger(__name__)
 User = get_user_model()  # pylint: disable=invalid-name
@@ -67,7 +72,10 @@ class Command(BaseCommand):
         programs_by_type = {}
         programs_by_type_slug = {}
         organizations = {}
-        for site in Site.objects.all():
+        active_sites = EdlySubOrganization.objects.using(read_replica_or_default()).filter(is_active=True)
+        lms_sites_ids = get_site_ids_filter_by_plan(active_sites, [DEACTIVATED, TRIAL_EXPIRED])
+
+        for site in Site.objects.using(read_replica_or_default()).filter(id__in=lms_sites_ids):
             site_config = getattr(site, 'configuration', None)
             if site_config is None or not site_config.get_value('COURSE_CATALOG_API_URL'):
                 logger.info(u'Skipping site {domain}. No configuration.'.format(domain=site.domain))
