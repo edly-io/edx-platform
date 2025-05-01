@@ -1281,3 +1281,286 @@ class UserProfileTestCase(
             request, str(self.course.id), self.profiled_user.id
         )
         assert response.status_code == 405
+
+
+def make_mock_perform_request_impl(  # lint-amnesty, pylint: disable=missing-function-docstring
+        course,
+        text,
+        thread_id="dummy_thread_id",
+        group_id=None,
+        commentable_id=None,
+        num_thread_responses=1,
+        thread_list=None,
+        anonymous=False,
+        anonymous_to_peers=False,
+):
+    def mock_perform_request_impl(*args, **kwargs):
+        url = args[1]
+        if url.endswith("threads") or url.endswith("user_profile"):
+            return {
+                "collection": make_mock_collection_data(
+                    course, text, thread_id, None, group_id, commentable_id, thread_list
+                )
+            }
+        elif thread_id and url.endswith(thread_id):
+            return make_mock_thread_data(
+                course=course,
+                text=text,
+                thread_id=thread_id,
+                num_children=num_thread_responses,
+                group_id=group_id,
+                commentable_id=commentable_id,
+                anonymous=anonymous,
+                anonymous_to_peers=anonymous_to_peers,
+            )
+        elif "/users/" in url:
+            res = {
+                "default_sort_key": "date",
+                "upvoted_ids": [],
+                "downvoted_ids": [],
+                "subscribed_thread_ids": [],
+            }
+            # comments service adds these attributes when course_id param is present
+            if kwargs.get('params', {}).get('course_id'):
+                res.update({
+                    "threads_count": 1,
+                    "comments_count": 2
+                })
+            return res
+        else:
+            return None
+    return mock_perform_request_impl
+
+
+def make_mock_request_impl(  # lint-amnesty, pylint: disable=missing-function-docstring
+        course,
+        text,
+        thread_id="dummy_thread_id",
+        group_id=None,
+        commentable_id=None,
+        num_thread_responses=1,
+        thread_list=None,
+        anonymous=False,
+        anonymous_to_peers=False,
+):
+    impl = make_mock_perform_request_impl(
+        course,
+        text,
+        thread_id=thread_id,
+        group_id=group_id,
+        commentable_id=commentable_id,
+        num_thread_responses=num_thread_responses,
+        thread_list=thread_list,
+        anonymous=anonymous,
+        anonymous_to_peers=anonymous_to_peers,
+    )
+
+    def mock_request_impl(*args, **kwargs):
+        data = impl(*args, **kwargs)
+        if data:
+            return Mock(status_code=200, text=json.dumps(data), json=Mock(return_value=data))
+        else:
+            return Mock(status_code=404)
+    return mock_request_impl
+
+
+class StringEndsWithMatcher:  # lint-amnesty, pylint: disable=missing-class-docstring
+    def __init__(self, suffix):
+        self.suffix = suffix
+
+    def __eq__(self, other):
+        return other.endswith(self.suffix)
+
+
+class PartialDictMatcher:  # lint-amnesty, pylint: disable=missing-class-docstring
+    def __init__(self, expected_values):
+        self.expected_values = expected_values
+
+    def __eq__(self, other):
+        return all(
+            key in other and other[key] == value
+            for key, value in self.expected_values.items()
+        )
+
+
+@patch('requests.request', autospec=True)
+class SingleThreadTestCase(ForumsEnableMixin, ModuleStoreTestCase, ForumViewsUtilsMixin):  # lint-amnesty, pylint: disable=missing-class-docstring
+
+    CREATE_USER = False
+
+    def setUp(self):
+        super().setUp()
+        self.course = CourseFactory.create(discussion_topics={'dummy discussion': {'id': 'dummy_discussion_id'}})
+        self.student = UserFactory.create()
+        CourseEnrollmentFactory.create(user=self.student, course_id=self.course.id)
+
+        patcher = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.thread.is_forum_v2_enabled_for_thread",
+            return_value=(None, self.course.id)
+        )
+        self.is_forum_v2_enabled_for_thread = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        patcher = mock.patch(
+            "openedx.core.djangoapps.django_comment_common.comment_client.thread.forum_api.get_course_id_by_thread"
+        )
+        self.mock_get_course_id_by_thread = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_ajax(self, mock_request):
+        text = "dummy content"
+        thread_id = "test_thread_id"
+        mock_request.side_effect = make_mock_request_impl(course=self.course, text=text, thread_id=thread_id)
+
+        request = RequestFactory().get(
+            "dummy_url",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        request.user = self.student
+        response = views.single_thread(
+            request,
+            str(self.course.id),
+            "dummy_discussion_id",
+            "test_thread_id"
+        )
+
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode('utf-8'))
+        # strip_none is being used to perform the same transform that the
+        # django view performs prior to writing thread data to the response
+        assert response_data['content'] == strip_none(make_mock_thread_data(
+            course=self.course,
+            text=text,
+            thread_id=thread_id,
+            num_children=1
+        ))
+        mock_request.assert_called_with(
+            "get",
+            StringEndsWithMatcher(thread_id),  # url
+            data=None,
+            params=PartialDictMatcher({"mark_as_read": True, "user_id": 1, "recursive": True}),
+            headers=ANY,
+            timeout=ANY
+        )
+
+    def test_skip_limit(self, mock_request):
+        text = "dummy content"
+        thread_id = "test_thread_id"
+        response_skip = "45"
+        response_limit = "15"
+        mock_request.side_effect = make_mock_request_impl(course=self.course, text=text, thread_id=thread_id)
+
+        request = RequestFactory().get(
+            "dummy_url",
+            {"resp_skip": response_skip, "resp_limit": response_limit},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        request.user = self.student
+        response = views.single_thread(
+            request,
+            str(self.course.id),
+            "dummy_discussion_id",
+            "test_thread_id"
+        )
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode('utf-8'))
+        # strip_none is being used to perform the same transform that the
+        # django view performs prior to writing thread data to the response
+        assert response_data['content'] == strip_none(make_mock_thread_data(
+            course=self.course,
+            text=text,
+            thread_id=thread_id,
+            num_children=1
+        ))
+        mock_request.assert_called_with(
+            "get",
+            StringEndsWithMatcher(thread_id),  # url
+            data=None,
+            params=PartialDictMatcher({
+                "mark_as_read": True,
+                "user_id": 1,
+                "recursive": True,
+                "resp_skip": response_skip,
+                "resp_limit": response_limit,
+            }),
+            headers=ANY,
+            timeout=ANY
+        )
+
+    def test_post(self, _mock_request):
+        request = RequestFactory().post("dummy_url")
+        response = views.single_thread(
+            request,
+            str(self.course.id),
+            "dummy_discussion_id",
+            "dummy_thread_id"
+        )
+        assert response.status_code == 405
+
+    def test_post_anonymous_to_ta(self, mock_request):
+        text = "dummy content"
+        thread_id = "test_thread_id"
+        mock_request.side_effect = make_mock_request_impl(course=self.course, text=text, thread_id=thread_id,
+                                                          anonymous_to_peers=True)
+
+        request = RequestFactory().get(
+            "dummy_url",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        request.user = self.student
+        request.user.is_community_ta = True
+        response = views.single_thread(
+            request,
+            str(self.course.id),
+            "dummy_discussion_id",
+            "test_thread_id"
+        )
+
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode('utf-8'))
+        # user is community ta, so response must not have username and user_id fields
+        assert response_data['content'].get('username') is None
+        assert response_data['content'].get('user_id') is None
+
+    def test_not_found(self, mock_request):
+        request = RequestFactory().get("dummy_url")
+        request.user = self.student
+        # Mock request to return 404 for thread request
+        mock_request.side_effect = make_mock_request_impl(course=self.course, text="dummy", thread_id=None)
+        self.assertRaises(
+            Http404,
+            views.single_thread,
+            request,
+            str(self.course.id),
+            "test_discussion_id",
+            "test_thread_id"
+        )
+
+    def test_private_team_thread_html(self, mock_request):
+        discussion_topic_id = 'dummy_discussion_id'
+        thread_id = 'test_thread_id'
+        CourseTeamFactory.create(discussion_topic_id=discussion_topic_id)
+        user_not_in_team = UserFactory.create()
+        CourseEnrollmentFactory.create(user=user_not_in_team, course_id=self.course.id)
+        self.client.login(username=user_not_in_team.username, password=self.TEST_PASSWORD)
+
+        mock_request.side_effect = make_mock_request_impl(
+            course=self.course,
+            text="dummy",
+            thread_id=thread_id,
+            commentable_id=discussion_topic_id
+        )
+        with patch('lms.djangoapps.teams.api.is_team_discussion_private', autospec=True) as mocked:
+            mocked.return_value = True
+            response = self.client.get(
+                reverse('single_thread', kwargs={
+                    'course_id': str(self.course.id),
+                    'discussion_id': discussion_topic_id,
+                    'thread_id': thread_id,
+                })
+            )
+            assert response.status_code == 200
+            assert response['Content-Type'] == 'text/html; charset=utf-8'
+            html = response.content.decode('utf-8')
+            # Verify that the access denied error message is in the HTML
+            assert 'This is a private discussion. You do not have permissions to view this discussion' in html
