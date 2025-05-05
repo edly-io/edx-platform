@@ -317,7 +317,7 @@ class Model:
             "user_id": str(request_data["user_id"]),
             "course_id": course_id,
             "anonymous": request_data.get("anonymous", False),
-            "anonymous_to_peers": request_data.get("anonymous", False),
+            "anonymous_to_peers": request_data.get("anonymous_to_peers", False),
         }
         if 'endorsed' in request_data:
             params['endorsed'] = request_data['endorsed']
@@ -341,9 +341,9 @@ class Model:
             "commentable_id": request_data.get("commentable_id", "course"),
             "thread_type": request_data.get("thread_type", "discussion"),
         }
-        if group_id:=request_data.get("group_id"):
+        if group_id := request_data.get("group_id"):
             params["group_id"] = group_id
-        if context:=request_data.get("context"):
+        if context := request_data.get("context"):
             params["context"] = context
 
         response = forum_api.create_thread(**params)
