@@ -158,7 +158,7 @@ class Thread(models.Model):
             'reverse_order': kwargs.get('reverse_order', False),
             'merge_question_type_responses': kwargs.get('merge_question_type_responses', False)
         }
-        request_params = utils.strip_none(request_params)
+        request_params = _clean_forum_params(request_params)
         course_id = kwargs.get("course_id")
         if not course_id:
             _, course_id = is_forum_v2_enabled_for_thread(self.id)

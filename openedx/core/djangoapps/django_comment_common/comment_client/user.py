@@ -193,7 +193,6 @@ class User(models.Model):
             course_id = str(course_id)
             retrieve_params['course_id'] = course_id
         course_key = utils.get_course_key(course_id)
-
         if is_forum_v2_enabled(course_key):
             group_ids = [retrieve_params['group_id']] if 'group_id' in retrieve_params else None
             is_complete = retrieve_params['complete']
