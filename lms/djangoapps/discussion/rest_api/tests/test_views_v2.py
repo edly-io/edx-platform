@@ -956,7 +956,6 @@ class ThreadViewSetDeleteTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         assert response.status_code == 404
 
 
-
 @ddt.ddt
 @httpretty.activate
 @mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
@@ -1422,7 +1421,6 @@ class CommentViewSetListTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, Pr
         self.check_mock_called_with('get_thread', -1, **params)
 
 
-
 @httpretty.activate
 @disable_signal(api, 'comment_deleted')
 @mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
@@ -1570,7 +1568,6 @@ class CommentViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         assert response.status_code == 403
 
 
-
 @httpretty.activate
 @disable_signal(api, 'thread_created')
 @mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
@@ -1622,7 +1619,6 @@ class ThreadViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
             'anonymous_to_peers': False,
         }
         self.check_mock_called_with("create_thread", -1, **params)
-            
 
     def test_error(self):
         request_data = {
@@ -1643,6 +1639,7 @@ class ThreadViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         response_data = json.loads(response.content.decode('utf-8'))
         assert response_data == expected_response_data
 
+
 @httpretty.activate
 @mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
 class ThreadViewSetRetrieveTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, ProfileImageTestMixin):
@@ -1654,7 +1651,6 @@ class ThreadViewSetRetrieveTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase,
         self.thread_id = "test_thread"
         self.set_mock_return_value('get_course_id_by_comment', str(self.course.id))
         self.set_mock_return_value('get_course_id_by_thread', str(self.course.id))
-
 
     def test_basic(self):
         self.register_get_user_response(self.user)
@@ -1835,4 +1831,3 @@ class CommentViewSetRetrieveTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase
             expected_profile_data = self.get_expected_user_profile(response_comment['author'])
             response_users = response_comment['users']
             assert expected_profile_data == response_users[response_comment['author']]
-
