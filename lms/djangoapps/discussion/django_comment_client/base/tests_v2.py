@@ -2011,7 +2011,6 @@ class ForumEventTestCase(
         self.assertIn("thread", event_receiver.call_args.kwargs)
 
 
-
 @disable_signal(views, "thread_edited")
 class UpdateThreadUnicodeTestCase(
     ForumsEnableMixin,
