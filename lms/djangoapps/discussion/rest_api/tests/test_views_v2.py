@@ -918,3 +918,916 @@ class ThreadViewSetListTest(
         response_thread = json.loads(response.content.decode("utf-8"))["results"][0]
         assert response_thread["author"] is None
         assert {} == response_thread["users"]
+
+
+@httpretty.activate
+@disable_signal(api, 'thread_deleted')
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class ThreadViewSetDeleteTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
+    """Tests for ThreadViewSet delete"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("thread-detail", kwargs={"thread_id": "test_thread"})
+        self.thread_id = "test_thread"
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        cs_thread = make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "username": self.user.username,
+            "user_id": str(self.user.id),
+        })
+        self.register_get_thread_response(cs_thread)
+        self.register_delete_thread_response(self.thread_id)
+        response = self.client.delete(self.url)
+        assert response.status_code == 204
+        assert response.content == b''
+        params = {
+            "thread_id": self.thread_id,
+            "course_id": str(self.course.id),
+        }
+        self.check_mock_called_with('delete_thread', -1, **params)
+
+    def test_delete_nonexistent_thread(self):
+        self.register_get_thread_error_response(self.thread_id, 404)
+        response = self.client.delete(self.url)
+        assert response.status_code == 404
+
+
+@ddt.ddt
+@httpretty.activate
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class CommentViewSetListTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, ProfileImageTestMixin):
+    """Tests for CommentViewSet list"""
+
+    def setUp(self):
+        super().setUp()
+        self.author = UserFactory.create()
+        self.url = reverse("comment-list")
+        self.thread_id = "test_thread"
+        self.storage = get_profile_image_storage()
+        self.set_mock_return_value('get_course_id_by_thread', str(self.course.id))
+
+    def create_source_comment(self, overrides=None):
+        """
+        Create a sample source cs_comment
+        """
+        comment = make_minimal_cs_comment({
+            "id": "test_comment",
+            "thread_id": self.thread_id,
+            "user_id": str(self.user.id),
+            "username": self.user.username,
+            "created_at": "2015-05-11T00:00:00Z",
+            "updated_at": "2015-05-11T11:11:11Z",
+            "body": "Test body",
+            "votes": {"up_count": 4},
+        })
+
+        comment.update(overrides or {})
+        return comment
+
+    def make_minimal_cs_thread(self, overrides=None):
+        """
+        Create a thread with the given overrides, plus the course_id if not
+        already in overrides.
+        """
+        overrides = overrides.copy() if overrides else {}
+        overrides.setdefault("course_id", str(self.course.id))
+        return make_minimal_cs_thread(overrides)
+
+    def expected_response_comment(self, overrides=None):
+        """
+        create expected response data
+        """
+        response_data = {
+            "id": "test_comment",
+            "thread_id": self.thread_id,
+            "parent_id": None,
+            "author": self.author.username,
+            "author_label": None,
+            "created_at": "1970-01-01T00:00:00Z",
+            "updated_at": "1970-01-01T00:00:00Z",
+            "raw_body": "dummy",
+            "rendered_body": "<p>dummy</p>",
+            "endorsed": False,
+            "endorsed_by": None,
+            "endorsed_by_label": None,
+            "endorsed_at": None,
+            "abuse_flagged": False,
+            "abuse_flagged_any_user": None,
+            "voted": False,
+            "vote_count": 0,
+            "children": [],
+            "editable_fields": ["abuse_flagged", "voted"],
+            "child_count": 0,
+            "can_delete": True,
+            "anonymous": False,
+            "anonymous_to_peers": False,
+            "last_edit": None,
+            "edit_by_label": None,
+            "profile_image": {
+                "has_image": False,
+                "image_url_full": "http://testserver/static/default_500.png",
+                "image_url_large": "http://testserver/static/default_120.png",
+                "image_url_medium": "http://testserver/static/default_50.png",
+                "image_url_small": "http://testserver/static/default_30.png",
+            },
+        }
+        response_data.update(overrides or {})
+        return response_data
+
+    def test_thread_id_missing(self):
+        response = self.client.get(self.url)
+        self.assert_response_correct(
+            response,
+            400,
+            {"field_errors": {"thread_id": {"developer_message": "This field is required."}}}
+        )
+
+    def test_404(self):
+        self.register_get_thread_error_response(self.thread_id, 404)
+        response = self.client.get(self.url, {"thread_id": self.thread_id})
+        self.assert_response_correct(
+            response,
+            404,
+            {"developer_message": "Thread not found."}
+        )
+
+    def test_basic(self):
+        self.register_get_user_response(self.user, upvoted_ids=["test_comment"])
+        source_comments = [
+            self.create_source_comment({"user_id": str(self.author.id), "username": self.author.username})
+        ]
+        expected_comments = [self.expected_response_comment(overrides={
+            "voted": True,
+            "vote_count": 4,
+            "raw_body": "Test body",
+            "can_delete": False,
+            "rendered_body": "<p>Test body</p>",
+            "created_at": "2015-05-11T00:00:00Z",
+            "updated_at": "2015-05-11T11:11:11Z",
+        })]
+        self.register_get_thread_response({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "thread_type": "discussion",
+            "children": source_comments,
+            "resp_total": 100,
+        })
+        response = self.client.get(self.url, {"thread_id": self.thread_id})
+        next_link = "http://testserver/api/discussion/v1/comments/?page=2&thread_id={}".format(
+            self.thread_id
+        )
+        self.assert_response_correct(
+            response,
+            200,
+            make_paginated_api_response(
+                results=expected_comments, count=100, num_pages=10, next_link=next_link, previous_link=None
+            )
+        )
+        params = {
+            "thread_id": self.thread_id,
+            "params": {
+                "resp_skip": 0,
+                "resp_limit": 10,
+                "user_id": str(self.user.id),
+                "mark_as_read": False,
+                "recursive": False,
+                "with_responses": True,
+                "reverse_order": False,
+                "merge_question_type_responses": False,
+            },
+            "course_id": str(self.course.id)
+        }
+        self.check_mock_called_with('get_thread', -1, **params)
+
+    def test_pagination(self):
+        """
+        Test that pagination parameters are correctly plumbed through to the
+        comments service and that a 404 is correctly returned if a page past the
+        end is requested
+        """
+        self.register_get_user_response(self.user)
+        self.register_get_thread_response(make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "thread_type": "discussion",
+            "resp_total": 10,
+        }))
+        response = self.client.get(
+            self.url,
+            {"thread_id": self.thread_id, "page": "18", "page_size": "4"}
+        )
+        self.assert_response_correct(
+            response,
+            404,
+            {"developer_message": "Page not found (No results on this page)."}
+        )
+
+        params = {
+            "thread_id": self.thread_id,
+            "params": {
+                "resp_skip": 68,
+                "resp_limit": 4,
+                "user_id": str(self.user.id),
+                "mark_as_read": False,
+                "recursive": False,
+                "with_responses": True,
+                "reverse_order": False,
+                "merge_question_type_responses": False,
+            },
+            "course_id": str(self.course.id)
+        }
+        self.check_mock_called_with('get_thread', -1, **params)
+
+    def test_question_content_with_merge_question_type_responses(self):
+        self.register_get_user_response(self.user)
+        thread = self.make_minimal_cs_thread({
+            "thread_type": "question",
+            "children": [make_minimal_cs_comment({
+                "id": "endorsed_comment",
+                "user_id": self.user.id,
+                "username": self.user.username,
+                "endorsed": True,
+            }),
+                make_minimal_cs_comment({
+                    "id": "non_endorsed_comment",
+                    "user_id": self.user.id,
+                    "username": self.user.username,
+                    "endorsed": False,
+                })],
+            "resp_total": 2,
+        })
+        self.register_get_thread_response(thread)
+        response = self.client.get(self.url, {
+            "thread_id": thread["id"],
+            "merge_question_type_responses": True
+        })
+        parsed_content = json.loads(response.content.decode('utf-8'))
+        assert parsed_content['results'][0]['id'] == "endorsed_comment"
+        assert parsed_content['results'][1]['id'] == "non_endorsed_comment"
+
+    @ddt.data(
+        (True, "endorsed_comment"),
+        ("true", "endorsed_comment"),
+        ("1", "endorsed_comment"),
+        (False, "non_endorsed_comment"),
+        ("false", "non_endorsed_comment"),
+        ("0", "non_endorsed_comment"),
+    )
+    @ddt.unpack
+    def test_question_content(self, endorsed, comment_id):
+        self.register_get_user_response(self.user)
+        thread = self.make_minimal_cs_thread({
+            "thread_type": "question",
+            "endorsed_responses": [make_minimal_cs_comment({
+                "id": "endorsed_comment",
+                "user_id": self.user.id,
+                "username": self.user.username,
+            })],
+            "non_endorsed_responses": [make_minimal_cs_comment({
+                "id": "non_endorsed_comment",
+                "user_id": self.user.id,
+                "username": self.user.username,
+            })],
+            "non_endorsed_resp_total": 1,
+        })
+        self.register_get_thread_response(thread)
+        response = self.client.get(self.url, {
+            "thread_id": thread["id"],
+            "endorsed": endorsed,
+        })
+        parsed_content = json.loads(response.content.decode('utf-8'))
+        assert parsed_content['results'][0]['id'] == comment_id
+
+    def test_question_invalid_endorsed(self):
+        response = self.client.get(self.url, {
+            "thread_id": self.thread_id,
+            "endorsed": "invalid-boolean"
+        })
+        self.assert_response_correct(
+            response,
+            400,
+            {"field_errors": {
+                "endorsed": {"developer_message": "Invalid Boolean Value."}
+            }}
+        )
+
+    def test_question_missing_endorsed(self):
+        self.register_get_user_response(self.user)
+        thread = self.make_minimal_cs_thread({
+            "thread_type": "question",
+            "endorsed_responses": [make_minimal_cs_comment({"id": "endorsed_comment"})],
+            "non_endorsed_responses": [make_minimal_cs_comment({"id": "non_endorsed_comment"})],
+            "non_endorsed_resp_total": 1,
+        })
+        self.register_get_thread_response(thread)
+        response = self.client.get(self.url, {
+            "thread_id": thread["id"]
+        })
+        self.assert_response_correct(
+            response,
+            400,
+            {"field_errors": {
+                "endorsed": {"developer_message": "This field is required for question threads."}
+            }}
+        )
+
+    @ddt.data(
+        ("discussion", False),
+        ("question", True)
+    )
+    @ddt.unpack
+    def test_child_comments_count(self, thread_type, merge_question_type_responses):
+        self.register_get_user_response(self.user)
+        response_1 = make_minimal_cs_comment({
+            "id": "test_response_1",
+            "thread_id": self.thread_id,
+            "user_id": str(self.author.id),
+            "username": self.author.username,
+            "child_count": 2,
+        })
+        response_2 = make_minimal_cs_comment({
+            "id": "test_response_2",
+            "thread_id": self.thread_id,
+            "user_id": str(self.author.id),
+            "username": self.author.username,
+            "child_count": 3,
+        })
+        thread = self.make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "thread_type": thread_type,
+            "children": [response_1, response_2],
+            "resp_total": 2,
+            "comments_count": 8,
+            "unread_comments_count": 0,
+        })
+        self.register_get_thread_response(thread)
+        response = self.client.get(self.url, {
+            "thread_id": self.thread_id,
+            "merge_question_type_responses": merge_question_type_responses})
+        expected_comments = [
+            self.expected_response_comment(overrides={"id": "test_response_1", "child_count": 2, "can_delete": False}),
+            self.expected_response_comment(overrides={"id": "test_response_2", "child_count": 3, "can_delete": False}),
+        ]
+        self.assert_response_correct(
+            response,
+            200,
+            {
+                "results": expected_comments,
+                "pagination": {
+                    "count": 2,
+                    "next": None,
+                    "num_pages": 1,
+                    "previous": None,
+                }
+            }
+        )
+
+    def test_profile_image_requested_field(self):
+        """
+        Tests all comments retrieved have user profile image details if called in requested_fields
+        """
+        source_comments = [self.create_source_comment()]
+        self.register_get_thread_response({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "thread_type": "discussion",
+            "children": source_comments,
+            "resp_total": 100,
+        })
+        self.register_get_user_response(self.user, upvoted_ids=["test_comment"])
+        self.create_profile_image(self.user, get_profile_image_storage())
+
+        response = self.client.get(self.url, {"thread_id": self.thread_id, "requested_fields": "profile_image"})
+        assert response.status_code == 200
+        response_comments = json.loads(response.content.decode('utf-8'))['results']
+        for response_comment in response_comments:
+            expected_profile_data = self.get_expected_user_profile(response_comment['author'])
+            response_users = response_comment['users']
+            assert expected_profile_data == response_users[response_comment['author']]
+
+    def test_profile_image_requested_field_endorsed_comments(self):
+        """
+        Tests all comments have user profile image details for both author and endorser
+        if called in requested_fields for endorsed threads
+        """
+        endorser_user = UserFactory.create(password=self.password)
+        # Ensure that parental controls don't apply to this user
+        endorser_user.profile.year_of_birth = 1970
+        endorser_user.profile.save()
+
+        self.register_get_user_response(self.user)
+        thread = self.make_minimal_cs_thread({
+            "thread_type": "question",
+            "endorsed_responses": [make_minimal_cs_comment({
+                "id": "endorsed_comment",
+                "user_id": self.user.id,
+                "username": self.user.username,
+                "endorsed": True,
+                "endorsement": {"user_id": endorser_user.id, "time": "2016-05-10T08:51:28Z"},
+            })],
+            "non_endorsed_responses": [make_minimal_cs_comment({
+                "id": "non_endorsed_comment",
+                "user_id": self.user.id,
+                "username": self.user.username,
+            })],
+            "non_endorsed_resp_total": 1,
+        })
+        self.register_get_thread_response(thread)
+        self.create_profile_image(self.user, get_profile_image_storage())
+        self.create_profile_image(endorser_user, get_profile_image_storage())
+
+        response = self.client.get(self.url, {
+            "thread_id": thread["id"],
+            "endorsed": True,
+            "requested_fields": "profile_image",
+        })
+        assert response.status_code == 200
+        response_comments = json.loads(response.content.decode('utf-8'))['results']
+        for response_comment in response_comments:
+            expected_author_profile_data = self.get_expected_user_profile(response_comment['author'])
+            expected_endorser_profile_data = self.get_expected_user_profile(response_comment['endorsed_by'])
+            response_users = response_comment['users']
+            assert expected_author_profile_data == response_users[response_comment['author']]
+            assert expected_endorser_profile_data == response_users[response_comment['endorsed_by']]
+
+    def test_profile_image_request_for_null_endorsed_by(self):
+        """
+        Tests if 'endorsed' is True but 'endorsed_by' is null, the api does not crash.
+        This is the case for some old/stale data in prod/stage environments.
+        """
+        self.register_get_user_response(self.user)
+        thread = self.make_minimal_cs_thread({
+            "thread_type": "question",
+            "endorsed_responses": [make_minimal_cs_comment({
+                "id": "endorsed_comment",
+                "user_id": self.user.id,
+                "username": self.user.username,
+                "endorsed": True,
+            })],
+            "non_endorsed_resp_total": 0,
+        })
+        self.register_get_thread_response(thread)
+        self.create_profile_image(self.user, get_profile_image_storage())
+
+        response = self.client.get(self.url, {
+            "thread_id": thread["id"],
+            "endorsed": True,
+            "requested_fields": "profile_image",
+        })
+        assert response.status_code == 200
+        response_comments = json.loads(response.content.decode('utf-8'))['results']
+        for response_comment in response_comments:
+            expected_author_profile_data = self.get_expected_user_profile(response_comment['author'])
+            response_users = response_comment['users']
+            assert expected_author_profile_data == response_users[response_comment['author']]
+            assert response_comment['endorsed_by'] not in response_users
+
+    def test_reverse_order_sort(self):
+        """
+        Tests if reverse_order param is passed to cs comments service
+        """
+        self.register_get_user_response(self.user, upvoted_ids=["test_comment"])
+        source_comments = [
+            self.create_source_comment({"user_id": str(self.author.id), "username": self.author.username})
+        ]
+        self.register_get_thread_response({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "thread_type": "discussion",
+            "children": source_comments,
+            "resp_total": 100,
+        })
+        self.client.get(self.url, {"thread_id": self.thread_id, "reverse_order": True})
+
+        params = {
+            "thread_id": self.thread_id,
+            "params": {
+                "resp_skip": 0,
+                "resp_limit": 10,
+                "user_id": str(self.user.id),
+                "mark_as_read": False,
+                "recursive": False,
+                "with_responses": True,
+                "reverse_order": True,
+                "merge_question_type_responses": False,
+            },
+            "course_id": str(self.course.id)
+        }
+        self.check_mock_called_with('get_thread', -1, **params)
+
+
+@httpretty.activate
+@disable_signal(api, 'comment_deleted')
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class CommentViewSetDeleteTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
+    """Tests for ThreadViewSet delete"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("comment-detail", kwargs={"comment_id": "test_comment"})
+        self.comment_id = "test_comment"
+        self.set_mock_return_value('get_course_id_by_thread', str(self.course.id))
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        cs_thread = make_minimal_cs_thread({
+            "id": "test_thread",
+            "course_id": str(self.course.id),
+        })
+        self.register_get_thread_response(cs_thread)
+        cs_comment = make_minimal_cs_comment({
+            "id": self.comment_id,
+            "course_id": cs_thread["course_id"],
+            "thread_id": cs_thread["id"],
+            "username": self.user.username,
+            "user_id": str(self.user.id),
+        })
+        self.register_get_comment_response(cs_comment)
+        self.register_delete_comment_response(self.comment_id)
+        response = self.client.delete(self.url)
+        assert response.status_code == 204
+        assert response.content == b''
+        params = {
+            "comment_id": self.comment_id,
+            "course_id": str(self.course.id),
+        }
+        self.check_mock_called_with('delete_comment', -1, **params)
+
+    def test_delete_nonexistent_comment(self):
+        self.register_get_comment_error_response(self.comment_id, 404)
+        response = self.client.delete(self.url)
+        assert response.status_code == 404
+
+
+@httpretty.activate
+@disable_signal(api, 'comment_created')
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+@mock.patch("lms.djangoapps.discussion.signals.handlers.send_response_notifications", new=mock.Mock())
+class CommentViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
+    """Tests for CommentViewSet create"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("comment-list")
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        self.register_thread()
+        self.register_comment()
+        request_data = {
+            "thread_id": "test_thread",
+            "raw_body": "Test body",
+        }
+        expected_response_data = {
+            "id": "test_comment",
+            "thread_id": "test_thread",
+            "parent_id": None,
+            "author": self.user.username,
+            "author_label": None,
+            "created_at": "1970-01-01T00:00:00Z",
+            "updated_at": "1970-01-01T00:00:00Z",
+            "raw_body": "Test body",
+            "rendered_body": "<p>Test body</p>",
+            "endorsed": False,
+            "endorsed_by": None,
+            "endorsed_by_label": None,
+            "endorsed_at": None,
+            "abuse_flagged": False,
+            "abuse_flagged_any_user": None,
+            "voted": False,
+            "vote_count": 0,
+            "children": [],
+            "editable_fields": ["abuse_flagged", "anonymous", "raw_body"],
+            "child_count": 0,
+            "can_delete": True,
+            "anonymous": False,
+            "anonymous_to_peers": False,
+            "last_edit": None,
+            "edit_by_label": None,
+            "profile_image": {
+                "has_image": False,
+                "image_url_full": "http://testserver/static/default_500.png",
+                "image_url_large": "http://testserver/static/default_120.png",
+                "image_url_medium": "http://testserver/static/default_50.png",
+                "image_url_small": "http://testserver/static/default_30.png",
+            },
+        }
+        response = self.client.post(
+            self.url,
+            json.dumps(request_data),
+            content_type="application/json"
+        )
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode('utf-8'))
+        assert response_data == expected_response_data
+        params = {
+            'thread_id': 'test_thread',
+            'course_id': str(self.course.id),
+            'body': 'Test body',
+            'user_id': str(self.user.id),
+            'anonymous': False,
+            'anonymous_to_peers': False,
+        }
+        self.check_mock_called_with(
+            "create_parent_comment",
+            -1,
+            **params
+        )
+
+    def test_error(self):
+        response = self.client.post(
+            self.url,
+            json.dumps({}),
+            content_type="application/json"
+        )
+        expected_response_data = {
+            "field_errors": {"thread_id": {"developer_message": "This field is required."}}
+        }
+        assert response.status_code == 400
+        response_data = json.loads(response.content.decode('utf-8'))
+        assert response_data == expected_response_data
+
+    def test_closed_thread(self):
+        self.register_get_user_response(self.user)
+        self.register_thread({"closed": True})
+        self.register_comment()
+        request_data = {
+            "thread_id": "test_thread",
+            "raw_body": "Test body"
+        }
+        response = self.client.post(
+            self.url,
+            json.dumps(request_data),
+            content_type="application/json"
+        )
+        assert response.status_code == 403
+
+
+@httpretty.activate
+@disable_signal(api, 'thread_created')
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class ThreadViewSetCreateTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
+    """Tests for ThreadViewSet create"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("thread-list")
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        cs_thread = make_minimal_cs_thread({
+            "id": "test_thread",
+            "username": self.user.username,
+            "read": True,
+        })
+        self.register_post_thread_response(cs_thread)
+        request_data = {
+            "course_id": str(self.course.id),
+            "topic_id": "test_topic",
+            "type": "discussion",
+            "title": "Test Title",
+            "raw_body": "# Test \n This is a very long body but will not be truncated for the preview.",
+        }
+        response = self.client.post(
+            self.url,
+            json.dumps(request_data),
+            content_type="application/json"
+        )
+        assert response.status_code == 200
+        response_data = json.loads(response.content.decode('utf-8'))
+        assert response_data == self.expected_thread_data({
+            "read": True,
+            "raw_body": "# Test \n This is a very long body but will not be truncated for the preview.",
+            "preview_body": "Test This is a very long body but will not be truncated for the preview.",
+            "rendered_body": "<h1>Test</h1>\n<p>This is a very long body but will not be truncated for"
+                             " the preview.</p>",
+        })
+
+        params = {
+            'course_id': str(self.course.id),
+            'commentable_id': 'test_topic',
+            'thread_type': 'discussion',
+            'title': 'Test Title',
+            'body': '# Test \n This is a very long body but will not be truncated for the preview.',
+            'user_id': str(self.user.id),
+            'anonymous': False,
+            'anonymous_to_peers': False,
+        }
+        self.check_mock_called_with("create_thread", -1, **params)
+
+    def test_error(self):
+        request_data = {
+            "topic_id": "dummy",
+            "type": "discussion",
+            "title": "dummy",
+            "raw_body": "dummy",
+        }
+        response = self.client.post(
+            self.url,
+            json.dumps(request_data),
+            content_type="application/json"
+        )
+        expected_response_data = {
+            "field_errors": {"course_id": {"developer_message": "This field is required."}}
+        }
+        assert response.status_code == 400
+        response_data = json.loads(response.content.decode('utf-8'))
+        assert response_data == expected_response_data
+
+
+@httpretty.activate
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class ThreadViewSetRetrieveTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, ProfileImageTestMixin):
+    """Tests for ThreadViewSet Retrieve"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("thread-detail", kwargs={"thread_id": "test_thread"})
+        self.thread_id = "test_thread"
+        self.set_mock_return_value('get_course_id_by_comment', str(self.course.id))
+        self.set_mock_return_value('get_course_id_by_thread', str(self.course.id))
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        cs_thread = make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "commentable_id": "test_topic",
+            "username": self.user.username,
+            "user_id": str(self.user.id),
+            "title": "Test Title",
+            "body": "Test body",
+        })
+        self.register_get_thread_response(cs_thread)
+        response = self.client.get(self.url)
+        assert response.status_code == 200
+        assert json.loads(response.content.decode('utf-8')) == self.expected_thread_data({'unread_comment_count': 1})
+        self.check_mock_called('get_thread')
+
+    def test_retrieve_nonexistent_thread(self):
+        self.register_get_thread_error_response(self.thread_id, 404)
+        response = self.client.get(self.url)
+        assert response.status_code == 404
+
+    def test_profile_image_requested_field(self):
+        """
+        Tests thread has user profile image details if called in requested_fields
+        """
+        self.register_get_user_response(self.user)
+        cs_thread = make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "username": self.user.username,
+            "user_id": str(self.user.id),
+        })
+        self.register_get_thread_response(cs_thread)
+        self.create_profile_image(self.user, get_profile_image_storage())
+        response = self.client.get(self.url, {"requested_fields": "profile_image"})
+        assert response.status_code == 200
+        expected_profile_data = self.get_expected_user_profile(self.user.username)
+        response_users = json.loads(response.content.decode('utf-8'))['users']
+        assert expected_profile_data == response_users[self.user.username]
+
+
+@httpretty.activate
+@mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+class CommentViewSetRetrieveTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, ProfileImageTestMixin):
+    """Tests for CommentViewSet Retrieve"""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("comment-detail", kwargs={"comment_id": "test_comment"})
+        self.thread_id = "test_thread"
+        self.comment_id = "test_comment"
+        self.set_mock_return_value('get_course_id_by_comment', str(self.course.id))
+        self.set_mock_return_value('get_course_id_by_thread', str(self.course.id))
+
+    def make_comment_data(self, comment_id, parent_id=None, children=[]):  # pylint: disable=W0102
+        """
+        Returns comment dict object as returned by comments service
+        """
+        return make_minimal_cs_comment({
+            "id": comment_id,
+            "parent_id": parent_id,
+            "course_id": str(self.course.id),
+            "thread_id": self.thread_id,
+            "thread_type": "discussion",
+            "username": self.user.username,
+            "user_id": str(self.user.id),
+            "created_at": "2015-06-03T00:00:00Z",
+            "updated_at": "2015-06-03T00:00:00Z",
+            "body": "Original body",
+            "children": children,
+        })
+
+    def test_basic(self):
+        self.register_get_user_response(self.user)
+        cs_comment_child = self.make_comment_data("test_child_comment", self.comment_id, children=[])
+        cs_comment = self.make_comment_data(self.comment_id, None, [cs_comment_child])
+        cs_thread = make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "children": [cs_comment],
+        })
+        self.register_get_thread_response(cs_thread)
+        self.register_get_comment_response(cs_comment)
+
+        expected_response_data = {
+            "id": "test_child_comment",
+            "parent_id": self.comment_id,
+            "thread_id": self.thread_id,
+            "author": self.user.username,
+            "author_label": None,
+            "raw_body": "Original body",
+            "rendered_body": "<p>Original body</p>",
+            "created_at": "2015-06-03T00:00:00Z",
+            "updated_at": "2015-06-03T00:00:00Z",
+            "children": [],
+            "endorsed_at": None,
+            "endorsed": False,
+            "endorsed_by": None,
+            "endorsed_by_label": None,
+            "voted": False,
+            "vote_count": 0,
+            "abuse_flagged": False,
+            "abuse_flagged_any_user": None,
+            "editable_fields": ["abuse_flagged", "anonymous", "raw_body"],
+            "child_count": 0,
+            "can_delete": True,
+            "anonymous": False,
+            "anonymous_to_peers": False,
+            "last_edit": None,
+            "edit_by_label": None,
+            "profile_image": {
+                "has_image": False,
+                "image_url_full": "http://testserver/static/default_500.png",
+                "image_url_large": "http://testserver/static/default_120.png",
+                "image_url_medium": "http://testserver/static/default_50.png",
+                "image_url_small": "http://testserver/static/default_30.png",
+            },
+        }
+
+        response = self.client.get(self.url)
+        assert response.status_code == 200
+        assert json.loads(response.content.decode('utf-8'))['results'][0] == expected_response_data
+
+    def test_retrieve_nonexistent_comment(self):
+        self.register_get_comment_error_response(self.comment_id, 404)
+        response = self.client.get(self.url)
+        assert response.status_code == 404
+
+    def test_pagination(self):
+        """
+        Test that pagination parameters are correctly plumbed through to the
+        comments service and that a 404 is correctly returned if a page past the
+        end is requested
+        """
+        self.register_get_user_response(self.user)
+        cs_comment_child = self.make_comment_data("test_child_comment", self.comment_id, children=[])
+        cs_comment = self.make_comment_data(self.comment_id, None, [cs_comment_child])
+        cs_thread = make_minimal_cs_thread({
+            "id": self.thread_id,
+            "course_id": str(self.course.id),
+            "children": [cs_comment],
+        })
+        self.register_get_thread_response(cs_thread)
+        self.register_get_comment_response(cs_comment)
+        response = self.client.get(
+            self.url,
+            {"comment_id": self.comment_id, "page": "18", "page_size": "4"}
+        )
+        self.assert_response_correct(
+            response,
+            404,
+            {"developer_message": "Page not found (No results on this page)."}
+        )
+
+    def test_profile_image_requested_field(self):
+        """
+        Tests all comments retrieved have user profile image details if called in requested_fields
+        """
+        self.register_get_user_response(self.user)
+        cs_comment_child = self.make_comment_data('test_child_comment', self.comment_id, children=[])
+        cs_comment = self.make_comment_data(self.comment_id, None, [cs_comment_child])
+        cs_thread = make_minimal_cs_thread({
+            'id': self.thread_id,
+            'course_id': str(self.course.id),
+            'children': [cs_comment],
+        })
+        self.register_get_thread_response(cs_thread)
+        self.register_get_comment_response(cs_comment)
+        self.create_profile_image(self.user, get_profile_image_storage())
+
+        response = self.client.get(self.url, {'requested_fields': 'profile_image'})
+        assert response.status_code == 200
+        response_comments = json.loads(response.content.decode('utf-8'))['results']
+
+        for response_comment in response_comments:
+            expected_profile_data = self.get_expected_user_profile(response_comment['author'])
+            response_users = response_comment['users']
+            assert expected_profile_data == response_users[response_comment['author']]
