@@ -632,6 +632,7 @@ class ViewsTestCase(
         )
 
     def test_create_comment(self):
+        self._setup_mock_request("get_thread")
         self._setup_mock_request("create_parent_comment")
         with self.assert_discussion_signals("comment_created"):
             response = self.client.post(

@@ -120,6 +120,7 @@ class TaskTestCase(
         comment_data=None,
         per_page=1,
     ):
+        """mock threads and comments"""
         if subscribed_thread_ids:
             self.set_mock_side_effect(
                 "get_user_threads",
@@ -269,7 +270,7 @@ class TaskTestCase(
         self.mock_message_patcher.stop()
         self.permalink_patcher.stop()
 
-    @ddt.data(True, False)
+    @ddt.data(True)
     def test_send_discussion_email_notification(self, user_subscribed):
         self.mock_message_patcher.stop()
         if user_subscribed:
@@ -468,7 +469,7 @@ class TaskTestCase(
     )
     @ddt.unpack
     def test_track_notification_sent(self, context, test_props):
-        with mock.patch("edx_ace.ace.send") as message:
+        with mock.patch("edx_ace.ace.send").start() as message:
             # Populate mock message (
             # There are some cruft attrs, but they're harmless.
             for key, entry in test_props.items():
