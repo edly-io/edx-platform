@@ -99,7 +99,6 @@ class User(models.Model):
             query_params = {}
         if not self.course_id:
             raise utils.CommentClientRequestError("Must provide course_id when retrieving active threads for the user")
-        url = _url_for_user_active_threads(self.id)
         params = {'course_id': str(self.course_id)}
         params.update(query_params)
         course_key = utils.get_course_key(self.attributes.get("course_id"))
@@ -113,6 +112,7 @@ class User(models.Model):
             params["count_flagged"] = str_to_bool(count_flagged)
         if not params.get("course_id"):
             params["course_id"] = str(course_key)
+        params = _clean_forum_params(params)
         response = forum_api.get_user_active_threads(**params)
         return response.get('collection', []), response.get('page', 1), response.get('num_pages', 1)
 
@@ -123,7 +123,6 @@ class User(models.Model):
             raise utils.CommentClientRequestError(
                 "Must provide course_id when retrieving subscribed threads for the user",
             )
-        url = _url_for_user_subscribed_threads(self.id)
         params = {'course_id': str(self.course_id)}
         params.update(query_params)
         course_key = utils.get_course_key(self.attributes.get("course_id"))
@@ -184,46 +183,6 @@ class User(models.Model):
     def replace_username(self, new_username):
         course_key = utils.get_course_key(self.attributes.get("course_id"))
         forum_api.update_username(user_id=self.id, new_username=new_username, course_id=str(course_key))
-
-def _url_for_vote_comment(comment_id):
-    return f"{settings.PREFIX}/comments/{comment_id}/votes"
-
-
-def _url_for_vote_thread(thread_id):
-    return f"{settings.PREFIX}/threads/{thread_id}/votes"
-
-
-def _url_for_subscription(user_id):
-    return f"{settings.PREFIX}/users/{user_id}/subscriptions"
-
-
-def _url_for_user_active_threads(user_id):
-    return f"{settings.PREFIX}/users/{user_id}/active_threads"
-
-
-def _url_for_user_subscribed_threads(user_id):
-    return f"{settings.PREFIX}/users/{user_id}/subscribed_threads"
-
-
-def _url_for_read(user_id):
-    """
-    Returns cs_comments_service url endpoint to mark thread as read for given user_id
-    """
-    return f"{settings.PREFIX}/users/{user_id}/read"
-
-
-def _url_for_retire(user_id):
-    """
-    Returns cs_comments_service url endpoint to retire a user (remove all post content, etc.)
-    """
-    return f"{settings.PREFIX}/users/{user_id}/retire"
-
-
-def _url_for_username_replacement(user_id):
-    """
-    Returns cs_comments_servuce url endpoint to replace the username of a user
-    """
-    return f"{settings.PREFIX}/users/{user_id}/replace_username"
 
 
 def _clean_forum_params(params):
