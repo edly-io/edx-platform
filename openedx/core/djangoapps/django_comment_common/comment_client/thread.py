@@ -218,22 +218,6 @@ class Thread(models.Model):
         self._update_from_response(response)
 
 
-def _url_for_flag_abuse_thread(thread_id):
-    return f"{settings.PREFIX}/threads/{thread_id}/abuse_flag"
-
-
-def _url_for_unflag_abuse_thread(thread_id):
-    return f"{settings.PREFIX}/threads/{thread_id}/abuse_unflag"
-
-
-def _url_for_pin_thread(thread_id):
-    return f"{settings.PREFIX}/threads/{thread_id}/pin"
-
-
-def _url_for_un_pin_thread(thread_id):
-    return f"{settings.PREFIX}/threads/{thread_id}/unpin"
-
-
 def _clean_forum_params(params):
     """Convert string booleans to actual booleans and remove None values from forum parameters."""
     result = {}
