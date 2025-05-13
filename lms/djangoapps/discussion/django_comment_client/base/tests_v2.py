@@ -2698,3 +2698,65 @@ class ForumThreadViewedEventTransformerTestCase(ForumsEnableMixin, UrlResetMixin
             topic_id=self.TEAM_CATEGORY_ID,
         )
         assert event_trans_3['event'].get('team_id') == self.team.team_id
+
+
+@ddt.ddt
+@disable_signal(views, 'thread_created')
+@disable_signal(views, 'thread_edited')
+class ViewsQueryCountTestCase(
+        ForumsEnableMixin,
+        UrlResetMixin,
+        ModuleStoreTestCase,
+        MockForumApiMixin,
+        ViewsTestCaseMixin
+):
+
+    CREATE_USER = False
+    ENABLED_CACHES = ['default', 'mongo_metadata_inheritance', 'loc_cache']
+    ENABLED_SIGNALS = ['course_published']
+
+    @patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
+    def setUp(self):
+        super().setUp()
+
+    @classmethod
+    def setUpClass(cls):  # pylint: disable=super-method-not-called
+        super().setUpClass()
+        super().setUpClassAndForumMock()
+
+    @classmethod
+    def tearDownClass(cls):
+        """Stop patches after tests complete."""
+        super().tearDownClass()
+        super().disposeForumMocks()
+
+    def count_queries(func):  # pylint: disable=no-self-argument
+        """
+        Decorates test methods to count mongo and SQL calls for a
+        particular modulestore.
+        """
+
+        def inner(self, default_store, block_count, mongo_calls, sql_queries, *args, **kwargs):
+            with modulestore().default_store(default_store):
+                self.set_up_course(block_count=block_count)
+                self.clear_caches()
+                with self.assertNumQueries(sql_queries, table_ignorelist=QUERY_COUNT_TABLE_IGNORELIST):
+                    with check_mongo_calls(mongo_calls):
+                        func(self, *args, **kwargs)
+        return inner
+
+    @ddt.data(
+        (ModuleStoreEnum.Type.split, 3, 8, 41),
+    )
+    @ddt.unpack
+    @count_queries
+    def test_create_thread(self):
+        self.create_thread_helper()
+
+    @ddt.data(
+        (ModuleStoreEnum.Type.split, 3, 6, 40),
+    )
+    @ddt.unpack
+    @count_queries
+    def test_update_thread(self):
+        self.update_thread_helper()
