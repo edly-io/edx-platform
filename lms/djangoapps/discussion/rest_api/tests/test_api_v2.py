@@ -1145,7 +1145,6 @@ class UpdateThreadTest(
             "anonymous_to_peers": False,
             "closed": False,
             "pinned": False,
-            "read": False,
             "editing_user_id": str(self.user.id),
         }
         self.check_mock_called_with("update_thread", -1, **params)
