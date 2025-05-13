@@ -58,12 +58,6 @@ class CommentSerializerDeserializationTest(ForumsEnableMixin, ForumMockUtilsMixi
         self.addCleanup(httpretty.reset)
         self.addCleanup(httpretty.disable)
         patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=True
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        patcher = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.get_course_id_by_comment"
         )
         self.mock_get_course_id_by_comment = patcher.start()
@@ -420,12 +414,6 @@ class ThreadSerializerDeserializationTest(
         httpretty.enable()
         self.addCleanup(httpretty.reset)
         self.addCleanup(httpretty.disable)
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=True
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.user = UserFactory.create()
         self.register_get_user_response(self.user)
         self.request = RequestFactory().get("/dummy")
@@ -572,12 +560,6 @@ class SerializerTestMixin(ForumsEnableMixin, UrlResetMixin, ForumMockUtilsMixin)
         httpretty.enable()
         self.addCleanup(httpretty.reset)
         self.addCleanup(httpretty.disable)
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=True
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
         patcher = mock.patch(
             "openedx.core.djangoapps.django_comment_common.comment_client.models.forum_api.get_course_id_by_comment"

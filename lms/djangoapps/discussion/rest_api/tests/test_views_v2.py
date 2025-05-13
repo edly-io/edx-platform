@@ -2155,12 +2155,6 @@ class CourseActivityStatsTest(ForumsEnableMixin, UrlResetMixin, ForumMockUtilsMi
     @mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
     def setUp(self) -> None:
         super().setUp()
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.course = CourseFactory.create()
         self.course_key = str(self.course.id)
         seed_permissions_roles(self.course.id)
@@ -2319,12 +2313,6 @@ class RetireViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         self.superuser_client = APIClient()
         self.retired_username = get_retired_username_by_username(self.user.username)
         self.url = reverse("retire_discussion_user")
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def assert_response_correct(self, response, expected_status, expected_content):
         """
@@ -2390,12 +2378,6 @@ class UploadFileViewTest(ForumsEnableMixin, ForumMockUtilsMixin, UrlResetMixin, 
         self.user = UserFactory.create(password=self.TEST_PASSWORD)
         self.course = CourseFactory.create(org='a', course='b', run='c', start=datetime.now(UTC))
         self.url = reverse("upload_file", kwargs={"course_id": str(self.course.id)})
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     @classmethod
     def setUpClass(cls):
@@ -2543,12 +2525,6 @@ class CourseViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
     def setUp(self):
         super().setUp()
         self.url = reverse("discussion_course", kwargs={"course_id": str(self.course.id)})
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def test_404(self):
         response = self.client.get(
@@ -2606,12 +2582,6 @@ class ReplaceUsernamesViewTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         self.worker_client = APIClient()
         self.new_username = "test_username_replacement"
         self.url = reverse("replace_discussion_username")
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def assert_response_correct(self, response, expected_status, expected_content):
         """
@@ -2714,12 +2684,6 @@ class CourseTopicsViewTest(DiscussionAPIViewTestMixin, CommentsServiceMockMixin,
             "courseware-3": {"discussion": 7, "question": 2},
         }
         self.register_get_course_commentable_counts_response(self.course.id, self.thread_counts_map)
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def create_course(self, blocks_count, module_store, topics):
         """
@@ -2975,12 +2939,6 @@ class CourseTopicsViewV3Test(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.url = reverse("course_topics_v3", kwargs={"course_id": str(self.course.id)})
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def test_basic(self):
         response = self.client.get(self.url)
@@ -3025,12 +2983,6 @@ class CourseDiscussionSettingsAPIViewTest(APITestCase, UrlResetMixin, ModuleStor
         self.path = reverse('discussion_course_settings', kwargs={'course_id': str(self.course.id)})
         self.password = self.TEST_PASSWORD
         self.user = UserFactory(username='staff', password=self.password, is_staff=True)
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def _get_oauth_headers(self, user):
         """Return the OAuth headers for testing OAuth authentication"""
@@ -3320,12 +3272,6 @@ class CourseDiscussionRolesAPIViewTest(APITestCase, UrlResetMixin, ModuleStoreTe
     @mock.patch.dict("django.conf.settings.FEATURES", {"ENABLE_DISCUSSION_SERVICE": True})
     def setUp(self):
         super().setUp()
-        patcher = mock.patch(
-            'openedx.core.djangoapps.discussions.config.waffle.ENABLE_FORUM_V2.is_enabled',
-            return_value=False
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
         self.course = CourseFactory.create(
             org="x",
             course="y",
