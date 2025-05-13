@@ -2152,3 +2152,84 @@ class ForumMFETestCase(ForumsEnableMixin, SharedModuleStoreTestCase, ModuleStore
             assert response.status_code == 302
             expected_url = f"{settings.DISCUSSIONS_MICROFRONTEND_URL}/{str(self.course.id)}/posts/test_thread"
             assert response.url == expected_url
+
+
+@ddt.ddt
+class SingleThreadQueryCountTestCase(ForumsEnableMixin, ModuleStoreTestCase, ForumViewsUtilsMixin):
+    """
+    Ensures the number of modulestore queries and number of sql queries are
+    independent of the number of responses retrieved for a given discussion thread.
+    """
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        super().setUpClassAndForumMock()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        super().disposeForumMocks()
+
+    @ddt.data(
+        # split mongo: 3 queries, regardless of thread response size.
+        (False, 1, 2, 2, 20, 8),
+        (False, 50, 2, 2, 20, 8),
+
+        # Enabling Enterprise integration should have no effect on the number of mongo queries made.
+        # split mongo: 3 queries, regardless of thread response size.
+        (True, 1, 2, 2, 20, 8),
+        (True, 50, 2, 2, 20, 8),
+    )
+    @ddt.unpack
+    def test_number_of_mongo_queries(
+            self,
+            enterprise_enabled,
+            num_thread_responses,
+            num_uncached_mongo_calls,
+            num_cached_mongo_calls,
+            num_uncached_sql_queries,
+            num_cached_sql_queries,
+    ):
+        ContentTypeGatingConfig.objects.create(enabled=True, enabled_as_of=datetime(2018, 1, 1))
+        with modulestore().default_store(ModuleStoreEnum.Type.split):
+            course = CourseFactory.create(discussion_topics={'dummy discussion': {'id': 'dummy_discussion_id'}})
+
+        student = UserFactory.create()
+        CourseEnrollmentFactory.create(user=student, course_id=course.id)
+
+        test_thread_id = "test_thread_id"
+        self._configure_mock_responses(
+            course=course, text="dummy content", thread_id=test_thread_id, num_thread_responses=num_thread_responses
+        )
+        request = RequestFactory().get(
+            "dummy_url",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        request.user = student
+
+        def call_single_thread():
+            """
+            Call single_thread and assert that it returns what we expect.
+            """
+            with patch.dict("django.conf.settings.FEATURES", dict(ENABLE_ENTERPRISE_INTEGRATION=enterprise_enabled)):
+                response = views.single_thread(
+                    request,
+                    str(course.id),
+                    "dummy_discussion_id",
+                    test_thread_id
+                )
+            assert response.status_code == 200
+            assert len(json.loads(response.content.decode('utf-8'))['content']['children']) == num_thread_responses
+
+        # Test uncached first, then cached now that the cache is warm.
+        cached_calls = [
+            [num_uncached_mongo_calls, num_uncached_sql_queries],
+            # Sometimes there will be one more or fewer sql call than expected, because the call to
+            # CourseMode.modes_for_course sometimes does / doesn't get cached and does / doesn't hit the DB.
+            # EDUCATOR-5167
+            [num_cached_mongo_calls, AllowPlusOrMinusOneInt(num_cached_sql_queries)],
+        ]
+        for expected_mongo_calls, expected_sql_queries in cached_calls:
+            with self.assertNumQueries(expected_sql_queries, table_ignorelist=QUERY_COUNT_TABLE_IGNORELIST):
+                with check_mongo_calls(expected_mongo_calls):
+                    call_single_thread()
