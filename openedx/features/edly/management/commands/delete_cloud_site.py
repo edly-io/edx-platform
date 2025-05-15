@@ -88,8 +88,9 @@ class Command(BaseCommand):
             sub_org.edx_organization.delete()
 
         count = EdlySubOrganization.objects.filter(edly_organization=sub_org.edly_organization).count()
-        if count == 1:
+        if count < 1:
             sub_org.edly_organization.delete()
+
         sub_org.delete()
         logger.info(f"Successfully deleted sub organization: {sub_org}")
 
