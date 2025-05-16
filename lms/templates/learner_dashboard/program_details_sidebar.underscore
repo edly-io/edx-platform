@@ -1,7 +1,7 @@
 <aside class="aside js-program-progress program-progress">
     <% if (programCertificate) { %>
         <h2 class="progress-heading certificate-heading"><%- StringUtils.interpolate(gettext('Your {program} Certificate'), {program: type}, true) %></h2>
-        <a href="<%- programCertificate.url %>" class="btn-brand btn cta-primary" target="_blank" rel="noopener noreferrer">
+        <a href="<%- programCertificate.url %>" class="btn-brand btn cta-primary" target="_blank" rel="noopener">
             Program Certificate
         </a>
     <% } %>
