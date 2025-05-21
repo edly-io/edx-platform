@@ -8,6 +8,7 @@ from django.views.generic import View
 from organizations.api import get_organizations
 
 from openedx.core.djangolib.js_utils import dump_js_escaped_json
+from edly_features_app.filters import FilterOrganizationsBySite
 
 
 class OrganizationListView(View):
@@ -22,4 +23,7 @@ class OrganizationListView(View):
         """Returns organization list as json."""
         organizations = get_organizations()
         org_names_list = [(org["short_name"]) for org in organizations]
+        org_names_list = FilterOrganizationsBySite.run_filter(
+            orgs=org_names_list
+        )
         return HttpResponse(dump_js_escaped_json(org_names_list), content_type='application/json; charset=utf-8')  # lint-amnesty, pylint: disable=http-response-with-content-type-json
