@@ -8,7 +8,7 @@ from django.views.generic import View
 from organizations.api import get_organizations
 
 from openedx.core.djangolib.js_utils import dump_js_escaped_json
-from edly_features_app.filters import OrganizationListRequested
+from openedx_filters.course_authoring.filters import OrganizationListRequested
 
 
 class OrganizationListView(View):
