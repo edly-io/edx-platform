@@ -25,6 +25,7 @@ from edx_ace import ace
 from edx_ace.recipient import Recipient
 from eventtracking import tracker
 from django_ratelimit.decorators import ratelimit
+from openedx_filters.learning.filters import ResetPasswordRequested
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
@@ -198,6 +199,13 @@ class PasswordResetFormNoActive(PasswordResetForm):
         email = self.cleaned_data["email"]
         # The line below contains the only change, removing is_active=True
         self.users_cache = User.objects.filter(email__iexact=email)
+
+        try:
+            self.users_cache = ResetPasswordRequested.run_filter(
+                users=self.users_cache,
+            )
+        except ResetPasswordRequested.PreventResetPassword as exc:
+            raise forms.ValidationError(str(exc))
 
         if not self.users_cache and is_secondary_email_feature_enabled():
             # Check if user has entered the secondary email.
