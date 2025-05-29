@@ -25,7 +25,7 @@ from edx_ace import ace
 from edx_ace.recipient import Recipient
 from eventtracking import tracker
 from django_ratelimit.decorators import ratelimit
-from openedx_filters.learning.filters import ResetPasswordRequested
+from edly_features_app.filters import ResetPasswordRequested
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
@@ -200,6 +200,7 @@ class PasswordResetFormNoActive(PasswordResetForm):
         # The line below contains the only change, removing is_active=True
         self.users_cache = User.objects.filter(email__iexact=email)
 
+        # This filter allows filtering users before resetting password
         try:
             self.users_cache = ResetPasswordRequested.run_filter(
                 users=self.users_cache,
@@ -632,12 +633,12 @@ def password_change_request_handler(request):
         }
     )
 
-    if getattr(request, 'limited', False) and not request_from_support_tools:
-        AUDIT_LOG.warning("Password reset rate limit exceeded for email %s.", email)
-        return HttpResponse(
-            _("Your previous request is in progress, please try again in a few moments."),
-            status=403
-        )
+    # if getattr(request, 'limited', False) and not request_from_support_tools:
+    #     AUDIT_LOG.warning("Password reset rate limit exceeded for email %s.", email)
+    #     return HttpResponse(
+    #         _("Your previous request is in progress, please try again in a few moments."),
+    #         status=403
+    #     )
 
     if email:
         try:
