@@ -633,12 +633,12 @@ def password_change_request_handler(request):
         }
     )
 
-    # if getattr(request, 'limited', False) and not request_from_support_tools:
-    #     AUDIT_LOG.warning("Password reset rate limit exceeded for email %s.", email)
-    #     return HttpResponse(
-    #         _("Your previous request is in progress, please try again in a few moments."),
-    #         status=403
-    #     )
+    if getattr(request, 'limited', False) and not request_from_support_tools:
+        AUDIT_LOG.warning("Password reset rate limit exceeded for email %s.", email)
+        return HttpResponse(
+            _("Your previous request is in progress, please try again in a few moments."),
+            status=403
+        )
 
     if email:
         try:
