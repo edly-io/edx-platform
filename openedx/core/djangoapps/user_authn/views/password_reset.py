@@ -206,7 +206,7 @@ class PasswordResetFormNoActive(PasswordResetForm):
                 users=self.users_cache,
             )
         except ResetPasswordRequested.PreventResetPassword as exc:
-            raise forms.ValidationError(str(exc))
+            raise forms.ValidationError(str(exc)) from exc
 
         if not self.users_cache and is_secondary_email_feature_enabled():
             # Check if user has entered the secondary email.
