@@ -21,11 +21,11 @@ from django.utils.http import base36_to_int, int_to_base36, urlsafe_base64_encod
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
+from edly_features_app.filters import ResetPasswordRequested
 from edx_ace import ace
 from edx_ace.recipient import Recipient
 from eventtracking import tracker
 from django_ratelimit.decorators import ratelimit
-from edly_features_app.filters import ResetPasswordRequested
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
@@ -200,7 +200,7 @@ class PasswordResetFormNoActive(PasswordResetForm):
         # The line below contains the only change, removing is_active=True
         self.users_cache = User.objects.filter(email__iexact=email)
 
-        # This filter allows filtering users before resetting password
+        # EDLYCUSTOM: This filter allows filtering users before resetting password
         try:
             self.users_cache = ResetPasswordRequested.run_filter(
                 users=self.users_cache,
