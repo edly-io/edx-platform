@@ -564,7 +564,6 @@ class CreateThreadTest(
             "thread_id": "test_id",
             "action": "flag",
             "user_id": "1",
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with("update_thread_flag", -1, **params)
 
@@ -581,7 +580,6 @@ class CreateThreadTest(
 
         params = {
             "user_id": str(self.user.id),
-            "course_id": str(self.course.id),
             "source_id": "test_id",
         }
         self.check_mock_called_with("create_subscription", 0, **params)
@@ -928,7 +926,6 @@ class CreateCommentTest(
             "comment_id": "test_comment",
             "action": "flag",
             "user_id": "1",
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with("update_comment_flag", -1, **params)
 
@@ -1135,7 +1132,6 @@ class UpdateThreadTest(
         )
         params = {
             "thread_id": "test_thread",
-            "course_id": str(self.course.id),
             "commentable_id": "original_topic",
             "thread_type": "discussion",
             "title": "Original Title",
@@ -1184,7 +1180,6 @@ class UpdateThreadTest(
                 "thread_id": "test_thread",
                 "action": "flag" if new_flagged else "unflag",
                 "user_id": "1",
-                "course_id": str(self.course.id),
             }
             if not new_flagged:
                 params["update_all"] = False
@@ -1253,7 +1248,6 @@ class UpdateThreadTest(
             "action": "unflag",
             "user_id": "1",
             "update_all": bool(remove_all),
-            "course_id": str(self.course.id),
         }
 
         self.check_mock_called_with("update_thread_flag", -1, **params)
@@ -1319,14 +1313,12 @@ class UpdateThreadTest(
                     "thread_id": "test_thread",
                     "value": "up" if new_vote_status else "down",
                     "user_id": str(user1.id),
-                    "course_id": str(self.course.id),
                 }
                 self.check_mock_called_with("update_thread_votes", -1, **params)
             else:
                 params = {
                     "thread_id": "test_thread",
                     "user_id": str(user1.id),
-                    "course_id": str(self.course.id),
                 }
                 self.check_mock_called_with("delete_thread_vote", -1, **params)
             event_name, event_data = mock_emit.call_args[0]
@@ -1825,7 +1817,6 @@ class UpdateCommentTest(
         params = {
             "comment_id": "test_comment",
             "body": "Edited body",
-            "course_id": str(self.course.id),
             "user_id": str(self.user.id),
             "anonymous": False,
             "anonymous_to_peers": False,
@@ -1868,7 +1859,6 @@ class UpdateCommentTest(
                 "comment_id": "test_comment",
                 "action": "flag" if new_flagged else "unflag",
                 "user_id": "1",
-                "course_id": str(self.course.id),
             }
             if not new_flagged:
                 params["update_all"] = False
@@ -1933,7 +1923,6 @@ class UpdateCommentTest(
             "action": "unflag",
             "user_id": "1",
             "update_all": bool(remove_all),
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with("update_comment_flag", -1, **params)
 
@@ -1995,14 +1984,12 @@ class UpdateCommentTest(
                     "comment_id": "test_comment",
                     "value": "up" if new_vote_status else "down",
                     "user_id": str(user1.id),
-                    "course_id": str(self.course.id),
                 }
                 self.check_mock_called_with("update_comment_votes", -1, **params)
             else:
                 params = {
                     "comment_id": "test_comment",
                     "user_id": str(user1.id),
-                    "course_id": str(self.course.id),
                 }
                 self.check_mock_called_with("delete_comment_vote", -1, **params)
 
@@ -2356,7 +2343,6 @@ class DeleteThreadTest(
         self.check_mock_called("delete_thread")
         params = {
             "thread_id": self.thread_id,
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with("delete_thread", -1, **params)
 
@@ -2543,7 +2529,6 @@ class DeleteCommentTest(
         self.check_mock_called("delete_comment")
         params = {
             "comment_id": self.comment_id,
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with("delete_comment", -1, **params)
 
@@ -3673,7 +3658,6 @@ class GetCommentListTest(
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with("get_thread", -1, **params)
 

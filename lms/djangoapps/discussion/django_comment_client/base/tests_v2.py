@@ -710,7 +710,6 @@ class ViewsTestCase(
         params = {
             "comment_id": comment_id,
             "body": updated_body,
-            "course_id": str(self.course_id),
         }
         self.check_mock_called_with("update_comment", -1, **params)
 
@@ -767,7 +766,6 @@ class ViewsTestCase(
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
@@ -776,7 +774,6 @@ class ViewsTestCase(
             thread_id="518d4237b023791dca00000d",
             action="flag",
             user_id=ANY,
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
@@ -789,7 +786,6 @@ class ViewsTestCase(
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            course_id=str(self.course_id),
         )
 
         assert response.status_code == 200
@@ -834,7 +830,6 @@ class ViewsTestCase(
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
@@ -844,7 +839,6 @@ class ViewsTestCase(
             action="unflag",
             user_id=ANY,
             update_all=False,
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
@@ -857,7 +851,6 @@ class ViewsTestCase(
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            course_id=str(self.course_id),
         )
 
         assert response.status_code == 200
@@ -898,7 +891,6 @@ class ViewsTestCase(
             "get_parent_comment",
             0,
             comment_id="518d4237b023791dca00000d",
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
@@ -907,14 +899,12 @@ class ViewsTestCase(
             comment_id="518d4237b023791dca00000d",
             action="flag",
             user_id=ANY,
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
             "get_parent_comment",
             1,
             comment_id="518d4237b023791dca00000d",
-            course_id=str(self.course_id),
         )
 
         assert response.status_code == 200
@@ -955,7 +945,6 @@ class ViewsTestCase(
             "get_parent_comment",
             0,
             comment_id="518d4237b023791dca00000d",
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
@@ -965,14 +954,12 @@ class ViewsTestCase(
             action="unflag",
             update_all=False,
             user_id=ANY,
-            course_id=str(self.course_id),
         )
 
         self.check_mock_called_with(
             "get_parent_comment",
             1,
             comment_id="518d4237b023791dca00000d",
-            course_id=str(self.course_id),
         )
 
         assert response.status_code == 200

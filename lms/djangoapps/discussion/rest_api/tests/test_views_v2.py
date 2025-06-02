@@ -261,7 +261,6 @@ class ThreadViewSetPartialUpdateTest(
 
         params = {
             "thread_id": "test_thread",
-            "course_id": str(self.course.id),
             "commentable_id": "test_topic",
             "thread_type": "discussion",
             "title": "Test Title",
@@ -467,7 +466,6 @@ class CommentViewSetPartialUpdateTest(
         params = {
             "comment_id": "test_comment",
             "body": "Edited body",
-            "course_id": str(self.course.id),
             "user_id": str(self.user.id),
             "anonymous": False,
             "anonymous_to_peers": False,
@@ -944,7 +942,6 @@ class ThreadViewSetDeleteTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         assert response.content == b''
         params = {
             "thread_id": self.thread_id,
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with('delete_thread', -1, **params)
 
@@ -1097,7 +1094,6 @@ class CommentViewSetListTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, Pr
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            "course_id": str(self.course.id)
         }
         self.check_mock_called_with('get_thread', -1, **params)
 
@@ -1136,7 +1132,6 @@ class CommentViewSetListTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, Pr
                 "reverse_order": False,
                 "merge_question_type_responses": False,
             },
-            "course_id": str(self.course.id)
         }
         self.check_mock_called_with('get_thread', -1, **params)
 
@@ -1414,7 +1409,6 @@ class CommentViewSetListTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase, Pr
                 "reverse_order": True,
                 "merge_question_type_responses": False,
             },
-            "course_id": str(self.course.id)
         }
         self.check_mock_called_with('get_thread', -1, **params)
 
@@ -1452,7 +1446,6 @@ class CommentViewSetDeleteTest(DiscussionAPIViewTestMixin, ModuleStoreTestCase):
         assert response.content == b''
         params = {
             "comment_id": self.comment_id,
-            "course_id": str(self.course.id),
         }
         self.check_mock_called_with('delete_comment', -1, **params)
 
