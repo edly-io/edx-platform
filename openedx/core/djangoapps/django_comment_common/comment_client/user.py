@@ -39,20 +39,16 @@ class User(models.Model):
         course_key = utils.get_course_key(course_id)
         forum_api.mark_thread_as_read(self.id, source.id, course_id=str(course_id))
 
-    def follow(self, source, course_id=None):
-        course_key = utils.get_course_key(self.attributes.get("course_id") or course_id)
+    def follow(self, source):
         forum_api.create_subscription(
             user_id=self.id,
             source_id=source.id,
-            course_id=str(course_key)
         )
 
-    def unfollow(self, source, course_id=None):
-        course_key = utils.get_course_key(self.attributes.get("course_id") or course_id)
+    def unfollow(self, source):
         forum_api.delete_subscription(
             user_id=self.id,
             source_id=source.id,
-            course_id=str(course_key)
         )
 
     def vote(self, voteable, value, course_id=None):
@@ -62,32 +58,27 @@ class User(models.Model):
                 thread_id=voteable.id,
                 user_id=self.id,
                 value=value,
-                course_id=str(course_key)
             )
         elif voteable.type == 'comment':
             response = forum_api.update_comment_votes(
                 comment_id=voteable.id,
                 user_id=self.id,
                 value=value,
-                course_id=str(course_key)
             )
         else:
             raise utils.CommentClientRequestError("Can only vote / unvote for threads or comments")
         voteable._update_from_response(response)
 
-    def unvote(self, voteable, course_id=None):
-        course_key = utils.get_course_key(self.attributes.get("course_id") or course_id)
+    def unvote(self, voteable):
         if voteable.type == 'thread':
             response = forum_api.delete_thread_vote(
                 thread_id=voteable.id,
                 user_id=self.id,
-                course_id=str(course_key)
             )
         elif voteable.type == 'comment':
             response = forum_api.delete_comment_vote(
                 comment_id=voteable.id,
                 user_id=self.id,
-                course_id=str(course_key)
             )
         else:
             raise utils.CommentClientRequestError("Can only vote / unvote for threads or comments")
@@ -154,34 +145,26 @@ class User(models.Model):
         if self.attributes.get('group_id'):
             retrieve_params['group_id'] = self.group_id
 
-        # course key -> id conversation
-        course_id = retrieve_params.get('course_id')
-        if course_id:
-            course_id = str(course_id)
-            retrieve_params['course_id'] = course_id
-
         group_ids = [retrieve_params['group_id']] if 'group_id' in retrieve_params else None
         is_complete = retrieve_params['complete']
         params = _clean_forum_params({
             "user_id": self.attributes["id"],
             "group_ids": group_ids,
-            "course_id": course_id,
+            "course_id": retrieve_params.get('course_id'),
             "complete": is_complete
         })
         try:
             response = forum_api.get_user(**params)
         except ForumV2RequestError as e:
-            self.save({"course_id": course_id})
+            self.save()
             response = forum_api.get_user(**params)
         self._update_from_response(response)
 
     def retire(self, retired_username):
-        course_key = utils.get_course_key(self.attributes.get("course_id"))
-        forum_api.retire_user(user_id=self.id, retired_username=retired_username, course_id=str(course_key))
+        forum_api.retire_user(user_id=self.id, retired_username=retired_username)
 
     def replace_username(self, new_username):
-        course_key = utils.get_course_key(self.attributes.get("course_id"))
-        forum_api.update_username(user_id=self.id, new_username=new_username, course_id=str(course_key))
+        forum_api.update_username(user_id=self.id, new_username=new_username)
 
 
 def _clean_forum_params(params):

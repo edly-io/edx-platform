@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from openedx.core.djangoapps.django_comment_common.comment_client import models, settings
 
 from .thread import Thread
-from .utils import CommentClientRequestError, get_course_key
+from .utils import CommentClientRequestError
 from forum import api as forum_api
 
 
@@ -63,34 +63,29 @@ class Comment(models.Model):
             return super().url(action, params)
 
     def flagAbuse(self, user, voteable, course_id=None):
-        course_key = get_course_key(self.attributes.get("course_id") or course_id)
         if voteable.type == 'thread':
             response = forum_api.update_thread_flag(
                 thread_id=voteable.id,
                 action="flag",
                 user_id=user.id,
-                course_id=str(course_key),
             )
         elif voteable.type == 'comment':
             response = forum_api.update_comment_flag(
                 comment_id=voteable.id,
                 action="flag",
                 user_id=user.id,
-                course_id=str(course_key),
             )
         else:
             raise CommentClientRequestError("Can only flag/unflag threads or comments")
         voteable._update_from_response(response)
 
     def unFlagAbuse(self, user, voteable, removeAll, course_id=None):
-        course_key = get_course_key(self.attributes.get("course_id") or course_id)
         if voteable.type == "thread":
             response = forum_api.update_thread_flag(
                 thread_id=voteable.id,
                 action="unflag",
                 user_id=user.id,
                 update_all=bool(removeAll),
-                course_id=str(course_key),
             )
         elif voteable.type == 'comment':
             response = forum_api.update_comment_flag(
@@ -98,7 +93,6 @@ class Comment(models.Model):
                 action="unflag",
                 user_id=user.id,
                 update_all=bool(removeAll),
-                course_id=str(course_key),
             )
         else:
             raise CommentClientRequestError("Can flag/unflag for threads or comments")

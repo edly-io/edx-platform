@@ -331,7 +331,6 @@ class CommentSerializerDeserializationTest(ForumsEnableMixin, ForumMockUtilsMixi
         self.save_and_reserialize({}, instance=self.existing_comment)
         parsed_body = {
             'body': 'Original body',
-            'course_id': str(self.course.id),
             'user_id': str(self.user.id),
             'anonymous': False,
             'anonymous_to_peers': False,

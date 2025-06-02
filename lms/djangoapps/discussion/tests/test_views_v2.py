@@ -411,7 +411,6 @@ class SingleThreadTestCase(ForumsEnableMixin, ModuleStoreTestCase, ForumViewsUti
                 'reverse_order': False,
                 'merge_question_type_responses': False
             },
-            'course_id': str(self.course.id)
         }
         self.check_mock_called_with('get_thread', -1, **params)
 

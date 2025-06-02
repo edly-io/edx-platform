@@ -3,7 +3,7 @@
 
 import logging
 
-from .utils import CommentClientRequestError, extract, perform_request, get_course_key
+from .utils import CommentClientRequestError, extract, perform_request
 from forum import api as forum_api
 
 log = logging.getLogger(__name__)
@@ -70,12 +70,9 @@ class Model:
         return self
 
     def _retrieve(self, *args, **kwargs):
-        course_id = self.attributes.get("course_id") or kwargs.get("course_key")
-        if not course_id:
-            course_id = forum_api.get_course_id_by_comment(self.id)
         response = None
         if self.type == "comment":
-            response = forum_api.get_parent_comment(comment_id=self.attributes["id"], course_id=course_id)
+            response = forum_api.get_parent_comment(comment_id=self.attributes["id"])
         if response is None:
             raise CommentClientRequestError("Forum v2 API call is missing")
         self._update_from_response(response)
@@ -159,13 +156,12 @@ class Model:
         self._update_from_response(response)
         self.after_save(self)
 
-    def delete(self, course_id=None):
-        course_key = get_course_key(self.attributes.get("course_id") or course_id)
+    def delete(self):
         response = None
         if self.type == "comment":
-            response = forum_api.delete_comment(comment_id=self.attributes["id"], course_id=str(course_key))
+            response = forum_api.delete_comment(comment_id=self.attributes["id"])
         elif self.type == "thread":
-            response = forum_api.delete_thread(thread_id=self.attributes["id"], course_id=str(course_key))
+            response = forum_api.delete_thread(thread_id=self.attributes["id"])
         if response is None:
             raise CommentClientRequestError("Forum v2 API call is missing")
         self.retrieved = True
@@ -203,20 +199,18 @@ class Model:
         request_params = self.updatable_attributes()
         if params:
             request_params.update(params)
-        course_id = self.attributes.get("course_id") or request_params.get("course_id")
-        course_key = get_course_key(course_id)
         response = None
         if self.type == "comment":
-            response = self.handle_update_comment(request_params, str(course_key))
+            response = self.handle_update_comment(request_params)
         elif self.type == "thread":
-            response = self.handle_update_thread(request_params, str(course_key))
+            response = self.handle_update_thread(request_params)
         elif self.type == "user":
-            response = self.handle_update_user(request_params, str(course_key))
+            response = self.handle_update_user(request_params)
         if response is None:
             raise CommentClientRequestError("Forum v2 API call is missing")
         return response
 
-    def handle_update_user(self, request_params, course_id):
+    def handle_update_user(self, request_params):
         try:
             username = request_params["username"]
             external_id = str(request_params["external_id"])
@@ -225,15 +219,13 @@ class Model:
         response = forum_api.update_user(
             external_id,
             username=username,
-            course_id=course_id,
         )
         return response
 
-    def handle_update_comment(self, request_params, course_id):
+    def handle_update_comment(self, request_params):
         request_data = {
             "comment_id": self.attributes["id"],
             "body": request_params.get("body"),
-            "course_id": request_params.get("course_id") or course_id,
             "user_id": request_params.get("user_id"),
             "anonymous": request_params.get("anonymous"),
             "anonymous_to_peers": request_params.get("anonymous_to_peers"),
@@ -247,12 +239,11 @@ class Model:
         response = forum_api.update_comment(**request_data)
         return response
 
-    def handle_update_thread(self, request_params, course_id):
+    def handle_update_thread(self, request_params):
         request_data = {
             "thread_id": self.attributes["id"],
             "title": request_params.get("title"),
             "body": request_params.get("body"),
-            "course_id": request_params.get("course_id") or course_id,
             "anonymous": request_params.get("anonymous"),
             "anonymous_to_peers": request_params.get("anonymous_to_peers"),
             "closed": request_params.get("closed"),
@@ -271,24 +262,21 @@ class Model:
         return response
 
     def handle_create(self, params=None):
-        course_id = self.attributes.get("course_id") or params.get("course_id")
-        course_key = get_course_key(course_id)
         response = None
         if self.type == "comment":
-            response = self.handle_create_comment(str(course_key))
+            response = self.handle_create_comment()
         elif self.type == "thread":
-            response = self.handle_create_thread(str(course_key))
+            response = self.handle_create_thread()
         if response is None:
             raise CommentClientRequestError("Forum v2 API call is missing")
         return response
 
-    def handle_create_comment(self, course_id):
+    def handle_create_comment(self):
         request_data = self.initializable_attributes()
-        course_id = course_id or str(request_data["course_id"])
         params = {
             "body": request_data["body"],
             "user_id": str(request_data["user_id"]),
-            "course_id": course_id,
+            "course_id": str(request_data["course_id"]),
             "anonymous": request_data.get("anonymous", False),
             "anonymous_to_peers": request_data.get("anonymous_to_peers", False),
         }
@@ -302,12 +290,12 @@ class Model:
             response = forum_api.create_parent_comment(**params)
         return response
 
-    def handle_create_thread(self, course_id):
+    def handle_create_thread(self):
         request_data = self.initializable_attributes()
         params = {
             "title": request_data["title"],
             "body": request_data["body"],
-            "course_id": course_id or str(request_data["course_id"]),
+            "course_id": str(request_data["course_id"]),
             "user_id": str(request_data["user_id"]),
             "anonymous": request_data.get("anonymous", False),
             "anonymous_to_peers": request_data.get("anonymous_to_peers", False),

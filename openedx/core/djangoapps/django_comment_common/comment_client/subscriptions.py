@@ -22,7 +22,7 @@ class Subscription(models.Model):
     base_url = f"{settings.PREFIX}/threads"
 
     @classmethod
-    def fetch(cls, thread_id, course_id, query_params):
+    def fetch(cls, thread_id, query_params):
         """
         Fetches the subscriptions for a given thread_id
         """
@@ -34,12 +34,10 @@ class Subscription(models.Model):
         params.update(
             utils.strip_blank(utils.strip_none(query_params))
         )
-        course_key = utils.get_course_key(course_id)
         response = forum_api.get_thread_subscriptions(
             thread_id=thread_id,
             page=params["page"],
             per_page=params["per_page"],
-            course_id=str(course_key)
         )
         return utils.SubscriptionsPaginatedResult(
             collection=response.get('collection', []),
