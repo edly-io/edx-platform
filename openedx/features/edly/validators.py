@@ -134,7 +134,7 @@ def check_if_user_already_logged_in(request):
     if decode_cookie.get('email'):
             return JsonResponse({
                 "success": False, 
-                "value": f"A user with email {decode_cookie.get('email')} is already login, please refresh!"
+                "value": f"A user with email {decode_cookie.get('email')} is already logged in, please refresh!"
             }, status=400)
 
     return None
