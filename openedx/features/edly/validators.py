@@ -3,10 +3,9 @@ from logging import getLogger
 from django.conf import settings
 from django.utils.translation import ugettext as _
 
+from common.djangoapps.util.json_request import JsonResponse
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
-from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS, COMMON_SYMBOLS
-from common.djangoapps.util.json_request import JsonResponse
 from openedx.features.edly.constants import (
     ESSENTIALS,
     NUMBER_OF_COURSES,

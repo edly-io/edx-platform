@@ -583,9 +583,9 @@ class LoginSessionView(APIView):
             200 {'success': true}
 
         """
-        is_user_login = check_if_user_already_logged_in(request)
-        if is_user_login:
-            return is_user_login
+        is_user_logged_in = check_if_user_already_logged_in(request)
+        if is_user_logged_in:
+            return is_user_logged_in
 
         return login_user(request)
 
