@@ -3301,7 +3301,7 @@ class GetThreadListTest(
         )
         expected_result.update({"text_search_rewrite": None})
         assert result == expected_result
-        self.check_mock_called("get_user_threads")
+        self.check_mock_called("get_user_subscriptions")
 
         params = {
             "user_id": str(self.user.id),
@@ -3310,7 +3310,7 @@ class GetThreadListTest(
             "page": 1,
             "per_page": 11,
         }
-        self.check_mock_called_with("get_user_threads", -1, **params)
+        self.check_mock_called_with("get_user_subscriptions", -1, **params)
 
     @ddt.data("unanswered", "unread")
     def test_view_query(self, query):
