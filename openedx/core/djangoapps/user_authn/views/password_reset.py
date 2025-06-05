@@ -660,6 +660,11 @@ def password_change_request_handler(request):
                           .format(email=email, error=err))
             return HttpResponse(_("Some error occured during password change. Please try again"), status=500)
 
+        except User.DoesNotExist:
+            message = _("No user found with the email address {email}.").format(email=email)
+            log.exception("Password change request failed for user %s: %s", email, message)
+            return HttpResponseBadRequest(message)
+
         return HttpResponse(status=200)
     else:
         return HttpResponseBadRequest(_("No email address provided."))
