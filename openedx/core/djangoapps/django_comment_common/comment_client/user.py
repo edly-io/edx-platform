@@ -127,8 +127,10 @@ class User(models.Model):
             params["count_flagged"] = str_to_bool(count_flagged)
         if not params.get("course_id"):
             params["course_id"] = str(course_key)
+        if 'text' in params:
+            params.pop('text')
         params = _clean_forum_params(params)
-        response = forum_api.get_user_threads(**params)
+        response = forum_api.get_user_subscriptions(**params)
         return utils.CommentClientPaginatedResult(
             collection=response.get('collection', []),
             page=response.get('page', 1),

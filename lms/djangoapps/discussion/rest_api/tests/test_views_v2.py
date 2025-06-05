@@ -725,7 +725,7 @@ class ThreadViewSetListTest(
         )
         expected_response.update({"text_search_rewrite": None})
         self.assert_response_correct(response, 200, expected_response)
-        self.check_mock_called("get_user_threads")
+        self.check_mock_called("get_user_subscriptions")
 
     @ddt.data(False, "false", "0")
     def test_following_false(self, following):
