@@ -27,6 +27,7 @@ from opaque_keys.edx.keys import CourseKey
 from requests.exceptions import RequestException
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from xmodule.modulestore.django import modulestore  # lint-amnesty, pylint: disable=wrong-import-order
 
 from common.djangoapps.course_modes.models import CourseMode
 from common.djangoapps.edxmako.shortcuts import render_to_response
@@ -34,7 +35,6 @@ from common.djangoapps.student.models import CourseEnrollment
 from common.djangoapps.track import segment
 from common.djangoapps.util.db import outer_atomic
 from common.djangoapps.util.json_request import JsonResponse
-from common.djangoapps.util.views import require_global_staff
 from lms.djangoapps.commerce.utils import EcommerceService, is_account_activation_requirement_disabled
 from lms.djangoapps.verify_student.api import send_approval_email
 from lms.djangoapps.verify_student.emails import send_verification_confirmation_email
