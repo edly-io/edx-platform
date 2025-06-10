@@ -13,13 +13,13 @@ from django.utils.translation import gettext as _
 from django.views.generic import View
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from django.views.generic.list import ListView
+from edly_features_app.roles import require_global_staff
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 
 from cms.djangoapps.contentstore.management.commands.utils import get_course_versions
 from common.djangoapps.edxmako.shortcuts import render_to_response
 from common.djangoapps.util.json_request import JsonResponse
-from common.djangoapps.util.views import require_global_staff
 from openedx.features.announcements.forms import AnnouncementForm
 from openedx.features.announcements.models import Announcement
 from xmodule.modulestore import ModuleStoreEnum  # lint-amnesty, pylint: disable=wrong-import-order
