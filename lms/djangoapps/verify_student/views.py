@@ -22,7 +22,7 @@ from django.utils.translation import gettext_lazy
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic.base import View
-from edly_features_app.roles import require_global_staff
+from edly_features_app.roles import require_global_staff # pylint: disable=import-error
 from opaque_keys.edx.keys import CourseKey
 from requests.exceptions import RequestException
 from rest_framework.response import Response

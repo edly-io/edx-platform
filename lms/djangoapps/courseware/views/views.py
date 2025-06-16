@@ -31,7 +31,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from django.views.generic import View
-from edly_features_app.roles import require_global_staff
+from edly_features_app.roles import require_global_staff # pylint: disable=import-error
 from edx_django_utils.monitoring import set_custom_attribute, set_custom_attributes_for_course_key
 from ipware.ip import get_client_ip
 from lms.djangoapps.static_template_view.views import render_500
