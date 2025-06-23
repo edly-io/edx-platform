@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
+from edly_features_app.filters import OrganizationsRequested
 from edx_django_utils.monitoring import function_trace
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
@@ -1799,4 +1800,5 @@ def get_organizations(user):
     else:
         organizations = course_creator.organizations.all().values_list('short_name', flat=True)
 
+    organizations = OrganizationsRequested.run_filter(organizations=organizations)
     return organizations
