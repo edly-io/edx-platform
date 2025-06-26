@@ -41,9 +41,11 @@ from openedx.core.djangoapps.user_authn.config.waffle import ENABLE_LOGIN_USING_
 from openedx.core.djangolib.markup import HTML, Text
 from openedx.features.edly.utils import (
     create_edly_access_role,
-    user_can_login_on_requested_edly_organization
+    user_can_login_on_requested_edly_organization,
 )
-from openedx.features.edly.validators import is_edly_user_allowed_to_login
+from openedx.features.edly.validators import (
+    check_if_user_already_logged_in, is_edly_user_allowed_to_login
+)
 from openedx.core.lib.api.view_utils import require_post_params
 from common.djangoapps.student.helpers import get_next_url_for_login_page
 from common.djangoapps.student.models import LoginFailures, AllowedAuthUser, UserProfile
@@ -581,6 +583,10 @@ class LoginSessionView(APIView):
             200 {'success': true}
 
         """
+        is_user_logged_in = check_if_user_already_logged_in(request)
+        if is_user_logged_in:
+            return is_user_logged_in
+
         return login_user(request)
 
     @method_decorator(sensitive_post_parameters("password"))
