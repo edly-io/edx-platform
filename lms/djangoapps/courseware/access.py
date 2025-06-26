@@ -926,10 +926,7 @@ def get_user_role(user, course_key):
     Return corresponding string if user has staff, instructor or student
     course role in LMS.
     """
-    role = get_masquerade_role(user, course_key)
-    if role:
-        return role
-    elif has_access(user, 'instructor', course_key):
+    if has_access(user, 'instructor', course_key):
         return 'instructor'
     elif has_access(user, 'staff', course_key):
         return 'staff'
