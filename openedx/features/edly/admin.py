@@ -10,6 +10,8 @@ from openedx.features.edly.models import (
     EdlySubOrganization,
     EdlyUserProfile,
     StudentCourseProgress,
+    PasswordChange,
+    PasswordHistory,
 )
 
 
@@ -88,7 +90,17 @@ class EdlyUserProfileAdmin(admin.ModelAdmin):
     list_filter = ["is_blocked", "is_social_user"]
     search_fields = ["user__username", "user__email"]
 
+class PasswordChangeAdmin(admin.ModelAdmin):
+    list_display = ("last_changed", "user", )
+    list_filter = ("last_changed", "user", )
 
+class PasswordHistoryAdmin(admin.ModelAdmin):
+    list_display = ("user", "created", )
+    list_filter = ("user", "created")
+
+
+admin.site.register(PasswordChange, PasswordChangeAdmin)
+admin.site.register(PasswordHistory, PasswordHistoryAdmin)
 admin.site.register(StudentCourseProgress, StudentCourseProgressAdmin)
 admin.site.register(EdlyOrganization, EdlyOrganizationAdmin)
 admin.site.register(EdlySubOrganization, EdlySubOrganizationAdmin)

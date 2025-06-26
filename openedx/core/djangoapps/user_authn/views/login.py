@@ -36,7 +36,7 @@ from openedx.core.djangoapps.user_authn.cookies import refresh_jwt_cookies, set_
 from openedx.core.djangoapps.user_authn.exceptions import AuthFailedError
 from openedx.core.djangoapps.user_authn.utils import should_redirect_to_logistration_mircrofrontend
 from openedx.core.djangoapps.util.user_messages import PageLevelMessages
-from openedx.core.djangoapps.user_authn.views.password_reset import send_password_reset_email_for_user
+from openedx.core.djangoapps.user_authn.views.password_reset import send_password_reset_email_for_user, TooManyPasswordResetRequestsException
 from openedx.core.djangoapps.user_authn.config.waffle import ENABLE_LOGIN_USING_THIRDPARTY_AUTH_ONLY
 from openedx.core.djangolib.markup import HTML, Text
 from openedx.features.edly.utils import (
@@ -157,7 +157,10 @@ def _enforce_password_policy_compliance(request, user):
         # Allow login, but warn the user that they will be required to reset their password soon.
         PageLevelMessages.register_warning_message(request, six.text_type(e))
     except password_policy_compliance.NonCompliantPasswordException as e:
-        send_password_reset_email_for_user(user, request)
+        try:
+            send_password_reset_email_for_user(user, request)
+        except TooManyPasswordResetRequestsException as e:
+            raise AuthFailedError(HTML(six.text_type(e)))
         # Prevent the login attempt.
         raise AuthFailedError(HTML(six.text_type(e)))
 
