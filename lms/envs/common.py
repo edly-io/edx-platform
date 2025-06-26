@@ -3299,7 +3299,12 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 PASSWORD_POLICY_COMPLIANCE_ROLLOUT_CONFIG = {
-    'ENFORCE_COMPLIANCE_ON_LOGIN': False
+    'ENFORCE_COMPLIANCE_ON_LOGIN': False,
+    'ENFORCE_PASSWORD_EXPIRY': False,
+    'PASSWORD_EXPIRE_SECONDS': 90 * 24 * 60 * 60,  # 90 days
+    'PASSWORD_EXPIRE_WARN_SECONDS': 10 * 24 * 60 * 60,  # warning 10 days before
+    'PASSWORD_EXPIRE_EXCLUDE_SUPERUSERS': True,
+    'PASSWORD_ROTATE_HISTORY_COUNT': 4,
 }
 
 ############################ ORA 2 ############################################

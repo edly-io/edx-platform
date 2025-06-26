@@ -11,6 +11,7 @@ from django.utils.translation import ugettext as _
 from openedx.core.djangolib.markup import HTML
 from common.djangoapps.util.date_utils import DEFAULT_SHORT_DATE_FORMAT, strftime_localized
 from common.djangoapps.util.password_policy_validators import validate_password
+from openedx.features.edly.utils import PasswordChecker
 
 
 class NonCompliantPasswordException(Exception):
@@ -61,6 +62,29 @@ def enforce_compliance_on_login(user, password):
 
     Important: This method should only be called AFTER the user has been authenticated.
     """
+    config = _rollout_config()
+    if config.get('ENFORCE_PASSWORD_EXPIRY', False):
+        password_expiry_checker = PasswordChecker(user) 
+
+        if password_expiry_checker.is_expired():
+            raise NonCompliantPasswordException(
+                HTML(_(
+                    u'{strong_tag_open}Password Reset Required.{strong_tag_close}{break_line_tag}'
+                    'Your current password has expired. We just sent a password-reset message to the '
+                    'email address associated with this account. If you don\'t receive the email '
+                    'within a few minutes, please check your spam folder. '
+                    'Need help? {support_link_open}Contact Support{support_link_close}'
+                )).format(
+                    strong_tag_open=HTML('<strong>'),
+                    strong_tag_close=HTML('</strong>'),
+                    break_line_tag=HTML('<br/>'),
+                    support_link_open=HTML('<a href="{}" target="_blank">'.format(
+                        settings.PASSWORD_RESET_SUPPORT_LINK if hasattr(settings, 'PASSWORD_RESET_SUPPORT_LINK') else ''
+                    )),
+                    support_link_close=HTML('</a>'),
+                )
+            )
+
     is_compliant = _check_user_compliance(user, password)
     if is_compliant:
         return

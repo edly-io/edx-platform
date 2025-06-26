@@ -8,6 +8,7 @@ from django.dispatch import receiver
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 from opaque_keys.edx.django.models import CourseKeyField
+from openedx.features.edly.managers import PasswordHistoryManager
 from organizations.models import Organization
 
 from student.roles import GlobalCourseCreatorRole
@@ -148,3 +149,43 @@ class EdlyMultiSiteAccess(TimeStampedModel):
 
     class Meta(object):
         unique_together = (('user', 'sub_org'),)
+
+class PasswordChange(models.Model):
+    # record when users change a password to support an expiration policy
+    last_changed = models.DateTimeField(
+        db_index=True,
+        auto_now_add=True,
+    )
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+    )
+
+class PasswordHistory(models.Model):
+    """
+    Stores a single password history entry, related to :model:`auth.User`.
+    """
+    created = models.DateTimeField(
+        auto_now_add=True, verbose_name=_("created"), db_index=True, help_text=_("The date the entry was created.")
+    )
+    password = models.CharField(
+        max_length=128, verbose_name=_("password"), help_text=_("The encrypted password.")
+    )
+    user = models.ForeignKey(
+        User,
+        verbose_name=_("user"),
+        help_text=_("The user this password history entry belongs to."),
+        related_name="password_history_entries",
+        on_delete=models.CASCADE,
+    )
+
+    objects = PasswordHistoryManager()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.created}"
+
+    class Meta:
+        get_latest_by = "created"
+        ordering = ["-created"]
+        verbose_name = _("password history entry")
+        verbose_name_plural = _("password history entries")

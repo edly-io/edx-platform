@@ -13,6 +13,7 @@ from django.contrib.auth.password_validation import validate_password as django_
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext as _
 from django.utils.translation import ungettext
+from openedx.features.edly.models import PasswordHistory
 from six import text_type
 
 log = logging.getLogger(__name__)
@@ -532,3 +533,32 @@ class SpecialCharactersValidator(object):
         Returns a key, value pair for the restrictions related to the Validator
         """
         return 'min_symbol', self.min_symbol
+
+class NotPreviousPasswordValidator(object):
+    """
+    Validate that the password is not a previously used password.
+
+    The password is rejected if it exists in `PasswordHistory`.
+    """
+
+    def validate(self, password, user=None):
+        """
+        Return True when the password has not been stored in `PasswordHistory`
+        """
+        if not user:
+            return
+        if not PasswordHistory.objects.check_password(user, password):
+            raise ValidationError(
+                _(
+                    'You have already used this password. Please use a different one.'
+                ),
+                code='already_used_password'
+            )
+
+        # This flag allows to store the password in `PasswordHistory`
+        # when `set_password` is called
+        user._has_not_previous_password = True
+        return True
+
+    def get_help_text(self):
+        return _("Your password must be different from any previous one.")

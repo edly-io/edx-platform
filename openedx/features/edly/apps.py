@@ -3,4 +3,7 @@ from django.apps import AppConfig
 
 
 class EdlyAppConfig(AppConfig):
-    name = 'edly_app'
+    name = 'openedx.features.edly'
+
+    def ready(self):
+        import openedx.features.edly.signals # noqa
