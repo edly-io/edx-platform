@@ -43,6 +43,7 @@ from openedx.core.djangoapps.user_api.preferences import api as preferences_api
 from openedx.core.lib.celery.task_utils import emulate_http_request
 from openedx.features.edly.constants import ESSENTIALS, DEFAULT_COURSE_IMAGE, DEFAULT_COURSE_IMAGE_PATH, LMS_ROLES
 from openedx.features.edly.context_processor import Colour
+from openedx.features.edly.message_types import OTPMessage
 from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization, PasswordChange
 from common.djangoapps.student.models import UserProfile
 from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS, COMMON_SYMBOLS
@@ -1066,3 +1067,44 @@ class PasswordChecker:
 
     def _get_configs(self):
         return getattr(settings, 'PASSWORD_POLICY_COMPLIANCE_ROLLOUT_CONFIG', {})
+
+
+def compose_otp_email(message_context, user, otp_code, site):
+    """
+    Return message_context dict for OTP email
+    """
+    message_context.update({
+        'user_email': user.email,
+        'user_name': user.get_full_name() or user.username,
+        'otp_code': otp_code,
+        'expiry_minutes': int(getattr(settings, 'TWO_FA_CODE_EXPIRY_SECONDS', '6000')/60),
+        'current_date': datetime.now().strftime('%m/%d/%Y'),
+    })
+    
+    return message_context
+
+
+def send_otp_email_with_ace(message_context, user, site, preferred_email=None):
+    """
+    Use edx_ace send() to deliver OTP email based on user and site
+    """
+    try:
+        with emulate_http_request(site=site, user=user):
+            msg = OTPMessage().personalize(
+                recipient=Recipient(user.username, preferred_email or user.email),
+                language=preferences_api.get_user_preference(user, LANGUAGE_KEY),
+                user_context=message_context,
+            )
+            ace.send(msg)
+    except Exception:  # pylint: disable=broad-except
+        LOGGER.exception(
+            'Unable to send OTP email to user from to "{}"'.format(
+                user.email,
+            )
+        )
+
+
+def send_otp_email(user, site, otp_code):
+    message_context = get_base_template_context(site)
+    msg_context = compose_otp_email(message_context, user, otp_code, site)
+    send_otp_email_with_ace(msg_context, user, site)

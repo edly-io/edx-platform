@@ -1,0 +1,343 @@
+## mako
+<%page expression_filter="h"/>
+<%namespace name='static' file='static_content.html'/>
+
+<%!
+from django.utils.translation import ugettext as _
+from openedx.core.djangolib.markup import HTML, Text
+%>
+
+<%inherit file="main.html" />
+
+<%block name="pagetitle">${_("Login Verification")}</%block>
+
+<%block name="bodyclass">view-login</%block>
+
+<%block name="content">
+<div class="login-register">
+    <div class="content-wrapper">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6 col-md-offset-3">
+                    <div class="login-form">
+                        <div class="section-header">
+                            <h2>${_("Login Verification")}</h2>
+                        </div>
+                        
+                        <div class="status-message">
+                            <p>${_("We've sent a verification code to")} <strong>${user_email}</strong> ${_("Please enter the 6-digit code below:")}</p>
+                        </div>
+                        
+                        % if messages:
+                            % for message in messages:
+                                <div class="message message-status message-${message.tags}">
+                                    <div class="copy">
+                                        <p>${message}</p>
+                                    </div>
+                                </div>
+                            % endfor
+                        % endif
+                        
+                        <form method="post" class="form-wrapper">
+                            <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_token}">
+                            
+                            <div class="form-field">
+                                <label for="otp_code">${_("Verification Code")}</label>
+                                <input type="text" 
+                                       name="otp_code" 
+                                       id="otp_code"
+                                       class="form-control" 
+                                       placeholder="000000"
+                                       maxlength="6"
+                                       pattern="[0-9]{6}"
+                                       required
+                                       autocomplete="off"
+                                       style="text-align: center; font-size: 20px; letter-spacing: 5px;">
+                            </div>
+                            
+                            <div>
+                                <button type="submit" id="verify-btn" class="btn btn-primary btn-block" disabled>
+                                ${_("Verify Code")}
+                                </button>
+                                <button type="button" id="cancel-btn" class="btn btn-secondary btn-cancel">
+                                        ${_("Back to Sign In")}
+                                </button>
+                                
+                            </div>
+                            
+
+                        </form>
+                        
+                        <div class="form-actions">
+                            <p>
+                                ${_("Didn't receive the code?")}
+                                <button id="resend-btn" class="btn btn-link">
+                                    ${_("Resend Code")}
+                                </button>
+                            </p>
+                            
+                            
+                            <!-- Container for resend messages -->
+                            <div id="resend-message-container" style="display: none;">
+                                <div id="resend-message" class="resend-message">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+    .login-form {
+        background: #fff;
+        min-width: 220px;
+        margin: 50px auto 80px;
+        padding: 30px;
+        box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+        font-size: 26px;
+        font-family:  Open Sans, sans-serif;
+        color: #121212;
+        font-weight: 500;
+        text-align: left;
+    }
+    .status-message p {
+        font-size: 13px;
+        line-height: 20px;
+        margin: 0;
+        font-family:  Open Sans, sans-serif;
+    }
+    .form-actions p {
+        font-size: 13px;
+        line-height: 20px;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        font-family:  Open Sans, sans-serif;
+    }
+    .btn-link {
+        margin: 0 0 0 5px;
+        letter-spacing: 0;
+    }
+    .login-register .form-field label {
+        background: #fff;
+        border-radius: 3px;
+        font-size: 14px;
+        font-weight: normal;
+        line-height: normal;
+        margin-bottom: 5px;
+        width: calc(100% - 2px);
+        opacity: 1;
+        top: 3px;
+        left: 1px;
+    }
+    .login-register .form-field input {
+        box-shadow: none;
+        border-radius: 3px;
+        font-weight: normal;
+        display: block;
+        height: 32px;
+        width: 100%;
+        margin: 0 0 5px;
+        padding: 0 10px;
+        font-style: normal;
+        line-height: 1.5em;
+        font-family:  Open Sans, sans-serif;
+    }
+    .login-register .form-field input::placeholder {
+        color: #999;
+        opacity: 1;
+    }
+
+    .login-register .form-field input::-ms-input-placeholder {
+        color: #999;
+    }
+    .btn-secondary {
+        width: 100%;
+        margin-top: 15px;
+    }
+    .btn-primary,
+    .btn-brand  {
+        height: 48px;
+        width: 100%;
+        background: var(--primary);
+        border-color: var(--primary);
+        border-radius: 3px;
+        font-weight: 500;
+        box-shadow: none;
+        margin: 10px 0 0;
+    }
+    .btn-primary:hover, 
+    .btn-brand:hover,
+    button:hover:not(:disabled):hover,
+    .btn-primary:focus, 
+    .btn-brand:focus,
+    button:hover:not(:disabled):focus,
+    .btn-primary:active, 
+    .btn-brand:active,
+    button:hover:not(:disabled):active,
+    .btn-primary:not(:disabled):not(.disabled):active  {
+        background: var(--primary-darken-5p);
+        border-color: var(--primary-darken-5p);
+    }
+    
+    /* Disabled button styling */
+    .btn-primary:disabled,
+    .btn-brand:disabled {
+        background: #cccccc !important;
+        border-color: #cccccc !important;
+        cursor: not-allowed !important;
+        opacity: 0.6 !important;
+    }
+    
+    .message {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        background-color: #f8d7da !important;
+        color: #721c24 !important;
+        padding: 10px !important;
+        margin: 10px 0 !important;
+        border: 1px solid #f5c6cb !important;
+    }
+    
+    .resend-message {
+        padding: 8px 12px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: opacity 0.3s ease;
+    }
+    
+    .resend-message.success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .resend-message.error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .resend-message.info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+    }
+    
+    /* Fade out animation */
+    .resend-message.fade-out {
+        opacity: 0;
+    }
+</style>
+
+<script type="text/javascript">
+(function() {
+    function showResendMessage(message, type = 'info') {
+        const messageContainer = document.getElementById('resend-message-container');
+        const messageDiv = document.getElementById('resend-message');
+        
+        messageDiv.className = 'resend-message ' + type;
+        messageDiv.textContent = message;
+        
+        messageContainer.style.display = 'block';
+        messageDiv.style.opacity = '1';
+        
+        setTimeout(function() {
+            messageDiv.classList.add('fade-out');
+            setTimeout(function() {
+                messageContainer.style.display = 'none';
+                messageDiv.classList.remove('fade-out');
+            }, 300);
+        }, 5000);
+    }
+    
+    function toggleVerifyButton() {
+        const otpInput = document.getElementById('otp_code');
+        const verifyBtn = document.getElementById('verify-btn');
+        const otpValue = otpInput.value.trim();
+        
+        if (otpValue.length === 6) {
+            verifyBtn.disabled = false;
+        } else {
+            verifyBtn.disabled = true;
+        }
+    }
+    
+    document.getElementById('resend-btn').addEventListener('click', function() {
+        var btn = this;
+        var originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '${_("Sending...")}';
+        
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '${resend_url}', true);
+        xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            showResendMessage(response.message || '${_("Code sent successfully!")}', 'success');
+                        } else {
+                            showResendMessage(response.message || '${_("Error sending code. Please try again.")}', 'error');
+                        }
+                    } catch (e) {
+                        showResendMessage('${_("Error sending code. Please try again.")}', 'error');
+                    }
+                } else {
+                    showResendMessage('${_("Error sending code. Please try again.")}', 'error');
+                }
+            }
+        };
+        
+        xhr.send();
+    });
+
+    document.getElementById('cancel-btn').addEventListener('click', function() {
+        window.location.href = '${logout_url}';
+    });
+
+    document.getElementById('otp_code').addEventListener('input', toggleVerifyButton);
+    document.getElementById('otp_code').addEventListener('keyup', toggleVerifyButton);
+    document.getElementById('otp_code').addEventListener('paste', function() {
+        setTimeout(toggleVerifyButton, 10);
+    });
+})();
+</script>
+</%block>
+
+<%block name="js_extra">
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#otp_code').focus();
+    
+    $('#otp_code').on('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+        
+        const verifyBtn = document.getElementById('verify-btn');
+        const otpValue = this.value.trim();
+        
+        if (otpValue.length === 6) {
+            verifyBtn.disabled = false;
+        } else {
+            verifyBtn.disabled = true;
+        }
+    });
+});
+</script>
+</%block>

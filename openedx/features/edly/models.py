@@ -1,3 +1,8 @@
+import secrets
+import string
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
@@ -5,6 +10,7 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 from opaque_keys.edx.django.models import CourseKeyField
@@ -189,3 +195,33 @@ class PasswordHistory(models.Model):
         ordering = ["-created"]
         verbose_name = _("password history entry")
         verbose_name_plural = _("password history entries")
+
+
+class TwoFactorBypass(models.Model):
+    """Users who can bypass 2FA"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bypass_grants')
+    
+
+class OTPSession(models.Model):
+    """OTP sessions for users"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    otp_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_verified = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    session_key = models.CharField(max_length=255, unique=True)
+    
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def generate_otp(self):
+        self.otp_code = ''.join(secrets.choice(string.digits) for _ in range(6))
+        expiry_seconds = getattr(settings, 'TWO_FA_CODE_EXPIRY_SECONDS', 6000)
+        self.expires_at = timezone.now() + timedelta(seconds=expiry_seconds)
+        self.save()
+        return self.otp_code
