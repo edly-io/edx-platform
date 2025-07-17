@@ -280,7 +280,7 @@ def _handle_successful_authentication_and_login(user, request):
 
     try:
         django_login(request, user)
-        request.session.set_expiry(604800 * 4)
+        request.session.set_expiry(60 * 3)
         log.debug("Setting user session expiry to 4 weeks")
     except Exception as exc:
         AUDIT_LOG.critical("Login failed - Could not create session. Is memcached running?")
