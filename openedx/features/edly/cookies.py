@@ -3,7 +3,6 @@ Utility functions for handling cookies.
 """
 from crum import get_current_request
 from django.conf import settings
-import jwt
 
 from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization
 from openedx.features.edly.utils import encode_edly_user_info_cookie
@@ -59,7 +58,6 @@ def delete_logged_in_edly_cookies(response):
 
     return response
 
-
 def _get_edly_user_info_cookie_string(request):
     """
     Returns JWT encoded cookie string with edly user info.
@@ -88,8 +86,6 @@ def _get_edly_user_info_cookie_string(request):
         edx_orgs = list(sub_org.values_list('sub_org__edx_organizations__short_name', flat=True))
         sub_org = list(sub_org.values_list('sub_org__slug',flat=True))
         edly_user_info_cookie_data = {
-            'email': request.user.email if getattr(request, 'user', None) else '',
-            'username': request.user.username if getattr(request, 'user', None) else '',
             'edly-org': edly_sub_organization.edly_organization.slug,
             'edly-sub-org': edly_sub_organization.slug,
             'edx-orgs': edx_orgs,
@@ -103,21 +99,3 @@ def _get_edly_user_info_cookie_string(request):
         return encode_edly_user_info_cookie(edly_user_info_cookie_data)
     except (EdlySubOrganization.DoesNotExist, EdlyMultiSiteAccess.DoesNotExist):
         return ''
-
-
-def get_decoded_edly_user_info_cookie(request):
-    """
-    Returns decoded edly user info cookie.
-
-    Arguments:
-        request (HttpRequest): Django request object
-
-    Returns:
-        dict: Decoded edly user info cookie data.
-    """
-    edly_user_info_cookie = request.COOKIES.get(settings.EDLY_USER_INFO_COOKIE_NAME, '')
-    return jwt.decode(
-        edly_user_info_cookie,
-        settings.EDLY_COOKIE_SECRET_KEY,
-        algorithms=[settings.EDLY_JWT_ALGORITHM]
-    )  if edly_user_info_cookie else {}
