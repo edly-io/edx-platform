@@ -3,7 +3,6 @@ from logging import getLogger
 from django.conf import settings
 from django.utils.translation import ugettext as _
 
-from common.djangoapps.util.json_request import JsonResponse
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.features.edly.constants import (
@@ -11,7 +10,6 @@ from openedx.features.edly.constants import (
     NUMBER_OF_COURSES,
     NUMBER_OF_REGISTERED_USERS,
 )
-from openedx.features.edly.cookies import get_decoded_edly_user_info_cookie
 from openedx.features.edly.models import (
     EdlyMultiSiteAccess,
     EdlySubOrganization,
@@ -123,17 +121,3 @@ def handle_subscription_limit(remaining_limit):
         )}]
 
     return errors
-
-
-def check_if_user_already_logged_in(request):
-    """
-    Check if a user is already logged in by looking at the edly user info cookie.
-    """
-    decode_cookie = get_decoded_edly_user_info_cookie(request)
-    if decode_cookie.get('email'):
-            return JsonResponse({
-                "success": False, 
-                "value": f"A user with email {decode_cookie.get('email')} is already logged in, please refresh!"
-            }, status=400)
-
-    return None
