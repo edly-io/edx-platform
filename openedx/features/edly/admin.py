@@ -12,6 +12,8 @@ from openedx.features.edly.models import (
     StudentCourseProgress,
     PasswordChange,
     PasswordHistory,
+    TwoFactorBypass,
+    OTPSession
 )
 
 
@@ -90,15 +92,40 @@ class EdlyUserProfileAdmin(admin.ModelAdmin):
     list_filter = ["is_blocked", "is_social_user"]
     search_fields = ["user__username", "user__email"]
 
+
 class PasswordChangeAdmin(admin.ModelAdmin):
     list_display = ("last_changed", "user", )
     list_filter = ("last_changed", "user", )
+
 
 class PasswordHistoryAdmin(admin.ModelAdmin):
     list_display = ("user", "created", )
     list_filter = ("user", "created")
 
 
+class TwoFactorBypassAdmin(admin.ModelAdmin):
+    list_display = ['user', 'reason', 'created_at', 'created_by']
+    list_filter = ['created_at']
+    search_fields = ['user__username', 'user__email', 'reason']
+    readonly_fields = ['created_at']
+    
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+class OTPSessionAdmin(admin.ModelAdmin):
+    list_display = ['user', 'created_at', 'expires_at', 'is_verified', 'attempts']
+    list_filter = ['is_verified', 'created_at']
+    search_fields = ['user__username', 'user__email']
+    readonly_fields = ['created_at', 'otp_code']
+    
+    def has_add_permission(self, request):
+        return False
+
+admin.site.register(TwoFactorBypass, TwoFactorBypassAdmin)
+admin.site.register(OTPSession, OTPSessionAdmin)
 admin.site.register(PasswordChange, PasswordChangeAdmin)
 admin.site.register(PasswordHistory, PasswordHistoryAdmin)
 admin.site.register(StudentCourseProgress, StudentCourseProgressAdmin)

@@ -43,6 +43,10 @@ from openedx.features.edly.utils import (
     create_edly_access_role,
     user_can_login_on_requested_edly_organization
 )
+from openedx.features.edly.views import (
+    handle_otp_flow,
+    should_enforce_two_fa
+)
 from openedx.features.edly.validators import is_edly_user_allowed_to_login
 from openedx.core.lib.api.view_utils import require_post_params
 from common.djangoapps.student.helpers import get_next_url_for_login_page
@@ -405,6 +409,21 @@ def finish_auth(request):
         'disable_footer': True,
     })
 
+def handle_successful_login(possibly_authenticated_user, request, redirect_url, response=None):
+    if not response:
+        response = JsonResponse({
+                'success': True,
+                'redirect_url': redirect_url,
+        })
+    response = set_logged_in_cookies(request, response, possibly_authenticated_user)
+    set_custom_attribute('login_user_auth_failed_error', False)
+    set_custom_attribute('login_user_response_status', response.status_code)
+    set_custom_attribute('login_user_redirect_url', redirect_url)
+    return response
+
+def handle_successful_authentication_and_login(user, request):
+    return _handle_successful_authentication_and_login(user, request)
+
 
 @ensure_csrf_cookie
 @require_http_methods(['POST'])
@@ -494,29 +513,23 @@ def login_user(request):
                 create_edly_access_role(request, possibly_authenticated_user)
             else:
                 raise AuthFailedError(_('You are not allowed to login on this site.'))
-
-        _handle_successful_authentication_and_login(possibly_authenticated_user, request)
-
-        redirect_url = None  # The AJAX method calling should know the default destination upon success
+        
         if is_user_third_party_authenticated:
+            _handle_successful_authentication_and_login(possibly_authenticated_user, request)
             running_pipeline = pipeline.get(request)
             redirect_url = pipeline.get_complete_url(backend_name=running_pipeline['backend'])
+            return handle_successful_login(possibly_authenticated_user, request, redirect_url)
+        else:
+            redirect_url = None
+            if should_redirect_to_logistration_mircrofrontend():
+                redirect_url = get_next_url_for_login_page(request, include_host=True)
+            
+            if should_enforce_two_fa(user=possibly_authenticated_user):
+                return handle_otp_flow(possibly_authenticated_user, request, redirect_url)
+            else:
+                _handle_successful_authentication_and_login(possibly_authenticated_user, request)
+                return handle_successful_login(possibly_authenticated_user, request, redirect_url)
 
-        elif should_redirect_to_logistration_mircrofrontend():
-            redirect_url = get_next_url_for_login_page(request, include_host=True)
-
-        response = JsonResponse({
-            'success': True,
-            'redirect_url': redirect_url,
-        })
-
-        # Ensure that the external marketing site can
-        # detect that the user is logged in.
-        response = set_logged_in_cookies(request, response, possibly_authenticated_user)
-        set_custom_attribute('login_user_auth_failed_error', False)
-        set_custom_attribute('login_user_response_status', response.status_code)
-        set_custom_attribute('login_user_redirect_url', redirect_url)
-        return response
     except AuthFailedError as error:
         response_content = error.get_response()
         log.exception(response_content)
