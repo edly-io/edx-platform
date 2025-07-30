@@ -4,7 +4,8 @@ Utilities for edly app.
 import json
 import logging
 from functools import partial, wraps
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.utils import timezone
 import random
 import string
 from urllib.parse import urljoin, urlparse
@@ -42,7 +43,8 @@ from openedx.core.djangoapps.user_api.preferences import api as preferences_api
 from openedx.core.lib.celery.task_utils import emulate_http_request
 from openedx.features.edly.constants import ESSENTIALS, DEFAULT_COURSE_IMAGE, DEFAULT_COURSE_IMAGE_PATH, LMS_ROLES
 from openedx.features.edly.context_processor import Colour
-from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization
+from openedx.features.edly.message_types import OTPMessage
+from openedx.features.edly.models import EdlyMultiSiteAccess, EdlySubOrganization, PasswordChange
 from common.djangoapps.student.models import UserProfile
 from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS, COMMON_SYMBOLS
 
@@ -1003,3 +1005,106 @@ def locked(key):
                 LOGGER.info("Task with key %s already exists in cache", cache_key)
         return wrapper
     return task_decorator
+
+class PasswordChecker:
+    """
+    Checks if password has expired or if it will expire soon
+    """
+    def __init__(self, user):
+        config = self._get_configs()
+        # password expires: last_changed + password_duration
+        self.password_allowed_duration = timedelta(seconds=config.get('PASSWORD_EXPIRE_SECONDS', ''))
+        # start warning at password expiration - duration
+        self.password_warning_duration = timedelta(seconds=config.get('PASSWORD_EXPIRE_WARN_SECONDS', ''))
+
+        self.user = user
+        self.last_changed = self.get_last_changed()
+        self.expiration = self.last_changed + self.password_allowed_duration
+        self.warning = self.expiration - self.password_warning_duration
+
+    def is_expired(self):
+        if self.is_user_excluded():
+            return False
+        return timezone.now() > self.expiration
+
+    def is_warning(self):
+        if self.is_user_excluded():
+            return False
+        return timezone.now() > self.warning
+
+    def get_expire_time(self):
+        """
+        Gets the expiration time as string if within the warning duration.
+        Otherwise, returns None.
+        """
+        if self.is_warning():
+            time_left = self.expiration - timezone.now()
+            return time_left
+        else:
+            return None
+
+    def get_last_changed(self):
+        """
+        Get the time for last changed password, fallback to joining date of
+        user if no record is found.
+        """
+        try:
+            record = PasswordChange.objects.get(user=self.user)
+            last_changed = record.last_changed
+        except PasswordChange.DoesNotExist:
+            last_changed = self.user.date_joined
+        return last_changed
+
+    def is_user_excluded(self):
+        """
+        Check if the user is to be excluded for Password Check
+        """
+        config = self._get_configs()
+        if config.get('PASSWORD_EXPIRE_EXCLUDE_SUPERUSERS', False):
+            return self.user.is_superuser
+        
+        return False
+
+    def _get_configs(self):
+        return getattr(settings, 'PASSWORD_POLICY_COMPLIANCE_ROLLOUT_CONFIG', {})
+
+
+def compose_otp_email(message_context, user, otp_code, site):
+    """
+    Return message_context dict for OTP email
+    """
+    message_context.update({
+        'user_email': user.email,
+        'user_name': user.get_full_name() or user.username,
+        'otp_code': otp_code,
+        'expiry_minutes': int(getattr(settings, 'TWO_FA_CODE_EXPIRY_SECONDS', '6000')/60),
+        'current_date': datetime.now().strftime('%m/%d/%Y'),
+    })
+    
+    return message_context
+
+
+def send_otp_email_with_ace(message_context, user, site, preferred_email=None):
+    """
+    Use edx_ace send() to deliver OTP email based on user and site
+    """
+    try:
+        with emulate_http_request(site=site, user=user):
+            msg = OTPMessage().personalize(
+                recipient=Recipient(user.username, preferred_email or user.email),
+                language=preferences_api.get_user_preference(user, LANGUAGE_KEY),
+                user_context=message_context,
+            )
+            ace.send(msg)
+    except Exception:  # pylint: disable=broad-except
+        LOGGER.exception(
+            'Unable to send OTP email to user from to "{}"'.format(
+                user.email,
+            )
+        )
+
+
+def send_otp_email(user, site, otp_code):
+    message_context = get_base_template_context(site)
+    msg_context = compose_otp_email(message_context, user, otp_code, site)
+    send_otp_email_with_ace(msg_context, user, site)

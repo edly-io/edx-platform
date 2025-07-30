@@ -56,6 +56,13 @@ SETTING_CHANGE_INITIATED = 'edx.user.settings.change_initiated'
 log = logging.getLogger("edx.student")
 AUDIT_LOG = logging.getLogger("audit")
 
+class TooManyPasswordResetRequestsException(Exception):
+    """
+    Exception that should be raised when a user attempts too many password
+    reset requests
+    """
+    pass
+
 
 def get_user_default_email_params(user):
     """
@@ -141,12 +148,42 @@ def send_password_reset_success_email(user, request):
 def send_password_reset_email_for_user(user, request, preferred_email=None):
     """
     Send out a password reset email for the given user.
+    """
+    return _send_password_reset_email_for_user_impl(request, user, preferred_email)
+
+
+@ratelimit(key=POST_EMAIL_KEY, rate=settings.PASSWORD_RESET_EMAIL_RATE)
+@ratelimit(key=REAL_IP_KEY, rate=settings.PASSWORD_RESET_IP_RATE)
+def _send_password_reset_email_for_user_impl(request, user, preferred_email=None):
+    """
+    Send out a password reset email for the given user.
 
     Arguments:
         user (User): Django User object
         request (HttpRequest): Django request object
         preferred_email (str): Send email to this address if present, otherwise fallback to user's email address.
     """
+    if request and getattr(request, 'limited', False):
+        AUDIT_LOG.warning("Password reset rate limit exceeded for email %s.", (preferred_email or user.email))
+        raise TooManyPasswordResetRequestsException(
+            HTML(_(
+                u'{strong_tag_open}Too Many Reset Attempts{strong_tag_close}{break_line_tag}'
+                'You have requested password resets too frequently. For security reasons, '
+                'please wait before requesting another password reset.{break_line_tag}{break_line_tag}'
+                'If you recently requested a reset, check your email (including spam folder) '
+                'for the reset link. The link may take a few minutes to arrive.{break_line_tag}{break_line_tag}'
+                'Still having issues? {support_link_open}Contact Support{support_link_close} for help.'
+            )).format(
+                strong_tag_open=HTML('<strong>'),
+                strong_tag_close=HTML('</strong>'),
+                break_line_tag=HTML('<br/>'),
+                support_link_open=HTML('<a href="{}" target="_blank">'.format(
+                    settings.PASSWORD_RESET_SUPPORT_LINK if hasattr(settings, 'PASSWORD_RESET_SUPPORT_LINK') else ''
+                )),
+                support_link_close=HTML('</a>'),
+            )
+        )
+    
     message_context, user_language_preference = get_user_default_email_params(user)
     site_name = settings.LOGISTRATION_MICROFRONTEND_DOMAIN if should_redirect_to_logistration_mircrofrontend() \
         else configuration_helpers.get_value('SITE_NAME', settings.SITE_NAME)

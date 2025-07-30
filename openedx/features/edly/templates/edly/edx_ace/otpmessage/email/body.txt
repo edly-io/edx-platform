@@ -1,0 +1,12 @@
+{% load i18n %}{% autoescape off %}
+{% blocktrans %}Hello {{ user_name }},{% endblocktrans %}
+
+{% blocktrans %}Your verification code is: {{ otp_code }}{% endblocktrans %}
+
+{% blocktrans %}This code will expire in {{ expiry_minutes }} minutes.{% endblocktrans %}
+
+{% trans "Once the code expires, you will have to resubmit a request for a new code." %}
+
+{% trans "Best regards," %}
+{% blocktrans %}{{ platform_name }} Team{% endblocktrans %}
+{% endautoescape %}

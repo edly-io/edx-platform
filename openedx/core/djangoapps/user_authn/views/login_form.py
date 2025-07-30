@@ -36,6 +36,7 @@ from openedx.features.enterprise_support.utils import (
     handle_enterprise_cookies_for_logistration,
     update_logistration_context_for_enterprise
 )
+from openedx.features.edly.views import should_enforce_two_fa, handle_redirect_with_2fa
 from common.djangoapps.student.helpers import get_next_url_for_login_page
 from common.djangoapps.third_party_auth import pipeline
 from common.djangoapps.third_party_auth.decorators import xframe_allow_whitelisted
@@ -193,6 +194,9 @@ def login_and_registration_form(request, initial_mode="login"):
             '?' + query_params if query_params else ''
         )
         return redirect(settings.LOGISTRATION_MICROFRONTEND_URL + url_path)
+
+    if should_enforce_two_fa():
+        redirect_to = handle_redirect_with_2fa(redirect_to, request)
 
     # Account activation message
     account_activation_messages = [

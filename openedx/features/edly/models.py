@@ -1,3 +1,8 @@
+import secrets
+import string
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
@@ -5,9 +10,11 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 from opaque_keys.edx.django.models import CourseKeyField
+from openedx.features.edly.managers import PasswordHistoryManager
 from organizations.models import Organization
 
 from student.roles import GlobalCourseCreatorRole
@@ -148,3 +155,73 @@ class EdlyMultiSiteAccess(TimeStampedModel):
 
     class Meta(object):
         unique_together = (('user', 'sub_org'),)
+
+class PasswordChange(models.Model):
+    # record when users change a password to support an expiration policy
+    last_changed = models.DateTimeField(
+        db_index=True,
+        auto_now_add=True,
+    )
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+    )
+
+class PasswordHistory(models.Model):
+    """
+    Stores a single password history entry, related to :model:`auth.User`.
+    """
+    created = models.DateTimeField(
+        auto_now_add=True, verbose_name=_("created"), db_index=True, help_text=_("The date the entry was created.")
+    )
+    password = models.CharField(
+        max_length=128, verbose_name=_("password"), help_text=_("The encrypted password.")
+    )
+    user = models.ForeignKey(
+        User,
+        verbose_name=_("user"),
+        help_text=_("The user this password history entry belongs to."),
+        related_name="password_history_entries",
+        on_delete=models.CASCADE,
+    )
+
+    objects = PasswordHistoryManager()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.created}"
+
+    class Meta:
+        get_latest_by = "created"
+        ordering = ["-created"]
+        verbose_name = _("password history entry")
+        verbose_name_plural = _("password history entries")
+
+
+class TwoFactorBypass(models.Model):
+    """Users who can bypass 2FA"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bypass_grants')
+    
+
+class OTPSession(models.Model):
+    """OTP sessions for users"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    otp_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_verified = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    session_key = models.CharField(max_length=255, unique=True)
+    
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def generate_otp(self):
+        self.otp_code = ''.join(secrets.choice(string.digits) for _ in range(6))
+        expiry_seconds = getattr(settings, 'TWO_FA_CODE_EXPIRY_SECONDS', 6000)
+        self.expires_at = timezone.now() + timedelta(seconds=expiry_seconds)
+        self.save()
+        return self.otp_code
