@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.hashers import identify_hasher
 from django.conf import settings
-
+import logging
+logger = logging.getLogger(__name__)
 
 class PasswordHistoryManager(models.Manager):
     config = getattr(settings, 'PASSWORD_POLICY_COMPLIANCE_ROLLOUT_CONFIG', {})
@@ -29,19 +30,40 @@ class PasswordHistoryManager(models.Manager):
         Compares a raw (UNENCRYPTED!!!) password to entries in the users's
         password history.
 
-        :arg object user: A :class:`~django.contrib.auth.models.User` instance.
-        :arg str raw_password: A unicode string representing a password.
-        :returns: ``False`` if a password has been used before, ``True`` if not.
-        :rtype: bool
+        Args:
+            user: A User instance
+            raw_password: Unencrypted password string
+
+        Returns:
+            bool: False if password has been used before, True if not
         """
-        result = True
-        if user and user.check_password(raw_password):
-            result = False
-        else:
+        try:
+            if user and user.check_password(raw_password):
+                return False
+
             entries = self.filter(user=user).all()[:self.default_offset]
             for entry in entries:
-                hasher = identify_hasher(entry.password)
-                if hasher.verify(raw_password, entry.password):
-                    result = False
-                    break
-        return result
+                if not entry.password:
+                    continue
+
+                try:
+                    hasher = identify_hasher(entry.password)
+                    if hasher.verify(raw_password, entry.password):
+                        return False
+                except ValueError as e:
+                    logger.warning(
+                        "Invalid password hash for user %s: %s", 
+                        user.id, 
+                        str(e)
+                    )
+                    continue
+
+            return True
+
+        except Exception as e:
+            logger.error(
+                "Error checking password history for user %s: %s",
+                user.id if user else 'None',
+                str(e)
+            )
+            return True
