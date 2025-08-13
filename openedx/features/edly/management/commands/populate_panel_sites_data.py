@@ -34,11 +34,11 @@ logger = logging.getLogger(__name__)
 class DummyDataConstants:
     """Constants for dummy data generation."""
     
-    DEFAULT_PASSWORD = 'edx@123.aA'
+    DEFAULT_PASSWORD = 'arbisoft@123.aA'
     MIN_USERS = 50
     MAX_USERS = 70
     MAX_ENROLLMENT = 30
-    MAX_USERS_PER_SITE = 220
+    MAX_USERS_PER_SITE = 350
     MAX_STAFF_USERS = 15
     MAX_COURSE_CREATER = 12
     USERS_TO_SAMPLE = 10
