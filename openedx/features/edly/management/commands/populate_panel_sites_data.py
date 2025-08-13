@@ -39,7 +39,8 @@ class DummyDataConstants:
     MAX_USERS = 70
     MAX_ENROLLMENT = 30
     MAX_USERS_PER_SITE = 220
-    MAX_STAFF_USERS = 50
+    MAX_STAFF_USERS = 15
+    MAX_COURSE_CREATER = 12
     USERS_TO_SAMPLE = 10
     STAFF_USERS_TO_CREATE = 5
     DUMMY_DATES_COUNT = 15
@@ -106,9 +107,90 @@ class DummyUserGenerator:
         return dummy_users
         
     @staticmethod
+    def generate_random_date(reference_date, max_months_ago=7):
+        """
+        Generate a random date that is between 0 and max_months_ago months before the reference date.
+        
+        Args:
+            reference_date (datetime): The reference date to generate a date before
+            max_months_ago (int): Maximum number of months to go back
+            
+        Returns:
+            datetime: A randomly generated date
+        """
+        # Calculate a random month offset (0 to max_months_ago-1)
+        month_offset = randint(0, max_months_ago-1)
+        
+        # Calculate the year and month for this date
+        if reference_date.month - month_offset <= 0:
+            # Handle wraparound to previous year
+            year_offset = ((reference_date.month - month_offset - 1) // 12) - 1
+            month = reference_date.month - month_offset + (abs(year_offset) * 12)
+            year = reference_date.year + year_offset
+        else:
+            month = reference_date.month - month_offset
+            year = reference_date.year
+            
+        # Calculate days in month
+        if month == 2:
+            # Simple leap year check
+            if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+                days_in_month = 29
+            else:
+                days_in_month = 28
+        elif month in [4, 6, 9, 11]:
+            days_in_month = 30
+        else:
+            days_in_month = 31
+            
+        # Generate random day in month
+        day = randint(1, days_in_month)
+        
+        # Generate random time
+        hour = randint(0, 23)
+        minute = randint(0, 59)
+        second = randint(0, 59)
+        
+        # Create the date
+        return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+    
+    @staticmethod
+    def generate_random_login_date(join_date, reference_date=None):
+        """
+        Generate a random login date that occurs after the join date but before the reference date.
+        
+        Args:
+            join_date (datetime): The user's join date
+            reference_date (datetime, optional): The reference date (defaults to today)
+            
+        Returns:
+            datetime: A random login date after join_date but before reference_date
+        """
+        if reference_date is None:
+            reference_date = datetime.today()
+            
+        # Ensure reference_date is after join_date
+        if reference_date <= join_date:
+            return join_date  # Can't login before joining
+            
+        # Calculate seconds difference between join date and reference date
+        time_diff_seconds = int((reference_date - join_date).total_seconds())
+        
+        if time_diff_seconds <= 0:
+            return join_date
+        
+        # Generate a random number of seconds to add to join_date
+        # This ensures login is always after join date but before reference date
+        random_seconds = randint(1, time_diff_seconds)
+        login_date = join_date + timedelta(seconds=random_seconds)
+        
+        return login_date
+    
+    @staticmethod
     def distribute_user_dates_randomly(edly_sub_org, months=7):
         """
         Distribute all users of a site randomly over the last N months by changing their date_joined field.
+        Also adds a random last_login date that occurs after the join date.
         
         Args:
             edly_sub_org: The edly sub organization to get users from
@@ -136,56 +218,26 @@ class DummyUserGenerator:
             
         logger.info(f'Distributing {total_users} users over the last {months} months')
         
-        # Calculate date ranges for the past N months
         today = datetime.today()
         updated_count = 0
         
         for user in users:
-            # Calculate a random month offset (0 to months-1)
-            month_offset = randint(0, months-1)
+            # Generate random join date
+            join_date = DummyUserGenerator.generate_random_date(today, months)
             
-            # Calculate the year and month for this user
-            if today.month - month_offset <= 0:
-                # Handle wraparound to previous year
-                year_offset = ((today.month - month_offset - 1) // 12) - 1
-                month = today.month - month_offset + (abs(year_offset) * 12)
-                year = today.year + year_offset
-            else:
-                month = today.month - month_offset
-                year = today.year
-                
-            # Calculate days in month
-            if month == 2:
-                # Simple leap year check
-                if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
-                    days_in_month = 29
-                else:
-                    days_in_month = 28
-            elif month in [4, 6, 9, 11]:
-                days_in_month = 30
-            else:
-                days_in_month = 31
-                
-            # Generate random day in month
-            day = randint(1, days_in_month)
-            
-            # Generate random time
-            hour = randint(0, 23)
-            minute = randint(0, 59)
-            second = randint(0, 59)
-            
-            # Create the date
-            join_date = datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+            # Generate random login date (after join date)
+            login_date = DummyUserGenerator.generate_random_login_date(join_date, today)
             
             try:
-                # Update user's date_joined
+                # Update user's date_joined and last_login
                 user.date_joined = join_date
-                user.save(update_fields=['date_joined'])
+                user.last_login = login_date
+                user.save(update_fields=['date_joined', 'last_login'])
                 updated_count += 1
             except Exception as err:
-                logger.error(f'Failed to update date_joined for user {user.username}: {err}')
+                logger.error(f'Failed to update dates for user {user.username}: {err}')
         
-        logger.info(f'Successfully updated join dates for {updated_count}/{total_users} users')
+        logger.info(f'Successfully updated join and login dates for {updated_count}/{total_users} users')
         return updated_count
     
     @staticmethod
@@ -794,7 +846,9 @@ class EdlyActivityManager:
     @staticmethod
     def create_staff_users(org, users):
         """Create staff users for an organization."""
-        staff_users_count = CourseAccessRole.objects.filter(org=org).count()
+        staff_users_count = CourseAccessRole.objects.filter(
+            org=org, role='global_course_creator'
+        ).count()
         
         if staff_users_count > DummyDataConstants.MAX_STAFF_USERS:
             logger.info(f'Organization {org} already has enough staff users')
@@ -811,6 +865,27 @@ class EdlyActivityManager:
             )
         
         logger.info(f'Created {to_pick} staff users for organization {org}')
+    
+    def create_course_creator(org, users):
+        """Create a course creator for an organization."""
+        course_creator_count = CourseAccessRole.objects.filter(
+            org=org, role='course_creator_group'
+        ).count()
+        
+        if course_creator_count > DummyDataConstants.MAX_COURSE_CREATER:
+            logger.info(f'Organization {org} already has enough course creator users')
+            return
+
+        to_pick = min(DummyDataConstants.MAX_COURSE_CREATER, len(users))
+        indices = sample(range(len(users)), to_pick)
+        
+        for index in indices:
+            CourseAccessRole.objects.get_or_create(
+                user=users[index],
+                role='course_creator_group',
+            )
+
+        logger.info(f'Created {to_pick} course creator users for organization {org}')
 
 
 class Command(BaseCommand):
@@ -989,6 +1064,11 @@ class Command(BaseCommand):
     def process_staff_users(self, edx_organization, user_objects):
         """Create staff users for organization."""
         EdlyActivityManager.create_staff_users(edx_organization, user_objects)
+    
+    def process_course_creator(self, edx_organization, user_objects):
+        """Create course creator for the organization."""
+        EdlyActivityManager.create_course_creator(edx_organization, user_objects)
+
 
     def handle(self, *args, **options):
         """
@@ -1040,6 +1120,9 @@ class Command(BaseCommand):
         
         # Create staff users
         logger.info('Creating staff users')
-        # self.process_staff_users(edx_organization, user_objects)
+        self.process_staff_users(edx_organization, user_objects)
         
+        # Creating course creator 
+        logger.info('Creating course creator for the site')
+        self.process_course_creator(edx_organization, user_objects)
         logger.info('Dummy data population completed successfully')
