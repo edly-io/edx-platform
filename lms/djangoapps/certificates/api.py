@@ -257,7 +257,9 @@ def generate_user_certificates(student, course_key, course=None, insecure=False,
         return
 
     if CertificateStatuses.is_passing_status(cert.status):
-        _email_course_certificate_notification(course_key, student.id, cert.verify_uuid)
+        if get_active_web_certificate(course):
+            _email_course_certificate_notification(course_key, student.id, cert.verify_uuid)
+        
         emit_certificate_event('created', student, course_key, course, {
             'user_id': student.id,
             'course_id': six.text_type(course_key),
