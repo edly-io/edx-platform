@@ -53,7 +53,7 @@ class DummyDataConstants:
     
     # Activity generation constants
     HISTORICAL_YEARS = 2
-    MIN_MONTHLY_ACTIVITIES = 100
+    MIN_MONTHLY_ACTIVITIES = 115
     MAX_MONTHLY_ACTIVITIES = 200
     ACTIVITY_RETENTION_YEARS = 2
     
@@ -507,10 +507,10 @@ class CourseMetricsGenerator:
             # Determine activity end date - use completion date if available, otherwise current date
             activity_end = completion_date if completion_date else current_date
             activity_start = enrollment_date
-            
-            # Create 3-8 StudentModule entries per user to simulate realistic activity
-            num_activities = randint(3, 8)
-            
+
+            # Create 1-4 StudentModule entries per user to simulate realistic activity
+            num_activities = randint(1, 3)
+
             for i in range(num_activities):
                 # Generate a random activity date between enrollment and activity_end
                 if activity_start < activity_end:
@@ -1097,18 +1097,15 @@ class EdlyActivityManager:
                 continue
             
             # Calculate how many activities we need to create
-            target_activities = randint(
-                DummyDataConstants.MIN_MONTHLY_ACTIVITIES,
-                DummyDataConstants.MAX_MONTHLY_ACTIVITIES
-            )
-            activities_needed = target_activities - existing_count
+            activities_needed =  DummyDataConstants.MAX_MONTHLY_ACTIVITIES - existing_count
             
             # Don't create more activities than we have users
             activities_to_create = min(activities_needed, total_users)
+            activities_to_create = randint(min(20, activities_to_create),max(20, activities_to_create))
             
             logger.info(
                 f'Creating {activities_to_create} activities for {activity_date.strftime("%Y-%m")} '
-                f'(existing: {existing_count}, target: {target_activities})'
+                f'(existing: {existing_count}, MAX-ACITIVTY: {activities_needed})'
             )
             
             # Sample unique users for this month
