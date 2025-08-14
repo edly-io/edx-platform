@@ -6,19 +6,23 @@ from datetime import datetime, timedelta
 from random import choice, randint, sample, shuffle
 
 from django.db import connection
+from django.db.models import Q
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.core.exceptions import ValidationError
 from django.core.management import BaseCommand, CommandError
+from django.utils import timezone
 
 from edly_panel_app.api.v1.constants import REGISTRATION_FIELDS_VALUES  # pylint: disable=no-name-in-module
 from edly_panel_app.api.v1.helpers import _register_user  # pylint: disable=no-name-in-module
 from edly_panel_app.models import EdlyUserActivity
 from figures.models import CourseDailyMetrics, LearnerCourseGradeMetrics, SiteDailyMetrics, SiteMonthlyMetrics
-from figures.sites import site_course_ids
+from figures.sites import site_course_ids, get_organizations_for_site
+from lms.djangoapps.courseware.models import StudentModule
 from lms.djangoapps.grades.models import PersistentCourseGrade
 from openedx.core.djangoapps.django_comment_common.models import assign_default_role
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview 
 from openedx.core.djangoapps.django_comment_common.utils import seed_permissions_roles
 from openedx.features.edly.models import EdlyMultiSiteAccess
 from opaque_keys import InvalidKeyError
@@ -38,7 +42,7 @@ class DummyDataConstants:
     MIN_USERS = 50
     MAX_USERS = 70
     MAX_ENROLLMENT = 30
-    MAX_USERS_PER_SITE = 350
+    MAX_USERS_PER_SITE = 220
     MAX_STAFF_USERS = 15
     MAX_COURSE_CREATER = 12
     USERS_TO_SAMPLE = 10
@@ -161,13 +165,13 @@ class DummyUserGenerator:
         
         Args:
             join_date (datetime): The user's join date
-            reference_date (datetime, optional): The reference date (defaults to today)
+            reference_date (datetime, optional): The reference date (defaults to current time)
             
         Returns:
             datetime: A random login date after join_date but before reference_date
         """
         if reference_date is None:
-            reference_date = datetime.today()
+            reference_date = datetime.now()  # Use current time instead of today to include time component
             
         # Ensure reference_date is after join_date
         if reference_date <= join_date:
@@ -218,15 +222,15 @@ class DummyUserGenerator:
             
         logger.info(f'Distributing {total_users} users over the last {months} months')
         
-        today = datetime.today()
+        now = datetime.now()  # Use current time to ensure last_login is always in the past
         updated_count = 0
         
         for user in users:
             # Generate random join date
-            join_date = DummyUserGenerator.generate_random_date(today, months)
+            join_date = DummyUserGenerator.generate_random_date(now, months)
             
-            # Generate random login date (after join date)
-            login_date = DummyUserGenerator.generate_random_login_date(join_date, today)
+            # Generate random login date (after join date but before current time)
+            login_date = DummyUserGenerator.generate_random_login_date(join_date, now)
             
             try:
                 # Update user's date_joined and last_login
@@ -281,6 +285,8 @@ class DummyUserGenerator:
         # Get users associated with this edly sub organization
         existing_user_ids = EdlyMultiSiteAccess.objects.filter(
             sub_org=edly_sub_org
+        ).exclude(
+            user__courseaccessrole__role__in=['global_course_creator', 'course_creator_group']
         ).values_list('user_id', flat=True)
         
         if not existing_user_ids:
@@ -298,6 +304,66 @@ class DummyUserGenerator:
 
 class MetricsGenerator:
     """Handles metrics data generation."""
+    
+    @staticmethod
+    def get_course_id(site):
+        org = list(get_organizations_for_site(site).values_list('name', flat=True))
+        return list(CourseOverview.objects.filter(org__in=org).values_list('id'))
+
+
+    @staticmethod
+    def get_site_active_learner_counts(site, date_for):
+        """
+        Calculate actual site-level active learner counts based on StudentModule data.
+        
+        Args:
+            site: Site object
+            date_for: Date to calculate metrics for
+            
+        Returns:
+            dict: Contains site-level active learner counts
+        """
+        try:
+
+            # Get all course IDs for this site
+            course_ids = MetricsGenerator.get_course_id(site)            
+            if not course_ids:
+                return {
+                    'todays_active_learners_count': 0,
+                    'this_month_active_learners_count': 0
+                }
+
+            # Get active learners for today across all site courses
+            active_today = StudentModule.objects.filter(
+                ~Q(student__courseaccessrole__role='course_creator_group'),
+                student__is_staff=False,
+                student__is_superuser=False,
+                course_id__in=course_ids,
+                modified__date=date_for.date()
+            ).values_list('student__id', flat=True).distinct().count()
+
+            # Get active learners for this month across all site courses
+            active_this_month = StudentModule.objects.filter(
+                ~Q(student__courseaccessrole__role='course_creator_group'),
+                student__is_staff=False,
+                student__is_superuser=False,
+                course_id__in=course_ids,
+                modified__year=date_for.year,
+                modified__month=date_for.month,
+            ).values_list('student__id', flat=True).distinct().count()
+
+            return {
+                'todays_active_learners_count': active_today,
+                'this_month_active_learners_count': active_this_month
+            }
+            
+        except Exception as err:
+            logger.error(f'Error calculating site active learner counts for {site.domain}: {err}')
+            # Fallback to reasonable defaults
+            return {
+                'todays_active_learners_count': 0,
+                'this_month_active_learners_count': 0
+            }
     
     @staticmethod
     def generate_dummy_metrics(date):
@@ -366,10 +432,27 @@ class MetricsGenerator:
             logger.info(f'Updated existing monthly metrics for site: {site.domain}')
     
     @staticmethod
-    def create_site_daily_metrics(site, dates):
-        """Create site daily metrics."""
+    def create_site_daily_metrics(site, dates, use_real_active_counts=True):
+        """
+        Create site daily metrics.
+        
+        Args:
+            site: Site object
+            dates: List of date dictionaries with metrics
+            use_real_active_counts: If True, calculate real active learner counts from StudentModule data
+        """
         for date in dates:
             logger.info('Saving Site Daily Metrics')
+            
+            # Optionally replace with real active learner counts
+            if use_real_active_counts:
+                try:
+                    real_counts = MetricsGenerator.get_site_active_learner_counts(site, date['date_for'])
+                    date['todays_active_learners_count'] = real_counts['todays_active_learners_count']
+                    logger.info(f'Using real active learner count: {real_counts["todays_active_learners_count"]} for {date["date_for"]}')
+                except Exception as err:
+                    logger.warning(f'Failed to get real active counts, using dummy data: {err}')
+            
             sdm, created = SiteDailyMetrics.objects.update_or_create(
                 date_for=date['date_for'],
                 site_id=site.id,
@@ -401,6 +484,213 @@ class CourseMetricsGenerator:
         return letter_grade
 
     @staticmethod
+    def create_student_activity_entries(user, course_id, enrollment_date, current_date, completion_date=None):
+        """
+        Create StudentModule entries to simulate student activity for analytics.
+        
+        This creates entries that will be picked up by the get_active_learner_ids_this_month
+        function which looks for StudentModule records with modified timestamps in the current month.
+        
+        Args:
+            user: The user to create activity for
+            course_id: The course ID 
+            enrollment_date: When the user enrolled
+            current_date: Current processing date
+            completion_date: When the user completed the course (optional)
+        """
+        try:
+            from opaque_keys.edx.locator import BlockUsageLocator
+            
+            # Create some common module types that students interact with
+            module_types = ['problem', 'video', 'html', 'discussion']
+            
+            # Determine activity end date - use completion date if available, otherwise current date
+            activity_end = completion_date if completion_date else current_date
+            activity_start = enrollment_date
+            
+            # Create 3-8 StudentModule entries per user to simulate realistic activity
+            num_activities = randint(3, 8)
+            
+            for i in range(num_activities):
+                # Generate a random activity date between enrollment and activity_end
+                if activity_start < activity_end:
+                    time_diff_seconds = int((activity_end - activity_start).total_seconds())
+                    if time_diff_seconds > 0:
+                        random_seconds = randint(1, time_diff_seconds)
+                        activity_timestamp = activity_start + timedelta(seconds=random_seconds)
+                    else:
+                        activity_timestamp = activity_start
+                else:
+                    activity_timestamp = activity_start
+                
+                # Choose a random module type
+                module_type = choice(module_types)
+                
+                # Create a fake module_state_key (usage_id)
+                # This simulates a block within the course
+                fake_block_id = f"block-v1:{course_id.org}+{course_id.course}+{course_id.run}+type@{module_type}+block@{randint(1000, 9999)}"
+                
+                try:
+                    module_state_key = BlockUsageLocator.from_string(fake_block_id)
+                except:
+                    # Fallback if there's an issue with the locator
+                    continue
+                
+                # Create or update StudentModule entry
+                student_module, created = StudentModule.objects.update_or_create(
+                    student=user,
+                    course_id=course_id,
+                    module_state_key=module_state_key,
+                    defaults={
+                        'module_type': module_type,
+                        'state': '{"progress": 1}',  # Simple state indicating completion
+                        'grade': randint(70, 100) if module_type == 'problem' else None,
+                        'max_grade': 100 if module_type == 'problem' else None,
+                        'done': choice(['f', 'i', 'na'])
+                    }
+                )
+                
+                # Update the modified timestamp to the activity timestamp using raw SQL
+                # since modified field has auto_now=True
+                if created or student_module.modified < activity_timestamp:
+                    cursor = connection.cursor()
+                    cursor.execute(
+                        "UPDATE courseware_studentmodule SET modified = %s WHERE id = %s",
+                        [activity_timestamp, student_module.id]
+                    )
+                    
+                    # Also ensure recent activity for "this month" analytics
+                    # Create some activity in the current month for active learner tracking
+                    if i < 2:  # Create 1-2 activities in the current month
+                        current_month_start = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        current_month_activity = current_month_start + timedelta(
+                            days=randint(0, current_date.day - 1),
+                            hours=randint(0, 23),
+                            minutes=randint(0, 59)
+                        )
+                        
+                        cursor.execute(
+                            "UPDATE courseware_studentmodule SET modified = %s WHERE id = %s",
+                            [current_month_activity, student_module.id]
+                        )
+            
+            logger.info(f'Created {num_activities} StudentModule activity entries for {user.username} in {course_id}')
+            
+        except Exception as err:
+            logger.error(f'Error creating StudentModule entries for {user.username}: {err}')
+
+    @staticmethod
+    def get_active_learner_counts(course_id, date_for):
+        """
+        Calculate actual active learner counts based on StudentModule data.
+        This mimics the logic used in the actual analytics functions.
+        
+        Args:
+            course_id: Course ID to check
+            date_for: Date to calculate metrics for
+            
+        Returns:
+            dict: Contains active_learners_today and active_learners_this_month counts
+        """
+        try:
+            
+            # Get active learners for today (StudentModule modified today)
+            active_today = StudentModule.objects.filter(
+                ~Q(student__courseaccessrole__role='course_creator_group'),
+                student__is_staff=False,
+                student__is_superuser=False,
+                course_id=course_id,
+                modified__date=date_for.date()
+            ).values_list('student__id', flat=True).distinct().count()
+            
+            # Get active learners for this month (StudentModule modified this month)
+            active_this_month = StudentModule.objects.filter(
+                ~Q(student__courseaccessrole__role='course_creator_group'),
+                student__is_staff=False,
+                student__is_superuser=False,
+                course_id=course_id,
+                modified__year=date_for.year,
+                modified__month=date_for.month,
+            ).values_list('student__id', flat=True).distinct().count()
+            
+            return {
+                'active_learners_today': active_today,
+                'active_learners_this_month': active_this_month
+            }
+            
+        except Exception as err:
+            logger.error(f'Error calculating active learner counts for {course_id}: {err}')
+            # Fallback to reasonable defaults
+            return {
+                'active_learners_today': 0,
+                'active_learners_this_month': 0
+            }
+
+    @staticmethod
+    def create_activity_for_all_enrolled_users(course_id, site):
+        """
+        Create StudentModule activity entries for all enrolled users in a course.
+        This ensures analytics data is consistent regardless of when users were enrolled.
+        
+        Args:
+            course_id: Course ID to process
+            site: Site object
+        """
+        try:
+            today = timezone.now()
+            
+            # Get all active enrollments for this course
+            enrollments = CourseEnrollment.objects.filter(
+                course_id=course_id,
+                is_active=True
+            ).select_related('user')
+            
+            if not enrollments.exists():
+                logger.info(f'No enrollments found for course {course_id}')
+                return
+            
+            logger.info(f'Creating StudentModule activity entries for {enrollments.count()} enrolled users in course {course_id}')
+            
+            for enrollment in enrollments:
+                try:
+                    # Check if user already has StudentModule entries for this course
+                    existing_modules = StudentModule.objects.filter(
+                        student=enrollment.user,
+                        course_id=course_id
+                    ).count()
+                    
+                    # Only create entries if user doesn't have sufficient activity data
+                    if existing_modules < 3:  # Ensure minimum 3 activity entries per user
+                        # Get completion date if user has completed the course
+                        completion_date = None
+                        try:
+                            grade = PersistentCourseGrade.objects.filter(
+                                user_id=enrollment.user.id,
+                                course_id=course_id,
+                                passed_timestamp__isnull=False
+                            ).first()
+                            if grade:
+                                completion_date = grade.passed_timestamp
+                        except:
+                            pass
+                        
+                        CourseMetricsGenerator.create_student_activity_entries(
+                            enrollment.user, 
+                            course_id, 
+                            enrollment.created, 
+                            today,
+                            completion_date
+                        )
+                    else:
+                        logger.debug(f'User {enrollment.user.username} already has {existing_modules} StudentModule entries for course {course_id}')
+                        
+                except Exception as err:
+                    logger.error(f'Failed to create StudentModule entries for user {enrollment.user.username} in course {course_id}: {err}')
+                    
+        except Exception as err:
+            logger.error(f'Error creating activity for enrolled users in course {course_id}: {err}')
+
+    @staticmethod
     def enroll_users_in_courses(users, site, course_ids):
         """
         Enroll users in the provided courses.
@@ -413,18 +703,6 @@ class CourseMetricsGenerator:
         if not course_ids:
             logger.info('No course IDs provided, skipping user enrollment')
             return
-        
-        if not users:
-            edly_sub_org = getattr(site, 'edly_sub_org_for_lms', None)
-            if not edly_sub_org:
-                logger.warning('No edly_sub_org found for site, cannot get users')
-                return
-                
-            user_ids = EdlyMultiSiteAccess.objects.filter(
-                sub_org=edly_sub_org,
-                groups__name=settings.EDLY_PANEL_RESTRICTED_USERS_GROUP
-            ).values_list('user', flat=True)
-            users = get_user_model().objects.filter(id__in=user_ids)
         
         # Initialize metrics dictionary
         course_metrics_dict = {}
@@ -513,7 +791,33 @@ class CourseMetricsGenerator:
                     logger.info(f'Enrolling user {user.username} in course {str(course_id)}')
                     
                     # Enroll user
-                    CourseEnrollment.enroll(user, course_id)
+                    enrollment = CourseEnrollment.enroll(user, course_id)
+                    
+                    # Generate a random enrollment date (between user's join date and today)
+                    # Get user's join date to ensure enrollment is after user registration
+                    user_join_date = user.date_joined
+                    today = timezone.now()
+                    
+                    # Calculate random enrollment date between user join date and today
+                    if user_join_date < today:
+                        time_diff_seconds = int((today - user_join_date).total_seconds())
+                        if time_diff_seconds > 0:
+                            random_seconds = randint(1, time_diff_seconds)
+                            random_enrollment_date = user_join_date + timedelta(seconds=random_seconds)
+                        else:
+                            random_enrollment_date = user_join_date
+                    else:
+                        random_enrollment_date = user_join_date
+
+                    # Update enrollment created date using raw SQL to bypass auto_now_add
+                    cursor = connection.cursor()
+                    cursor.execute(
+                        "UPDATE student_courseenrollment SET created = %s WHERE id = %s",
+                        [random_enrollment_date, enrollment.id]
+                    )
+                    
+                    # Refresh enrollment object to get updated created date
+                    enrollment.refresh_from_db()
                     
                     # Use the predefined passing status for this user
                     is_passed = passing_status[i]
@@ -525,20 +829,29 @@ class CourseMetricsGenerator:
                         percent_grade = randint(50, 100)
                     else:
                         percent_grade = randint(30, 49)
+
+                    # Generate realistic passed_timestamp that's after enrollment date
+                    passed_timestamp = None
+                    if is_passed:
+                        # Add random days (1-30) after enrollment for completion
+                        days_to_complete = randint(1, 30)
+                        passed_timestamp = enrollment.created + timedelta(days=days_to_complete)
+                        if passed_timestamp > today:
+                            passed_timestamp = today
+                    
                     grade_params = {
                         'user_id': user.id,
                         'course_id': course_id,
                         'percent_grade': percent_grade,
                         'passed': is_passed,
                         'letter_grade': CourseMetricsGenerator.get_letter_grade(percent_grade),
-                        'passed_timestamp': datetime.today().date() if is_passed else None,
+                        'passed_timestamp': passed_timestamp,
                     }
                     
                     # The update_or_create method only returns the object, not a tuple
                     grade = PersistentCourseGrade.update_or_create(
                         **grade_params,
                     )
-                    
                     # Create LearnerCourseGradeMetrics entry
                     try:
                         # Generate realistic metrics data
@@ -561,10 +874,10 @@ class CourseMetricsGenerator:
                             'percent_grade': round(percent_grade/100, 2),
                             'total_progress_percent': round(points_earned/points_possible , 2)
                         }
-                        
-                        # Add passed_timestamp if the user passed
-                        if percent_grade > 50:
-                            metrics_data['passed_timestamp'] = datetime.today()
+
+                        # Add passed_timestamp if the user passed (use the same timestamp as grade)
+                        if percent_grade > 50 and passed_timestamp:
+                            metrics_data['passed_timestamp'] = passed_timestamp
                         
                         lcgm, created = LearnerCourseGradeMetrics.objects.update_or_create(
                             site=site,
@@ -582,11 +895,9 @@ class CourseMetricsGenerator:
                     logger.error(f'Failed to enroll user {user.username} in course {course_id}: {err}')
 
     @staticmethod
-    def create_course_daily_metrics(site):
+    def create_course_daily_metrics(site, course_ids):
         """Generate course daily metrics for all courses in the site or provided course IDs."""
 
-        all_site_course_ids = site_course_ids(site)
-        course_ids = list(all_site_course_ids)   
         if not course_ids:
             logger.info('No courses found for the site, skipping course metrics generation')
             return
@@ -602,6 +913,11 @@ class CourseMetricsGenerator:
                 course_id_str = str(course_data['id'])
                 course_id = CourseKey.from_string(course_id_str)
                 
+                # Create StudentModule activity entries for all enrolled users in this course
+                # This ensures analytics data is consistent regardless of enrollment timing
+                # and works even when courses already have sufficient enrollments
+                CourseMetricsGenerator.create_activity_for_all_enrolled_users(course_id, site)
+                
                 # Check for existing enrollments
                 existing_enrollments = CourseEnrollment.objects.filter(
                     course_id=course_id,
@@ -614,13 +930,15 @@ class CourseMetricsGenerator:
                     passed_timestamp__isnull=False
                 ).count()
                 
+                # Calculate actual active learner counts based on StudentModule data
+                active_counts = CourseMetricsGenerator.get_active_learner_counts(course_id, today)
 
                 metrics = {
                     'site': site,
                     'date_for': today,
                     'enrollment_count': existing_enrollments,
-                    'active_learners_today': randint(0, existing_enrollments),
-                    'active_learners_this_month':  randint(min(existing_enrollments - 10, 0), existing_enrollments),
+                    'active_learners_today': active_counts['active_learners_today'],
+                    'active_learners_this_month': active_counts['active_learners_this_month'],
                     'average_progress': round(randint(1, 100) / 100, 2),
                     'average_days_to_complete': randint(1, 30),
                     'num_learners_completed': existing_passed
@@ -652,13 +970,20 @@ class EdlyActivityManager:
         return EdlyMultiSiteAccess.objects.filter(sub_org=sub_org).count()
     
     @staticmethod
-    def cleanup_old_activities():
+    def cleanup_old_activities(edly_sub_org):
         """
         Delete Edly user activities older than ACTIVITY_RETENTION_YEARS.
         """
+        if not edly_sub_org:
+            logger.info('No Edly sub-organization provided for activity cleanup.')
+            return
+
         cutoff_date = datetime.now().date() - timedelta(days=365 * DummyDataConstants.ACTIVITY_RETENTION_YEARS)
-        
-        old_activities = EdlyUserActivity.objects.filter(activity_date__lt=cutoff_date)
+
+        old_activities = EdlyUserActivity.objects.filter(
+            activity_date__lt=cutoff_date,
+            edly_sub_organization=edly_sub_org
+        )
         old_count = old_activities.count()
         
         if old_count > 0:
@@ -716,7 +1041,7 @@ class EdlyActivityManager:
             current_date (datetime): The current processing date
         """
         # Clean up old activities first
-        EdlyActivityManager.cleanup_old_activities()
+        EdlyActivityManager.cleanup_old_activities(edly_sub_org)
         
         # Calculate date range for last 2 years from the provided end date
         # Make sure we don't generate future activities by capping at today's date
@@ -868,8 +1193,13 @@ class EdlyActivityManager:
     
     def create_course_creator(org, users):
         """Create a course creator for an organization."""
+        user_id = EdlyMultiSiteAccess.objects.filter(
+            sub_org__slug=org,
+        ).values_list('user_id', flat=True)
+        
         course_creator_count = CourseAccessRole.objects.filter(
-            org=org, role='course_creator_group'
+            user__id__in=user_id,
+            role='course_creator_group'
         ).count()
         
         if course_creator_count > DummyDataConstants.MAX_COURSE_CREATER:
@@ -1038,7 +1368,7 @@ class Command(BaseCommand):
             logger.info(f'Selecting random existing users for site: {site.domain}')
             user_objects = DummyUserGenerator.get_random_existing_users(edly_sub_org)
         
-        # Create metrics
+        # Create metrics (site daily metrics will use real active learner counts from StudentModule data)
         MetricsGenerator.create_site_monthly_metrics(site, populate_date)
         MetricsGenerator.create_site_daily_metrics(site, dates)
         
@@ -1059,7 +1389,7 @@ class Command(BaseCommand):
         
         # After enrollment, generate course metrics based on actual enrollment data
         logger.info(f'Generating metrics for courses after enrollment for site: {site.domain}')
-        CourseMetricsGenerator.create_course_daily_metrics(site)
+        CourseMetricsGenerator.create_course_daily_metrics(site, course_ids)
 
     def process_staff_users(self, edx_organization, user_objects):
         """Create staff users for organization."""
@@ -1115,9 +1445,6 @@ class Command(BaseCommand):
         logger.info('Adding Edly user activities')
         EdlyActivityManager.add_edly_activities(user_objects, edly_sub_org, populate_date)
         
-        # Process course data
-        self.process_course_data(site, courses_list, user_objects)
-        
         # Create staff users
         logger.info('Creating staff users')
         self.process_staff_users(edx_organization, user_objects)
@@ -1125,4 +1452,8 @@ class Command(BaseCommand):
         # Creating course creator 
         logger.info('Creating course creator for the site')
         self.process_course_creator(edx_organization, user_objects)
+
+        # Process course data
+        logger.info('Processing course data')
+        self.process_course_data(site, courses_list, user_objects)
         logger.info('Dummy data population completed successfully')
