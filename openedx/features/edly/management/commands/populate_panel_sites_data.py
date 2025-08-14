@@ -502,8 +502,7 @@ class CourseMetricsGenerator:
             from opaque_keys.edx.locator import BlockUsageLocator
             
             # Create some common module types that students interact with
-            module_types = ['problem', 'video', 'html', 'discussion']
-            
+            module_types = ['video', 'html', 'discussion']
             # Determine activity end date - use completion date if available, otherwise current date
             activity_end = completion_date if completion_date else current_date
             activity_start = enrollment_date
