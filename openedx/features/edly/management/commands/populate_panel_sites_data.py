@@ -41,6 +41,7 @@ class DummyDataConstants:
     DEFAULT_PASSWORD = 'arbisoft@123.aA'
     MIN_USERS = 50
     MAX_USERS = 70
+    MIN_ENROLLMENT = 20
     MAX_ENROLLMENT = 30
     MAX_USERS_PER_SITE = 220
     MAX_STAFF_USERS = 15
@@ -502,7 +503,8 @@ class CourseMetricsGenerator:
             from opaque_keys.edx.locator import BlockUsageLocator
             
             # Create some common module types that students interact with
-            module_types = ['video', 'html', 'discussion']
+
+            module_types = ['sequential', 'course']
             # Determine activity end date - use completion date if available, otherwise current date
             activity_end = completion_date if completion_date else current_date
             activity_start = enrollment_date
@@ -535,18 +537,22 @@ class CourseMetricsGenerator:
                     # Fallback if there's an issue with the locator
                     continue
                 
-                # Create or update StudentModule entry
-                student_module, created = StudentModule.objects.update_or_create(
-                    student=user,
-                    course_id=course_id,
-                    module_state_key=module_state_key,
-                    defaults={
+                defaults={
                         'module_type': module_type,
                         'state': '{"progress": 1}',  # Simple state indicating completion
                         'grade': randint(70, 100) if module_type == 'problem' else None,
                         'max_grade': 100 if module_type == 'problem' else None,
                         'done': choice(['f', 'i', 'na'])
-                    }
+                }
+                if defaults['grade']:
+                    defaults['done'] = 'f'
+                
+                # Create or update StudentModule entry
+                student_module, created = StudentModule.objects.update_or_create(
+                    student=user,
+                    course_id=course_id,
+                    module_state_key=module_state_key,
+                    defaults=defaults
                 )
                 
                 # Update the modified timestamp to the activity timestamp using raw SQL
@@ -596,6 +602,7 @@ class CourseMetricsGenerator:
             # Get active learners for today (StudentModule modified today)
             active_today = StudentModule.objects.filter(
                 ~Q(student__courseaccessrole__role='course_creator_group'),
+                ~Q(student__courseaccessrole__role='global_course_creator'),
                 student__is_staff=False,
                 student__is_superuser=False,
                 course_id=course_id,
@@ -605,6 +612,7 @@ class CourseMetricsGenerator:
             # Get active learners for this month (StudentModule modified this month)
             active_this_month = StudentModule.objects.filter(
                 ~Q(student__courseaccessrole__role='course_creator_group'),
+                ~Q(student__courseaccessrole__role='global_course_creator'),
                 student__is_staff=False,
                 student__is_superuser=False,
                 course_id=course_id,
@@ -650,7 +658,10 @@ class CourseMetricsGenerator:
             
             logger.info(f'Creating StudentModule activity entries for {enrollments.count()} enrolled users in course {course_id}')
             
-            for enrollment in enrollments:
+            # pick random enrolment number of enrolments
+            random_enrollment_count = randint(1, enrollments.count())
+            random_enrollments = sample(list(enrollments), random_enrollment_count)
+            for enrollment in random_enrollments:
                 try:
                     # Check if user already has StudentModule entries for this course
                     existing_modules = StudentModule.objects.filter(
@@ -668,8 +679,9 @@ class CourseMetricsGenerator:
                                 course_id=course_id,
                                 passed_timestamp__isnull=False
                             ).first()
-                            if grade:
+                            if not grade:
                                 completion_date = grade.passed_timestamp
+                                continue
                         except:
                             pass
                         
@@ -725,11 +737,15 @@ class CourseMetricsGenerator:
                 course_id=course_id,
                 is_active=True
             ).count()
-            
+
+            if existing_enrollments >= DummyDataConstants.MIN_ENROLLMENT or existing_enrollments > target_enrollment_count:
+                logger.info(f'Course {course_id}: Already has {existing_enrollments} enrollments, which meets or exceeds minimum {DummyDataConstants.MIN_ENROLLMENT}. Skipping new enrollments.')
+                continue
+
             logger.info(f'Course {course_id}: Target enrollments: {target_enrollment_count}, Existing enrollments: {existing_enrollments}')
             
             # Calculate how many new enrollments we need
-            additional_enrollments_needed = max(0, target_enrollment_count - existing_enrollments)
+            additional_enrollments_needed = randint(0, target_enrollment_count - existing_enrollments)
             
             if additional_enrollments_needed <= 0:
                 logger.info(f'Course {course_id}: Already has {existing_enrollments} enrollments, which meets or exceeds target {target_enrollment_count}. Skipping new enrollments.')
