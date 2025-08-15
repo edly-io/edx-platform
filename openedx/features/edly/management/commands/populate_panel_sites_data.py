@@ -738,7 +738,7 @@ class CourseMetricsGenerator:
                 is_active=True
             ).count()
 
-            if existing_enrollments >= DummyDataConstants.MIN_ENROLLMENT or existing_enrollments > target_enrollment_count:
+            if existing_enrollments >= DummyDataConstants.MIN_ENROLLMENT:
                 logger.info(f'Course {course_id}: Already has {existing_enrollments} enrollments, which meets or exceeds minimum {DummyDataConstants.MIN_ENROLLMENT}. Skipping new enrollments.')
                 continue
 
