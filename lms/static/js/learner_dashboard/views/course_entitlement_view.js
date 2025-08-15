@@ -90,6 +90,15 @@ class CourseEntitlementView extends Backbone.View {
     });
   }
 
+  escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+  }
+
   handleEnrollChange() {
     /*
     Handles enrolling in a course, unenrolling in a session and changing session.

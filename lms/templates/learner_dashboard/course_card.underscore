@@ -5,10 +5,10 @@
                 <h5 class="course-title">
                     <% if (course_title_link) { %>
                         <a href="<%- course_title_link %>" class="course-title-link">
-                            <%- title %>
+                            <%- escapeHtml(title) %>
                         </a>
                     <% } else { %>
-                        <%- title %>
+                        <%- escapeHtml(title) %>
                     <% } %>
                 </h5>
                 <div class="course-text">
