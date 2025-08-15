@@ -32,7 +32,7 @@ class SubscriptionsListView(ListAPIView):
         if return_only_valid_subscriptions:
             return UserSubscription.get_valid_subscriptions(self.request.site, username=username)
 
-        return UserSubscription.objects.filter(user__username=username)
+        return UserSubscription.objects.filter(site=self.request.site, user__username=username)
 
 
 class SubscriptionRetrieveUpdateView(PutAsCreateMixin, RetrieveUpdateAPIView):
