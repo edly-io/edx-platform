@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class PasswordHistoryManager(models.Manager):
     config = getattr(settings, 'PASSWORD_POLICY_COMPLIANCE_ROLLOUT_CONFIG', {})
-    default_offset = config.get('PASSWORD_ROTATE_HISTORY_COUNT', 0)
+    default_offset = config.get('PASSWORD_ROTATE_HISTORY_COUNT', 4)
 
 
     def delete_expired(self, user, offset=None):
