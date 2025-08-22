@@ -581,7 +581,6 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
             self.token = self._get_token_from_session(self.request)
             return self.post(self.request, *args, **kwargs)
         else:
-            AUDIT_LOG.info("PASSWORD_RESET_TIMEOUT_DAYS user: %s.", settings.PASSWORD_RESET_TIMEOUT_DAYS)
             response = super(PasswordResetConfirmWrapper, self).dispatch(
                 self.request,
                 uidb64=self.uidb64,
