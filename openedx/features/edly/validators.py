@@ -55,7 +55,7 @@ def is_edly_user_allowed_to_login(request, possibly_authenticated_user):
     return True
 
 
-def is_edly_user_allowed_to_login_with_social_auth(request, user):
+def is_edly_user_allowed_to_login_with_social_auth(request, user, auth_entry):
     """
     Check if the user is allowed to login on the current site with social auth.
 
@@ -66,6 +66,8 @@ def is_edly_user_allowed_to_login_with_social_auth(request, user):
     Returns:
         bool: Returns True if User can login to site otherwise False.
     """
+    if auth_entry == 'register':
+        return True
 
     if not is_edly_user_allowed_to_login(request, user):
         if user_can_login_on_requested_edly_organization(request, user):

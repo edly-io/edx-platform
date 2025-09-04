@@ -474,7 +474,6 @@ def parse_query_params(strategy, response, *args, **kwargs):
     # If auth_entry is not in the session, we got here by a non-standard workflow.
     # We simply assume 'login' in that case.
     auth_entry = strategy.request.session.get(AUTH_ENTRY_KEY, AUTH_ENTRY_LOGIN)
-    logger.info(f"Auth entry not found in session, defaulting to '{auth_entry}'")
     if auth_entry not in _AUTH_ENTRY_CHOICES:
         raise AuthEntryError(strategy.request.backend, 'auth_entry invalid')
     return {'auth_entry': auth_entry}
@@ -690,7 +689,7 @@ def set_logged_in_cookies(backend=None, user=None, strategy=None, auth_entry=Non
             # Check that the cookie isn't already set.
             # This ensures that we allow the user to continue to the next
             # pipeline step once he/she has the cookie set by this step.
-            if not is_edly_user_allowed_to_login_with_social_auth(request, user):
+            if not is_edly_user_allowed_to_login_with_social_auth(request, user, auth_entry):
                 raise AuthException(user, _('You are not allowed to login on this site.'))
 
             has_cookie = user_authn_cookies.are_logged_in_cookies_set(request)
