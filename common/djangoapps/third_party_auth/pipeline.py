@@ -689,7 +689,7 @@ def set_logged_in_cookies(backend=None, user=None, strategy=None, auth_entry=Non
             # Check that the cookie isn't already set.
             # This ensures that we allow the user to continue to the next
             # pipeline step once he/she has the cookie set by this step.
-            if not is_edly_user_allowed_to_login_with_social_auth(request, user, auth_entry):
+            if not is_edly_user_allowed_to_login_with_social_auth(request, user):
                 raise AuthException(user, _('You are not allowed to login on this site.'))
 
             has_cookie = user_authn_cookies.are_logged_in_cookies_set(request)
