@@ -67,6 +67,7 @@ def is_edly_user_allowed_to_login_with_social_auth(request, user, auth_entry):
         bool: Returns True if User can login to site otherwise False.
     """
     if auth_entry == 'register':
+        create_edly_access_role(request, user)
         return True
 
     if not is_edly_user_allowed_to_login(request, user):
