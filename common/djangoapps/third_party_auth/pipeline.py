@@ -560,6 +560,8 @@ def ensure_user_information(strategy, auth_entry, backend=None, user=None, socia
     # It is important that we always execute the entire pipeline. Even if
     # behavior appears correct without executing a step, it means important
     # invariants have been violated and future misbehavior is likely.
+    from openedx.core.djangoapps.user_authn.views.password_reset import _get_user_from_email
+
     def dispatch_to_login():
         """Redirects to the login page."""
         return redirect(AUTH_DISPATCH_URLS[AUTH_ENTRY_LOGIN])
@@ -594,7 +596,11 @@ def ensure_user_information(strategy, auth_entry, backend=None, user=None, socia
         if user_exists(user_details or {}):
             # User has not already authenticated and the details sent over from
             # identity provider belong to an existing user.
-            return dispatch_to_login()
+            # Get the existing user and return it to skip create_user step
+            email = (user_details or {}).get('email')
+            existing_user = _get_user_from_email(email)
+            if existing_user:
+                return {'user': existing_user}
 
         if is_api(auth_entry):
             return HttpResponseBadRequest()
@@ -683,7 +689,7 @@ def set_logged_in_cookies(backend=None, user=None, strategy=None, auth_entry=Non
             # Check that the cookie isn't already set.
             # This ensures that we allow the user to continue to the next
             # pipeline step once he/she has the cookie set by this step.
-            if not is_edly_user_allowed_to_login_with_social_auth(request, user):
+            if not is_edly_user_allowed_to_login_with_social_auth(request, user, auth_entry):
                 raise AuthException(user, _('You are not allowed to login on this site.'))
 
             has_cookie = user_authn_cookies.are_logged_in_cookies_set(request)

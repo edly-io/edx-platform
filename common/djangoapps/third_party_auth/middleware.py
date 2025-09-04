@@ -48,4 +48,8 @@ class ExceptionMiddleware(SocialAuthExceptionMiddleware, MiddlewareMixin):
                 redirect_url = get_next_url_for_login_page(request)
                 return redirect('/login?next=' + redirect_url)
 
+        if isinstance(exception, pipeline.AuthException):
+            messages.error(request, str(exception), extra_tags='social-auth login')
+            return redirect('/login')
+
         return super(ExceptionMiddleware, self).process_exception(request, exception)
