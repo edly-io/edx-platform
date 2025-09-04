@@ -474,6 +474,7 @@ def parse_query_params(strategy, response, *args, **kwargs):
     # If auth_entry is not in the session, we got here by a non-standard workflow.
     # We simply assume 'login' in that case.
     auth_entry = strategy.request.session.get(AUTH_ENTRY_KEY, AUTH_ENTRY_LOGIN)
+    logger.info(f"Auth entry not found in session, defaulting to '{auth_entry}'")
     if auth_entry not in _AUTH_ENTRY_CHOICES:
         raise AuthEntryError(strategy.request.backend, 'auth_entry invalid')
     return {'auth_entry': auth_entry}
