@@ -8,6 +8,7 @@ import json
 import logging
 
 from django.conf import settings
+from django.contrib.auth import authenticate
 from django.contrib.auth import login as django_login
 from django.contrib.auth.models import User
 from django.core.exceptions import NON_FIELD_ERRORS, PermissionDenied
@@ -520,13 +521,14 @@ class RegistrationView(APIView):
         if response:
             return response
 
-        response = self._is_user_exist_in_multisite(request, data)
+        response, user = self._is_user_exist_in_multisite(request, data)
         if response:
             return response
 
-        response, user = self._create_account(request, data)
-        if response:
-            return response
+        if not user:
+            response, user = self._create_account(request, data)
+            if response:
+                return response
 
         redirect_url = get_next_url_for_login_page(request, include_host=True)
         response = self._create_response(request, {}, status_code=200, redirect_url=redirect_url)
@@ -538,14 +540,24 @@ class RegistrationView(APIView):
         username = data.get('username')
         errors = {}
         if User.objects.filter(email=email).exists():
-            user = User.objects.get(email=email)
-            edly_access_user = create_edly_access_role(request, user)
-            create_learner_link_with_permission_groups(edly_access_user)
-            return self._create_response(request, {}, status_code=200)
+            try:
+                user = User.objects.get(email=email)
+                edly_access_user = create_edly_access_role(request, user)
+                create_learner_link_with_permission_groups(edly_access_user)
+                new_user = authenticate(request=request, username=user.username, password=data['password'])
+                django_login(request, new_user)
+                request.session.set_expiry(0)
+                return None, user
+            except Exception as e:
+                log.exception("Error while linking existing user to new subsite. Error: %s", str(e))
+                errors["email"] = [{"user_message": accounts_settings.EMAIL_CONFLICT_MSG.format(email_address=email)}]
+                return self._create_response(request, errors, status_code=400), None
 
         elif User.objects.filter(username=username).exists():
             errors["username"] = [{"user_message": "Username {} already exists.".format(username)}]
-            return self._create_response(request, errors, status_code=400)
+            return self._create_response(request, errors, status_code=400), None
+        
+        return None, None
 
     def _handle_duplicate_email_username(self, request, data):
         # pylint: disable=no-member
