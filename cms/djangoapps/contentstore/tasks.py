@@ -180,6 +180,13 @@ def rerun_course(source_course_key_string, destination_course_key_string, user_i
 
         org_data = ensure_organization(source_course_key.org)
         add_organization_course(org_data, destination_course_key)
+
+        if fields and 'display_name' in fields:
+            user = User.objects.get(id=user_id)
+            course_module = modulestore().get_course(destination_course_key, depth=0)
+            metadata = {u'display_name': fields['display_name']}
+            CourseMetadata.update_from_dict(metadata, course_module, user)
+        
         return "succeeded"
 
     except DuplicateCourseError:
