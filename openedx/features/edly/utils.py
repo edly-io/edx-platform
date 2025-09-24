@@ -761,16 +761,11 @@ def toggle_lti_user_parameters(course_id, enable_lti_parameters, user):
     """Toggles the LTI user parameters for a specific course."""
     from cms.djangoapps.xblock_config.models import CourseEditLTIFieldsEnabledFlag
 
-    try:
-        obj = CourseEditLTIFieldsEnabledFlag.objects.get(course_id=course_id)
-        if obj.enabled != enable_lti_parameters["value"]:
-            obj.delete()
-            CourseEditLTIFieldsEnabledFlag.objects.create(
-                course_id=course_id,
-                enabled=enable_lti_parameters["value"],
-                changed_by=user,
-            )
-    except CourseEditLTIFieldsEnabledFlag.DoesNotExist:
+    obj = CourseEditLTIFieldsEnabledFlag.objects.filter(
+        course_id=course_id
+    ).order_by('-change_date').first()
+
+    if obj is None or obj.enabled != enable_lti_parameters["value"]:
         CourseEditLTIFieldsEnabledFlag.objects.create(
             course_id=course_id, enabled=enable_lti_parameters["value"], changed_by=user
         )
