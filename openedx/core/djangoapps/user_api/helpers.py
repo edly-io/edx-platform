@@ -16,6 +16,7 @@ from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils.encoding import force_text
 from django.utils.functional import Promise
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 
 LOGGER = logging.getLogger(__name__)
 
@@ -209,6 +210,8 @@ class FormDescription(object):
             "supplementalLink": supplementalLink,
             "supplementalText": supplementalText,
             "loginIssueSupportLink": settings.LOGIN_ISSUE_SUPPORT_LINK,
+            'account_creation_allowed': configuration_helpers.get_value(
+                'ALLOW_PUBLIC_ACCOUNT_CREATION', settings.FEATURES.get('ALLOW_PUBLIC_ACCOUNT_CREATION', True)),
         }
 
         field_override = self._field_overrides.get(name, {})

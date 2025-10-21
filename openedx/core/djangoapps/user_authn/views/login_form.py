@@ -210,6 +210,16 @@ def login_and_registration_form(request, initial_mode="login"):
             'message': message.message, 'tags': message.tags
         } for message in messages.get_messages(request) if 'account-recovery' in message.tags
     ]
+    
+    
+    if initial_mode == "register":
+        allow_public_account_creation = configuration_helpers.get_value(
+            'ALLOW_PUBLIC_ACCOUNT_CREATION',
+            settings.FEATURES.get('ALLOW_PUBLIC_ACCOUNT_CREATION', True)
+        )
+        if not allow_public_account_creation:
+            # Redirect to login page when registration is disabled
+            return redirect(settings.LOGIN_URL)
 
     # Otherwise, render the combined login/registration page
     context = {
