@@ -128,6 +128,13 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
             if user_id:
                 data = data.replace("%%USER_ID%%", user_id)
             data = data.replace("%%COURSE_ID%%", str(self.scope_ids.usage_id.context_key))
+            
+            # EDLYCUSTOM: Replace %%USER_EMAIL%% with user's email in HTML xblock
+            if getattr(self.system, 'get_real_user', None):
+                user = self.system.get_real_user(user_id)
+                if user and hasattr(user, 'email'):
+                    data = data.replace("%%USER_EMAIL%%", str(user.email))
+
             return data
         return self.data
 
