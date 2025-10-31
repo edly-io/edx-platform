@@ -540,6 +540,7 @@ edx-sga==0.26.0
 edx-submissions @ git+https://github.com/edly-io/edx-submissions.git@xq-depr-292
     # via
     #   -r requirements/edx/github.in
+    #   -r requirements/edx/kernel.in
     #   ora2
 edx-tincan-py35==2.0.0
     # via
