@@ -297,17 +297,11 @@ def get_available_providers():  # lint-amnesty, pylint: disable=missing-function
 
 
 def get_requires_escalation_email_providers():  # lint-amnesty, pylint: disable=missing-function-docstring
-    proctoring_backend_settings = getattr(
-        settings,
-        'PROCTORING_BACKENDS',
-        {}
-    )
-
     requires_escalation_email_providers = [
         provider
-        for provider in proctoring_backend_settings
+        for provider in settings.PROCTORING_BACKENDS
         if provider != "DEFAULT"
-        and proctoring_backend_settings[provider].get(
+        and settings.PROCTORING_BACKENDS[provider].get(
             "requires_escalation_email", False
         )
     ]
