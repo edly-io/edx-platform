@@ -154,7 +154,7 @@ class Command(BaseCommand):
         try:
             querystring = {
                 'exclude_utm': 1,
-                'status': ('active', 'retired'),
+                'status': ('active', 'retired', 'unpublished'),
                 'uuids_only': 1,
             }
             api_url = urljoin(f"{api_base_url}/", "programs/")
