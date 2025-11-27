@@ -181,7 +181,7 @@ class VideoFields(object):
     )
     thumbnail = String(
         help=_(
-            "Upload or link to an image that appears before the learner plays the video. "
+            "Upload an image that appears before the learner plays the video. "
             "This thumbnail is shown in Studio previews and in the LMS."
         ),
         display_name=_("Thumbnail Image"),
