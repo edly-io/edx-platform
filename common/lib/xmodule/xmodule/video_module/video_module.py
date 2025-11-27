@@ -367,8 +367,8 @@ class VideoBlock(
 
         settings_service = self.runtime.service(self, 'settings')
 
-        poster = None
-        if edxval_api and self.edx_video_id:
+        poster = self.thumbnail or None
+        if not poster and edxval_api and self.edx_video_id:
             poster = edxval_api.get_course_video_image_url(
                 course_id=self.runtime.course_id.for_branch(None),
                 edx_video_id=self.edx_video_id.strip()
@@ -606,6 +606,7 @@ class VideoBlock(
             'translation'
         ).rstrip('/?')
         editable_fields['handout']['type'] = 'FileUploader'
+        editable_fields['thumbnail']['type'] = 'FileUploader'
 
         return editable_fields
 
@@ -717,6 +718,11 @@ class VideoBlock(
         if self.handout:
             ele = etree.Element('handout')
             ele.set('src', self.handout)
+            xml.append(ele)
+
+        if self.thumbnail:
+            ele = etree.Element('thumbnail')
+            ele.set('src', self.thumbnail)
             xml.append(ele)
 
         transcripts = {}
@@ -920,6 +926,10 @@ class VideoBlock(
         if handout is not None:
             field_data['handout'] = handout.get('src')
 
+        thumbnail = xml.find('thumbnail')
+        if thumbnail is not None:
+            field_data['thumbnail'] = thumbnail.get('src')
+
         transcripts = xml.findall('transcript')
         if transcripts:
             field_data['transcripts'] = {tr.get('language'): tr.get('src') for tr in transcripts}
@@ -949,11 +959,13 @@ class VideoBlock(
 
         course_id = getattr(id_generator, 'target_course_id', None)
         # Update the handout location with current course_id
-        if 'handout' in list(field_data.keys()) and course_id:
-            handout_location = StaticContent.get_location_from_path(field_data['handout'])
-            if isinstance(handout_location, AssetLocator):
-                handout_new_location = StaticContent.compute_location(course_id, handout_location.path)
-                field_data['handout'] = StaticContent.serialize_asset_key_with_slash(handout_new_location)
+        if course_id:
+            for asset_field in ('handout', 'thumbnail'):
+                if asset_field in field_data:
+                    asset_location = StaticContent.get_location_from_path(field_data[asset_field])
+                    if isinstance(asset_location, AssetLocator):
+                        new_location = StaticContent.compute_location(course_id, asset_location.path)
+                        field_data[asset_field] = StaticContent.serialize_asset_key_with_slash(new_location)
 
         # For backwards compatibility: Add `source` if XML doesn't have `download_video`
         # attribute.

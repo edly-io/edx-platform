@@ -84,6 +84,10 @@ def get_poster(video):
 
     Poster metadata is dict of youtube url for image thumbnail and edx logo
     """
+    thumbnail_url = getattr(video, 'thumbnail', '') or None
+    if thumbnail_url:
+        return OrderedDict({"url": thumbnail_url, "type": "thumbnail"})
+
     if not video.bumper.get("enabled"):
         return
 
