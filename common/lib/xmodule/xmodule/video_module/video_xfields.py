@@ -179,6 +179,15 @@ class VideoFields(object):
         display_name=_("Upload Handout"),
         scope=Scope.settings,
     )
+    thumbnail = String(
+        help=_(
+            "Upload or link to an image that appears before the learner plays the video. "
+            "This thumbnail is shown in Studio previews and in the LMS."
+        ),
+        display_name=_("Thumbnail Image"),
+        scope=Scope.settings,
+        default=""
+    )
     only_on_web = Boolean(
         help=_(
             "Specify whether access to this video is limited to browsers only, or if it can be "
