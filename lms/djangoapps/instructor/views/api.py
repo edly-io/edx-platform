@@ -38,6 +38,8 @@ from edx_when.api import get_date_for_block
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey, UsageKey
 from openedx.core.djangoapps.course_groups.cohorts import get_cohort_by_name
+from openedx_events.learning.data import UserData, UserPersonalData
+from openedx_events.learning.signals import STUDENT_REGISTRATION_COMPLETED
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework import serializers, status  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.permissions import IsAdminUser, IsAuthenticated  # lint-amnesty, pylint: disable=wrong-import-order
@@ -651,6 +653,18 @@ def create_user_and_user_profile(email, username, name, country, password):
     profile.name = name
     profile.country = country
     profile.save()
+
+    STUDENT_REGISTRATION_COMPLETED.send_event(
+        user=UserData(
+            pii=UserPersonalData(
+                username=user.username,
+                email=user.email,
+                name=user.profile.name,
+            ),
+            id=user.id,
+            is_active=user.is_active,
+        ),
+    )
 
     return user
 
