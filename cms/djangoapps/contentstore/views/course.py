@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
+from edly_features_app.filters import CoursesRequested, OrganizationsRequested
 from edx_django_utils.monitoring import function_trace
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
@@ -764,6 +765,8 @@ def get_courses_accessible_to_user(request):
             # user have some old groups or there was some error getting courses from django groups
             # so fallback to iterating through all courses
             courses, in_process_course_actions = _accessible_courses_summary_iter(request)
+    
+    courses = CoursesRequested.run_filter(courses=courses)
     return courses, in_process_course_actions
 
 
@@ -1799,4 +1802,5 @@ def get_organizations(user):
     else:
         organizations = course_creator.organizations.all().values_list('short_name', flat=True)
 
+    organizations = OrganizationsRequested.run_filter(organizations=organizations)
     return organizations
