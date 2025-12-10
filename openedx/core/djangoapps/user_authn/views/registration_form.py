@@ -330,7 +330,7 @@ class RegistrationFormFactory:
     Construct Registration forms and associated fields.
     """
 
-    DEFAULT_FIELDS = ["email", "name", "username", "password"]
+    DEFAULT_FIELDS = ["email", "name", "username", "password", "roles"]
 
     def _is_field_visible(self, field_name):
         """Check whether a field is visible based on Django settings. """
@@ -366,6 +366,7 @@ class RegistrationFormFactory:
             "profession",
             "specialty",
             "marketing_emails_opt_in",
+            "roles",
         ]
 
         if settings.ENABLE_COPPA_COMPLIANCE and 'year_of_birth' in self.EXTRA_FIELDS:
