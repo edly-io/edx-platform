@@ -80,7 +80,10 @@ def third_party_auth_context(request, redirect_to, tpa_hint=None):
         running_pipeline = pipeline.get(request)
         if running_pipeline is not None:
             current_provider = third_party_auth.provider.Registry.get_from_pipeline(running_pipeline)
+            running_pipeline_kwargs = running_pipeline['kwargs']
             user_details = running_pipeline['kwargs']['details']
+            log.info("\n\n running_pipeline_kwargs: ", running_pipeline_kwargs)
+            log.info("\n\n user_details: ", user_details)
             if user_details:
                 username = running_pipeline['kwargs'].get('username') or user_details.get('username')
                 if username:
@@ -102,7 +105,7 @@ def third_party_auth_context(request, redirect_to, tpa_hint=None):
                 # msg may or may not be translated. Try translating [again] in case we are able to:
                 context["errorMessage"] = _(str(msg))  # pylint: disable=E7610
                 break
-
+    log.info("\n\n context: ", context)
     return context
 
 
