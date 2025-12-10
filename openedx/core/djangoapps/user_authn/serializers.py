@@ -30,7 +30,8 @@ class PipelineUserDetailsSerializer(serializers.Serializer):
     name = serializers.CharField(source='fullname', allow_null=True)
     firstName = serializers.CharField(source='first_name', allow_null=True)
     lastName = serializers.CharField(source='last_name', allow_null=True)
-
+    roles = serializers.ListField(allow_null=True)
+    city = serializers.CharField(allow_null=True)
 
 class ContextDataSerializer(serializers.Serializer):
     """
