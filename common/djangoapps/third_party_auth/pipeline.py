@@ -84,6 +84,9 @@ from social_core.utils import module_member, slugify
 
 from common.djangoapps import third_party_auth
 from common.djangoapps.edxmako.shortcuts import render_to_string
+from common.djangoapps.student.roles import (
+    CourseStaffRole, CourseLimitedStaffRole, CourseInstructorRole,
+)
 from lms.djangoapps.verify_student.models import SSOVerification
 from lms.djangoapps.verify_student.utils import earliest_allowed_verification_date
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
@@ -1070,3 +1073,37 @@ def ensure_redirect_url_is_safe(strategy, *args, **kwargs):
         if not is_safe:
             safe_redirect_url = getattr(settings, 'SOCIAL_AUTH_LOGIN_REDIRECT_URL', '/dashboard')
             strategy.session_set(REDIRECT_FIELD_NAME, safe_redirect_url)
+
+
+def sync_okta_roles(strategy, details, backend, response, user=None, *args, **kwargs):
+    """
+    Map Okta roles claim → Open edX system roles.
+    """
+    logger.info("\n\n backend_name: ", backend.name)
+    if "okta" not in backend.name or user is None:
+        return
+
+    # Extract roles from the ID token or user info
+    logger.info("\n\n ID token or user info response: ", response.__dict__)
+    okta_roles = response.get("roles", [])
+
+    # Example: staff role
+    if "staff" in okta_roles:
+        user.is_staff = True
+        user.save()
+
+    # Example: LMS Instructor role
+    if "instructor" in okta_roles:
+        CourseInstructorRole().add_users(user)
+
+    # Example: LMS Course staff
+    if "course_staff" in okta_roles:
+        CourseStaffRole().add_users(user)
+    
+    if "limited_staff" in okta_roles:
+        CourseLimitedStaffRole().add_users(user)
+
+    # Custom admin
+    # if "admin" in okta_roles:
+    #     user.is_superuser = True
+    #     user.save()
