@@ -330,7 +330,7 @@ class RegistrationFormFactory:
     Construct Registration forms and associated fields.
     """
 
-    DEFAULT_FIELDS = ["email", "name", "username", "password"]
+    DEFAULT_FIELDS = ["email", "name", "username", "password", "roles"]
 
     def _is_field_visible(self, field_name):
         """Check whether a field is visible based on Django settings. """
@@ -366,6 +366,7 @@ class RegistrationFormFactory:
             "profession",
             "specialty",
             "marketing_emails_opt_in",
+            "roles",
         ]
 
         if settings.ENABLE_COPPA_COMPLIANCE and 'year_of_birth' in self.EXTRA_FIELDS:
@@ -709,6 +710,23 @@ class RegistrationFormFactory:
             field_type="checkbox",
             exposed=True,
             default=True,  # the checkbox will automatically be checked; meaning user has opted in
+            required=required,
+        )
+
+    def _add_roles_field(self, form_desc, required=False):
+        """Add the roles field to the registration fields."""
+        # Translators: This label appears above a field on the registration form
+        # meant to hold the user's roles.
+        roles_label = _("Roles")
+        # Translators: These instructions appear on the registration form, immediately
+        # below a field meant to hold the user's roles.
+        roles_instructions = _("Enter your roles (e.g., "student, instructor")")
+
+        form_desc.add_field(
+            "roles",
+            label=roles_label,
+            instructions=roles_instructions,
+            field_type="text",
             required=required,
         )
 
