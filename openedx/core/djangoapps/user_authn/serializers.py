@@ -1,8 +1,11 @@
 """
 MFE Context API Serializers
 """
+import logging
 
 from rest_framework import serializers
+
+log = logging.getLogger(__name__)
 
 
 class ProvidersSerializer(serializers.Serializer):
@@ -30,7 +33,8 @@ class PipelineUserDetailsSerializer(serializers.Serializer):
     name = serializers.CharField(source='fullname', allow_null=True)
     firstName = serializers.CharField(source='first_name', allow_null=True)
     lastName = serializers.CharField(source='last_name', allow_null=True)
-
+    roles = serializers.ListField(allow_null=True)
+    city = serializers.CharField(allow_null=True)
 
 class ContextDataSerializer(serializers.Serializer):
     """
@@ -58,6 +62,8 @@ class ContextDataSerializer(serializers.Serializer):
 
     def get_pipelineUserDetails(self, obj):
         if obj.get('pipeline_user_details'):
+            pipeline_user_details = obj.get('pipeline_user_details')
+            log.info(" pipeline_user_details in serializer", pipeline_user_details)
             return PipelineUserDetailsSerializer(obj.get('pipeline_user_details')).data
         return {}
 
