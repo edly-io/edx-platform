@@ -530,7 +530,7 @@ def _cert_info(user, enrollment, cert_status):
     status = template_state.get(cert_status['status'], default_status)
     is_hidden_status = status in ('processing', 'generating', 'notpassing', 'auditing')
 
-    if _is_certificate_earned_but_not_available(course_overview, status):
+    if _is_certificate_earned_but_not_available(course_overview, status, user=user):
         status = certificate_earned_but_not_available_status
 
     if (
@@ -633,7 +633,7 @@ def _cert_info(user, enrollment, cert_status):
     return status_dict
 
 
-def _is_certificate_earned_but_not_available(course_overview, status):
+def _is_certificate_earned_but_not_available(course_overview, status, user=None):
     """
     Returns True if the user is passing the course, but the certificate is not visible due to display behavior or
     available date
@@ -647,7 +647,7 @@ def _is_certificate_earned_but_not_available(course_overview, status):
 
     """
     return (
-        not certificates_viewable_for_course(course_overview)
+        not certificates_viewable_for_course(course_overview, user=user)
         and CertificateStatuses.is_passing_status(status)
         and course_overview.certificates_display_behavior in (
             CertificatesDisplayBehaviors.END_WITH_DATE,

@@ -20,14 +20,17 @@ of the query for traversing StudentModule objects.
 
 """
 
+import datetime
 import logging
 from functools import partial
 
 from celery import shared_task
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_noop
 from edx_django_utils.monitoring import set_code_owner_attribute
 
 from lms.djangoapps.bulk_email.tasks import perform_delegate_email_batches
+from lms.djangoapps.instructor_task.models import InstructorTask
 from lms.djangoapps.instructor_task.tasks_base import BaseInstructorTask
 from lms.djangoapps.instructor_task.tasks_helper.certs import generate_students_certificates
 from lms.djangoapps.instructor_task.tasks_helper.enrollments import upload_may_enroll_csv, upload_students_csv
@@ -50,8 +53,11 @@ from lms.djangoapps.instructor_task.tasks_helper.module_state import (
     reset_attempts_module_state
 )
 from lms.djangoapps.instructor_task.tasks_helper.runner import run_main_task
+from lms.djangoapps.instructor_task.tasks_helper.utils import upload_csv_to_report_store
+
 
 TASK_LOG = logging.getLogger('edx.celery.task')
+User = get_user_model()
 
 
 @shared_task(base=BaseInstructorTask)
@@ -264,6 +270,36 @@ def calculate_may_enroll_csv(entry_id, xblock_instance_args):
     # Translators: This is a past-tense verb that is inserted into task progress messages as {action}.
     action_name = gettext_noop('generated')
     task_fn = partial(upload_may_enroll_csv, xblock_instance_args)
+    return run_main_task(entry_id, task_fn, action_name)
+
+
+@shared_task(base=BaseInstructorTask)
+def export_learner_certificate_history_task(entry_id, xblock_instance_args):
+    def _generate_learner_certificate_history(_xblock_instance_args, _entry_id, course_id, _task_input, action_name):
+        from hadrian.models import UserCertificatesHistory
+        email = _task_input["email"]
+        user = User.objects.get(email=email)
+        queryset = UserCertificatesHistory.objects.filter(user=user, course_id=course_id)
+        rows = [["Email", "Timestamp", "Comment", "Revision"]]
+        for row in queryset:
+            rows.append([email, row.timestamp, row.comment, row.revision])
+        task = InstructorTask.objects.get(id=entry_id)
+        filename = f"user_certificate_history_{email}_{task.id}"
+        task.output = upload_csv_to_report_store(rows, filename, course_id, datetime.datetime.now())
+        task.save()
+        return {
+            "status": "complete",
+            "rows_written": len(queryset),
+            "filename": filename,
+        }
+
+    action_name = gettext_noop('certificates generated')
+    TASK_LOG.info(
+        "Task: %s, InstructorTask ID: %s, Task type: %s, Preparing for task execution",
+        xblock_instance_args.get('task_id'), entry_id, action_name
+    )
+
+    task_fn = partial(_generate_learner_certificate_history, xblock_instance_args)
     return run_main_task(entry_id, task_fn, action_name)
 
 

@@ -332,7 +332,11 @@ class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
         default=[],
         scope=Scope.content
     )
-
+    certificate_expiry = Integer(
+        display_name=_("Certificate expiry (days)"),
+        help=_("Number of days after which the certificate will be expired"),
+        scope=Scope.settings, default=settings.CERTIFICATE_EXPIRY_DAYS_DEFAULT
+    )
     wiki_slug = String(help=_("Slug that points to the wiki for this course"), scope=Scope.content)
     enrollment_start = Date(
         help=_("Date that enrollment for this class is opened"),

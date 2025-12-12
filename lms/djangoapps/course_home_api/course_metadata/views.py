@@ -138,7 +138,7 @@ class CourseHomeMetadataView(RetrieveAPIView):
             'course_access': load_access.to_json(),
             'celebrations': celebrations,
             'user_timezone': user_timezone,
-            'can_view_certificate': certificates_viewable_for_course(course),
+            'can_view_certificate': certificates_viewable_for_course(course, user=request.user),
             'course_modes': course_modes,
             'is_new_discussion_sidebar_view_enabled': new_discussion_sidebar_view_is_enabled(course_key),
             # We check the course author access in the context of CMS here because this field is used

@@ -298,6 +298,7 @@ def modify_xblock(usage_key, request):
         publish=request_data.get("publish"),
         fields=request_data.get("fields"),
         summary_configuration_enabled=request_data.get("summary_configuration_enabled"),
+        revoke_certificates=request_data.get("revoke_certificates"),
     )
 
 
@@ -336,12 +337,15 @@ def _save_xblock(
     publish=None,
     fields=None,
     summary_configuration_enabled=None,
+    revoke_certificates=False
 ):  # lint-amnesty, pylint: disable=too-many-statements
     """
     Saves xblock w/ its fields. Has special processing for grader_type, publish, and nullout and Nones in metadata.
     nullout means to truly set the field to None whereas nones in metadata mean to unset them (so they revert
     to default).
     """
+    from hadrian.utils import get_changed_children
+    changed_xblock_ids = get_changed_children(xblock)
     store = modulestore()
     # Perform all xblock changes within a (single-versioned) transaction
     with store.bulk_operations(xblock.location.course_key):
@@ -509,6 +513,12 @@ def _save_xblock(
         # Make public after updating the xblock, in case the caller asked for both an update and a publish.
         if publish == "make_public":
             modulestore().publish(xblock.location, user.id)
+            from hadrian.signals import XBLOCK_CHANGES_ON_PUBLISH
+            data = {
+                "changed_xblock_ids": changed_xblock_ids,
+                "revoke_certificates": revoke_certificates
+            }
+            XBLOCK_CHANGES_ON_PUBLISH.send(sender=None, user=None, data=data)
 
         # If summary_configuration_enabled is not None, use AIAsideSummary to update it.
         if xblock.category == "vertical" and summary_configuration_enabled is not None:

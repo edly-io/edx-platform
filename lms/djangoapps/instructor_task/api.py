@@ -39,6 +39,7 @@ from lms.djangoapps.instructor_task.tasks import (
     cohort_students,
     course_survey_report_csv,
     delete_problem_state,
+    export_learner_certificate_history_task,
     export_ora2_data,
     export_ora2_submission_files,
     export_ora2_summary,
@@ -448,6 +449,14 @@ def submit_cohort_students(request, course_key, file_name):
     task_input = {'file_name': file_name}
     task_key = ""
 
+    return submit_task(request, task_type, task_class, course_key, task_input, task_key)
+
+
+def submit_export_learner_certificate_history_task(request, course_key):
+    task_type = InstructorTaskTypes.EXPORT_LEARNER_CERTIFICATE_HISTORY
+    task_class = export_learner_certificate_history_task
+    task_input = {"email": request.POST.get("email")}
+    task_key = ''
     return submit_task(request, task_type, task_class, course_key, task_input, task_key)
 
 

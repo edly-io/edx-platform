@@ -769,6 +769,7 @@ TEMPLATES = [
     },
 ]
 DEFAULT_TEMPLATE_ENGINE = TEMPLATES[0]
+CERTIFICATE_EXPIRY_DAYS_DEFAULT = 365
 
 #################################### AWS #######################################
 AWS_SES_REGION_NAME = 'us-east-1'

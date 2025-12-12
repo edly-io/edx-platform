@@ -5403,6 +5403,9 @@ AI_TRANSLATIONS_API_URL = 'http://localhost:18760/api/v1'
 SIMPLE_HISTORY_DATE_INDEX = False
 
 
+CERTIFICATE_EXPIRY_DAYS_DEFAULT = 365
+
+
 def _should_send_certificate_events(settings):
     return settings.FEATURES['SEND_LEARNING_CERTIFICATE_LIFECYCLE_EVENTS_TO_BUS']
 

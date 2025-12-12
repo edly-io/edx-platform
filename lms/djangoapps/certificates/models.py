@@ -351,7 +351,7 @@ class GeneratedCertificate(models.Model):
                  f'source {source}')
         self._revoke_certificate(status=CertificateStatuses.unverified, mode=mode, source=source)
 
-    def _revoke_certificate(self, status, mode=None, grade=None, source=None):
+    def _revoke_certificate(self, status, mode=None, grade=None, source=None, error_reason=''):
         """
         Revokes a course certificate from a learner, updating the certificate's status as specified by the value of the
         `status` argument. This will prevent the learner from being able to access their certificate in the associated
@@ -385,7 +385,7 @@ class GeneratedCertificate(models.Model):
 
         preferred_name = self._get_preferred_certificate_name(self.user)
 
-        self.error_reason = ''
+        self.error_reason = error_reason
         self.download_uuid = ''
         self.download_url = ''
         self.grade = grade

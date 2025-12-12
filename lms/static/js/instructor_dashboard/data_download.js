@@ -96,6 +96,7 @@
             this.$section = $section;
             this.$section.data('wrapper', this);
             this.ddc = new DataDownloadCertificate(this.$section.find('.issued_certificates'));
+            this.$export_learner_certificate_history = this.$section.find("input[name='export-certificate-history']")
             this.$list_studs_btn = this.$section.find("input[name='list-profiles']");
             this.$list_studs_csv_btn = this.$section.find("input[name='list-profiles-csv']");
             this.$proctored_exam_csv_btn = this.$section.find("input[name='proctored-exam-results-report']");
@@ -115,9 +116,41 @@
             this.$download_display_table = this.$reports.find('.profile-data-display-table');
             this.$reports_request_response = this.$reports.find('.request-response');
             this.$reports_request_response_error = this.$reports.find('.request-response-error');
+            this.$certificates_error = this.$section.find('.issued-certificates-error');
+            this.$certificates_success = this.$section.find('.issued-certificates-success');
             this.report_downloads = new (ReportDownloads())(this.$section);
             this.instructor_tasks = new (PendingInstructorTasks())(this.$section);
             this.clear_display();
+            this.$export_learner_certificate_history.click(function() {
+                var url = dataDownloadObj.$export_learner_certificate_history.data('endpoint');
+                var email = $section.find("input[name='export-certificate-history-email']").val();
+                return $.ajax({
+                    type: 'POST',
+                    dataType: 'json',
+                    url: url,
+                    data: {email: email},
+                    error: function(error) {
+                        var errorMessage = "Error";
+                        if (error.responseText) {
+                            errorMessage = JSON.parse(error.responseText).message;
+                        }
+                        dataDownloadObj.clear_display();
+                        dataDownloadObj.$certificates_success.css({display: 'none'});
+                        dataDownloadObj.$certificates_error.text(errorMessage);
+                        return dataDownloadObj.$certificates_error.css({
+                            display: 'block'
+                        });
+                    },
+                    success: function(data) {
+                        dataDownloadObj.clear_display();
+                        dataDownloadObj.$certificates_error.css({display: 'none'});
+                        dataDownloadObj.$certificates_success.text("Task Added");
+                        return dataDownloadObj.$certificates_success.css({
+                            display: 'block'
+                        });
+                    }
+                });
+            });
             this.$list_anon_btn.click(function() {
                 var url = dataDownloadObj.$list_anon_btn.data('endpoint');
                 var errorMessage = gettext('Error generating anonymous IDs. Please try again.');

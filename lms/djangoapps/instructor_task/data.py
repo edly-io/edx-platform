@@ -14,6 +14,7 @@ class InstructorTaskTypes(str, Enum):
     DELETE_PROBLEM_STATE = "delete_problem_state"
     DETAILED_ENROLLMENT_REPORT = "detailed_enrollment_report"
     EXEC_SUMMARY_REPORT = "exec_summary_report"
+    EXPORT_LEARNER_CERTIFICATE_HISTORY = "export_learner_certificate_history"
     EXPORT_ORA2_DATA = "export_ora2_data"
     EXPORT_ORA2_SUBMISSION_FILES = "export_ora2_submission_files"
     EXPORT_ORA2_SUMMARY = "export_ora2_summary"

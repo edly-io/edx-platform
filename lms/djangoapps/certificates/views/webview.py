@@ -376,7 +376,7 @@ def _get_user_certificate(request, user, course_key, course_overview, preview_mo
             modified_date=modified_date,
             created_date=datetime.now().date(),
         )
-    elif certificates_viewable_for_course(course_overview):
+    elif certificates_viewable_for_course(course_overview, user=user):
         # certificate is being viewed by learner or public
         try:
             user_certificate = GeneratedCertificate.eligible_certificates.get(

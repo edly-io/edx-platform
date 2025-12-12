@@ -2689,6 +2689,24 @@ def _list_report_downloads(request, course_id):
     return JsonResponse(response_payload)
 
 
+@transaction.non_atomic_requests
+@require_POST
+@ensure_csrf_cookie
+@cache_control(no_cache=True, no_store=True, must_revalidate=True)
+def submit_export_learner_certificate_history(request, course_id):
+    """
+    List grade CSV files that are available for download for this course.
+    """
+    course_id = CourseKey.from_string(course_id)
+    email = request.POST.get("email")
+    try:
+        CourseEnrollment.objects.get(course_id=course_id, user__email=email)
+    except CourseEnrollment.DoesNotExist:
+        return JsonResponse({"message": "Invalid email / User not enrolled"}, status=400)
+    task_api.submit_export_learner_certificate_history_task(request, course_id)
+    return JsonResponse({"message": "Task Added"})
+
+
 @require_POST
 @ensure_csrf_cookie
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)

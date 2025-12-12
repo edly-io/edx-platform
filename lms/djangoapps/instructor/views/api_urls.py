@@ -81,6 +81,7 @@ urlpatterns = [
     path('add_users_to_cohorts', api.AddUsersToCohorts.as_view(), name='add_users_to_cohorts'),
 
     # Certificates
+    path('export_learner_certificate_history', api.submit_export_learner_certificate_history, name='export_learner_certificate_history'),
     path('enable_certificate_generation', api.enable_certificate_generation, name='enable_certificate_generation'),
     path('start_certificate_generation', api.StartCertificateGeneration.as_view(), name='start_certificate_generation'),
     path('start_certificate_regeneration', api.StartCertificateRegeneration.as_view(),

@@ -91,6 +91,12 @@ def _generate_certificate(user, course_key, status, enrollment_mode, course_grad
         }
     )
 
+    from hadrian.models import UserCertificatesHistory
+    from hadrian.utils import get_users_last_certificate_history
+    user_history_dict = get_users_last_certificate_history([user.id], course_key)
+    revision = getattr(user_history_dict.get(user.id), 'revision', 0) + 1
+    UserCertificatesHistory.objects.create(user=user, course_id=course_key, comment="Certificate Generated",
+                                           revision=float(revision))
     if created:
         created_msg = 'Certificate was created.'
     else:

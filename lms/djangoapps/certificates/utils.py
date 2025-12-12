@@ -57,7 +57,7 @@ def emit_certificate_event(event_name, user, course_id, course_overview=None, ev
     data = {
         'user_id': user.id,
         'course_id': str(course_id),
-        'certificate_url': get_certificate_url(user.id, course_id, uuid=event_data['certificate_id'])
+        # 'certificate_url': get_certificate_url(user.id, course_id, uuid=event_data['certificate_id'])
     }
     event_data = event_data or {}
     event_data.update(data)
