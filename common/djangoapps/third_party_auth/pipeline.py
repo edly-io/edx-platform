@@ -78,12 +78,14 @@ from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.urls import reverse
 from edx_django_utils.monitoring import set_custom_attribute
+from social_core.backends.okta_openidconnect import OktaOpenIdConnect
 from social_core.exceptions import AuthException
 from social_core.pipeline import partial
 from social_core.utils import module_member, slugify
 
 from common.djangoapps import third_party_auth
 from common.djangoapps.edxmako.shortcuts import render_to_string
+from common.djangoapps.student.models.user import CourseAccessRole
 from lms.djangoapps.verify_student.models import SSOVerification
 from lms.djangoapps.verify_student.utils import earliest_allowed_verification_date
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
@@ -1070,3 +1072,32 @@ def ensure_redirect_url_is_safe(strategy, *args, **kwargs):
         if not is_safe:
             safe_redirect_url = getattr(settings, 'SOCIAL_AUTH_LOGIN_REDIRECT_URL', '/dashboard')
             strategy.session_set(REDIRECT_FIELD_NAME, safe_redirect_url)
+
+
+def sync_okta_roles(strategy, details, backend, response, user=None, *args, **kwargs):
+    """
+    Map Okta roles claim → Open edX system roles.
+    """
+    logger.info(f"user details from Okta in sync_okta_roles pipeline: {details}")
+    if backend.name != OktaOpenIdConnect.name or user is None:
+        return
+    okta_user_role = details.get("role")
+
+    # handle global roles
+    if okta_user_role == "global_staff":
+        user.is_staff = True
+        user.save()
+    # Custom Leadership Acess, see already added implementation
+    # if okta_user_role=="admin":
+    #     user.is_superuser = True
+    #     user.save()
+
+    # handle course level access roles
+    if okta_user_role in ["staff", "limited_staff"]:
+        # As we don't have org or course_id while user creation.
+        # So, don't consider them in filter query
+        course_access_role = CourseAccessRole.objects.filter(
+            user=user, role=okta_user_role, course_id=None, org=""
+        )
+        if not course_access_role:
+            CourseAccessRole.objects.create(user=user, role=okta_user_role)
