@@ -56,6 +56,7 @@ from common.djangoapps.student.roles import (
 )
 from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest, expect_json
 from common.djangoapps.util.string_utils import _has_non_ascii_characters
+from hadrian.roles import LeadershipAccessRole
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.credit.tasks import update_credit_course_requirements
 from openedx.core.djangoapps.models.course_details import CourseDetails
@@ -754,7 +755,7 @@ def get_courses_accessible_to_user(request):
     Arguments:
         request: the request object
     """
-    if GlobalStaff().has_user(request.user):
+    if GlobalStaff().has_user(request.user) or LeadershipAccessRole().has_user(request.user):
         # user has global access so no need to get courses from django groups
         courses, in_process_course_actions = _accessible_courses_summary_iter(request)
     else:

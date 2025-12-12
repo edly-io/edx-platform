@@ -25,6 +25,7 @@ from rest_framework.response import Response  # lint-amnesty, pylint: disable=wr
 from common.djangoapps.course_modes.models import CourseMode
 from common.djangoapps.student.models import CourseEnrollment
 from common.djangoapps.util.views import expose_header
+from hadrian.roles import LeadershipAccessRole
 from lms.djangoapps.course_goals.api import (
     add_course_goal,
     get_course_goal,
@@ -430,7 +431,7 @@ class CourseNavigationBlocksView(RetrieveAPIView):
         course_key_string = kwargs.get('course_key_string')
         course_key = CourseKey.from_string(course_key_string)
         course = get_course_or_403(request.user, 'load', course_key, check_if_enrolled=False)
-        staff_access = has_access(request.user, 'staff', course_key)
+        staff_access = has_access(request.user, 'staff', course_key) or LeadershipAccessRole().has_user(request.user)
 
         masquerade_object, request.user = setup_masquerade(
             request,

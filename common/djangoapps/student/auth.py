@@ -114,6 +114,10 @@ def get_user_permissions(user, course_key, org=None, service_variant=None):
         else:
             return STUDIO_NO_PERMISSIONS
 
+    from hadrian.roles import LeadershipAccessRole
+    if LeadershipAccessRole().has_user(user):
+        return STUDIO_VIEW_CONTENT
+
     # Staff have all permissions except EDIT_ROLES:
     if OrgStaffRole(org=org).has_user(user) or (course_key and user_has_role(user, CourseStaffRole(course_key))):
         return STUDIO_VIEW_USERS | STUDIO_EDIT_CONTENT | STUDIO_VIEW_CONTENT

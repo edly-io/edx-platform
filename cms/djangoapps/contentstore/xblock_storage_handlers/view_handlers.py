@@ -20,6 +20,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.translation import gettext as _
 from edx_django_utils.plugins import pluggable_override
+from hadrian.roles import LeadershipAccessRole
 from openedx.core.djangoapps.content_libraries.api import LibraryXBlockMetadata
 from openedx.core.djangoapps.content_tagging.api import get_object_tag_counts
 from edx_proctoring.api import (
@@ -1132,6 +1133,10 @@ def create_xblock_info(  # lint-amnesty, pylint: disable=too-many-statements
             and discussions_config.unit_level_visibility
         )
         xblock_info["unit_level_discussions"] = show_unit_level_discussions_toggle
+
+    if user and LeadershipAccessRole().has_user(user):
+        for key in xblock_actions.keys():
+            xblock_actions[key] = False
 
     if is_concise:
         if child_info and child_info.get("children", []):

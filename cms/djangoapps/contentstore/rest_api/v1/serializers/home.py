@@ -77,3 +77,4 @@ class StudioHomeSerializer(serializers.Serializer):
     tech_support_email = serializers.CharField()
     platform_name = serializers.CharField()
     user_is_active = serializers.BooleanField()
+    has_leadership_access = serializers.BooleanField(default=False)

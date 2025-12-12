@@ -40,6 +40,7 @@ from lms.djangoapps.courseware.masquerade import get_masquerade_role, is_masquer
 from lms.djangoapps.ccx.custom_exception import CCXLocatorValidationException
 from lms.djangoapps.ccx.models import CustomCourseForEdX
 from lms.djangoapps.mobile_api.models import IgnoreMobileAvailableFlagConfig
+from lms.djangoapps.courseware.access_response import AccessResponse
 from lms.djangoapps.courseware.toggles import course_is_invitation_only
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.features.course_duration_limits.access import check_course_expired
@@ -362,6 +363,10 @@ def _has_access_course(user, action, courselike):
         if courselike.id.deprecated:  # we no longer support accessing Old Mongo courses
             return OldMongoAccessError(courselike)
 
+        from hadrian.roles import LeadershipAccessRole
+        if LeadershipAccessRole().has_user(user):
+            return AccessResponse(has_access=True)
+
         visible_to_nonstaff = _visible_to_nonstaff_users(courselike)
         if not visible_to_nonstaff:
             staff_access = _has_staff_access_to_block(user, courselike, courselike.id)
@@ -591,6 +596,10 @@ def _has_access_to_block(user, action, block, course_key=None):
         # access to this content, then deny access. The problem with calling _has_staff_access_to_block
         # before this method is that _has_staff_access_to_block short-circuits and returns True
         # for staff users in preview mode.
+        from hadrian.roles import LeadershipAccessRole
+        if LeadershipAccessRole().has_user(user):
+            return AccessResponse(has_access=True)
+
         group_access_response = _has_group_access(block, user, course_key)
         if not group_access_response:
             return group_access_response

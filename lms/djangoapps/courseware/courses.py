@@ -25,6 +25,7 @@ from path import Path as path
 from common.djangoapps.edxmako.shortcuts import render_to_string
 from common.djangoapps.static_replace import replace_static_urls
 from common.djangoapps.util.date_utils import strftime_localized
+from hadrian.roles import LeadershipAccessRole
 from lms.djangoapps import branding
 from lms.djangoapps.course_blocks.api import get_course_blocks
 from lms.djangoapps.courseware.access import has_access
@@ -170,6 +171,8 @@ def check_course_access(
     check_if_enrolled: If true, additionally verifies that the user is enrolled.
     check_survey_complete: If true, additionally verifies that the user has completed the survey.
     """
+    if LeadershipAccessRole().has_user(user):
+        check_if_enrolled = False
     def _check_nonstaff_access():
         # Below is a series of checks that must all pass for a user to be granted access
         # to a course. (Essentially check this AND check that AND...)

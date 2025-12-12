@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from organizations import api as org_api
 from openedx.core.lib.api.view_utils import view_auth_classes
 
+from hadrian.roles import LeadershipAccessRole
 from ....utils import get_home_context, get_course_context, get_library_context
 from ..serializers import StudioHomeSerializer, CourseHomeTabSerializer, LibraryTabSerializer
 
@@ -93,6 +94,7 @@ class HomePageView(APIView):
             'tech_support_email': settings.TECH_SUPPORT_EMAIL,
             'platform_name': settings.PLATFORM_NAME,
             'user_is_active': request.user.is_active,
+            'has_leadership_access': LeadershipAccessRole().has_user(request.user)
         })
         serializer = StudioHomeSerializer(home_context)
         return Response(serializer.data)

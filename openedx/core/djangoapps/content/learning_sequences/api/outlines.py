@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models.query import QuerySet
 from edx_django_utils.cache import TieredCache
 from edx_django_utils.monitoring import function_trace, set_custom_attribute
+from hadrian.roles import LeadershipAccessRole
 from opaque_keys import OpaqueKey
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocator
@@ -317,7 +318,7 @@ def _get_user_course_outline_and_processors(course_key: CourseKey,  # lint-amnes
     set_custom_attribute('learning_sequences.api.user_id', user.id)
 
     full_course_outline = get_course_outline(course_key)
-    user_can_see_all_content = can_see_all_content(user, course_key)
+    user_can_see_all_content = can_see_all_content(user, course_key) or LeadershipAccessRole().has_user(user)
 
     # These are processors that alter which sequences are visible to students.
     # For instance, certain sequences that are intentionally hidden or not yet

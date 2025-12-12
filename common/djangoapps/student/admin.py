@@ -46,6 +46,7 @@ from common.djangoapps.student.models import (
     UserTestGroup
 )
 from common.djangoapps.student.roles import REGISTERED_ACCESS_ROLES
+from hadrian.roles import LeadershipAccessRole
 from xmodule.modulestore.django import modulestore  # lint-amnesty, pylint: disable=wrong-import-order
 
 User = get_user_model()  # pylint:disable=invalid-name
@@ -330,9 +331,18 @@ class UserChangeForm(BaseUserChangeForm):
     does not contain a link to a 'change password' form.
     """
     last_name = forms.CharField(max_length=30, required=False)
+    has_leadership_access_checkbox = forms.BooleanField(
+        required=False,
+        label="Leadership Access Role"
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        if self.instance:
+            self.fields['has_leadership_access_checkbox'].initial = (
+                LeadershipAccessRole().has_user(self.instance)
+            )
 
         if not settings.FEATURES.get('ENABLE_CHANGE_USER_PASSWORD_ADMIN'):
             self.fields["password"] = ReadOnlyPasswordHashField(
@@ -564,6 +574,36 @@ class PendingNameChangeAdmin(admin.ModelAdmin):
         model = PendingNameChange
 
 
+class UserAdminWithLeadershipRole(UserAdmin):
+    list_display = UserAdmin.list_display + ('has_leadership_access',)
+
+    def has_leadership_access(self, obj):
+        return LeadershipAccessRole().has_user(obj)
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj:
+            fieldsets += (
+                ('Leadership Access', {'fields': ('has_leadership_access_checkbox',)}),
+            )
+        return fieldsets
+
+    def has_leadership_access_checkbox(self, obj):
+        return LeadershipAccessRole().has_user(obj)
+    has_leadership_access_checkbox.boolean = True
+    has_leadership_access_checkbox.short_description = "Leadership Access Role"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        if 'has_leadership_access_checkbox' in form.cleaned_data:
+            value = form.cleaned_data['has_leadership_access_checkbox']
+            if value:
+                LeadershipAccessRole().add_users(obj)
+            else:
+                LeadershipAccessRole().remove_users(obj)
+
+
 admin.site.register(UserTestGroup)
 admin.site.register(Registration)
 admin.site.register(AccountRecoveryConfiguration, ConfigurationModelAdmin)
@@ -579,4 +619,4 @@ try:
 except NotRegistered:
     pass
 
-admin.site.register(User, UserAdmin)
+admin.site.register(User, UserAdminWithLeadershipRole)
