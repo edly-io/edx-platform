@@ -78,12 +78,14 @@ from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.urls import reverse
 from edx_django_utils.monitoring import set_custom_attribute
+from social_core.backends.okta_openidconnect import OktaOpenIdConnect
 from social_core.exceptions import AuthException
 from social_core.pipeline import partial
 from social_core.utils import module_member, slugify
 
 from common.djangoapps import third_party_auth
 from common.djangoapps.edxmako.shortcuts import render_to_string
+from common.djangoapps.student.models.user import CourseAccessRole
 from lms.djangoapps.verify_student.models import SSOVerification
 from lms.djangoapps.verify_student.utils import earliest_allowed_verification_date
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
@@ -1070,3 +1072,50 @@ def ensure_redirect_url_is_safe(strategy, *args, **kwargs):
         if not is_safe:
             safe_redirect_url = getattr(settings, 'SOCIAL_AUTH_LOGIN_REDIRECT_URL', '/dashboard')
             strategy.session_set(REDIRECT_FIELD_NAME, safe_redirect_url)
+
+
+def sync_okta_roles(strategy, details, backend, response, user=None, *args, **kwargs):
+    """
+    Map Okta roles claim → Open edX system roles.
+    """
+    if backend.name != OktaOpenIdConnect.name or user is None:
+        return
+    okta_groups = response.get("groups") or []
+    logger.info(f"okta_groups from Okta in sync_okta_roles pipeline: {okta_groups}")
+    if not okta_groups:
+        return
+
+    # handle global roles
+    updated = False
+    if "edx_global_admin" in okta_groups and not user.is_superuser:
+        user.is_superuser = True
+        updated = True
+    if "edx_global_staff" in okta_groups and not user.is_staff:
+        user.is_staff = True
+        updated = True
+    if updated:
+        user.save()
+
+    # handle course level access roles
+    map_course_roles = {
+        "edx_course_staff": "staff",
+        "edx_course_leadership": "leadership_access",
+        "edx_limited_staff": "limited_staff",
+    }
+    roles_to_sync = {
+        map_course_roles[group] for group in okta_groups if group in map_course_roles
+    }
+    if not roles_to_sync:
+        return
+
+    already_existing_roles = set(
+        CourseAccessRole.objects.filter(user=user, course_id=None, org="").values_list(
+            "role", flat=True
+        )
+    )
+    roles_to_create = roles_to_sync - already_existing_roles
+
+    if roles_to_create:
+        CourseAccessRole.objects.bulk_create(
+            [CourseAccessRole(user=user, role=r) for r in roles_to_create]
+        )
