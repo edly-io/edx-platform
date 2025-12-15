@@ -473,7 +473,7 @@ def filter_displayed_blocks(block, unused_view, frag, unused_context):  # lint-a
     We don't want to modify the state of the user we are masquerading as, so we can't show XBlocks
     that store information outside of the XBlock fields API.
     """
-    if getattr(block, 'show_in_read_only_mode', False):
+    if True:
         return frag
     return Fragment(
         _('This type of component cannot be shown while viewing the course as a specific student.')

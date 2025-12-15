@@ -405,7 +405,8 @@ def get_block_for_descriptor(
 
     if not student_data:
         student_kvs = DjangoKeyValueStore(field_data_cache)
-        if is_masquerading_as_specific_student(user, course_key):
+        # import pdb; pdb.set_trace()
+        if is_masquerading_as_specific_student(user, course_key) and block.category != 'survey':
             student_kvs = MasqueradingKeyValueStore(student_kvs, request.session)
         student_data = KvsFieldData(student_kvs)
 
