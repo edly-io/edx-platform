@@ -2,6 +2,7 @@
 Edly's management command to populate dummy data for provided sites on given date.
 """
 import logging
+import calendar
 from datetime import datetime, timedelta
 from random import choice, randint, sample, shuffle
 
@@ -123,41 +124,35 @@ class DummyUserGenerator:
         Returns:
             datetime: A randomly generated date
         """
+        # Guard against invalid inputs and avoid month arithmetic pitfalls.
+        if max_months_ago is None or max_months_ago <= 0:
+            return reference_date
+
         # Calculate a random month offset (0 to max_months_ago-1)
-        month_offset = randint(0, max_months_ago-1)
-        
-        # Calculate the year and month for this date
-        if reference_date.month - month_offset <= 0:
-            # Handle wraparound to previous year
-            year_offset = ((reference_date.month - month_offset - 1) // 12) - 1
-            month = reference_date.month - month_offset + (abs(year_offset) * 12)
-            year = reference_date.year + year_offset
-        else:
-            month = reference_date.month - month_offset
-            year = reference_date.year
-            
-        # Calculate days in month
-        if month == 2:
-            # Simple leap year check
-            if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
-                days_in_month = 29
-            else:
-                days_in_month = 28
-        elif month in [4, 6, 9, 11]:
-            days_in_month = 30
-        else:
-            days_in_month = 31
-            
-        # Generate random day in month
-        day = randint(1, days_in_month)
-        
-        # Generate random time
-        hour = randint(0, 23)
-        minute = randint(0, 59)
-        second = randint(0, 59)
-        
-        # Create the date
-        return datetime(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+        month_offset = randint(0, max_months_ago - 1)
+
+        def _subtract_months(dt, months):
+            """
+            Subtract N months from dt, clamping the day to the target month's max day.
+            This guarantees month is always in 1..12.
+            """
+            year = dt.year
+            month = dt.month - months
+            while month <= 0:
+                month += 12
+                year -= 1
+            max_day = calendar.monthrange(year, month)[1]
+            day = min(dt.day, max_day)
+            return dt.replace(year=year, month=month, day=day)
+
+        start = _subtract_months(reference_date, month_offset)
+        if start >= reference_date:
+            return reference_date
+
+        # Choose a random second in [start, reference_date] (keeps tz-awareness if present).
+        time_diff_seconds = int((reference_date - start).total_seconds())
+        random_seconds = randint(0, time_diff_seconds)
+        return start + timedelta(seconds=random_seconds)
     
     @staticmethod
     def generate_random_login_date(join_date, reference_date=None):
