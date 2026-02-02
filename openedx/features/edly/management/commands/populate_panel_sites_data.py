@@ -1053,13 +1053,17 @@ class EdlyActivityManager:
         # Clean up old activities first
         EdlyActivityManager.cleanup_old_activities(edly_sub_org)
         
-        # Calculate date range for last 2 years from the provided end date
-        # Make sure we don't generate future activities by capping at today's date
+        # Calculate date range for last 2 years from the provided end date.
+        # Make sure we don't generate future activities by capping at today's date.
         today = datetime.now().date()
         end_date_as_date = current_date.date()
+        # Use the earlier of the provided date and today to avoid future activities.
+        capped_end_date = min(end_date_as_date, today)
         if end_date_as_date > today:
-            logger.warning(f'Provided end date {end_date_as_date} is in the future. Capping at today: {today}')
-            end_date = datetime.combine(today, datetime.min.time())
+            logger.warning(
+                f'Provided end date {end_date_as_date} is in the future. Capping at today: {today}'
+            )
+        end_date = datetime.combine(capped_end_date, datetime.min.time())
 
         start_date = end_date - timedelta(days=365 * DummyDataConstants.HISTORICAL_YEARS)
         
