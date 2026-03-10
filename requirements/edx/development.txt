@@ -810,6 +810,7 @@ edx-organizations==7.3.0
     # via
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
+    #   openedx-core
 edx-proctoring==5.2.0
     # via
     #   -r requirements/edx/doc.txt
@@ -1382,7 +1383,7 @@ openedx-calc==4.0.3
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
     #   xblocks-contrib
-openedx-core==0.35.0
+openedx-core==0.36.0
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/edx/doc.txt

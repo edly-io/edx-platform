@@ -608,7 +608,9 @@ edx-opaque-keys[django]==3.1.0
     #   ora2
     #   xblocks-contrib
 edx-organizations==7.3.0
-    # via -r requirements/edx/base.txt
+    # via
+    #   -r requirements/edx/base.txt
+    #   openedx-core
 edx-proctoring==5.2.0
     # via -r requirements/edx/base.txt
 edx-rbac==2.1.0
@@ -1006,7 +1008,7 @@ openedx-calc==4.0.3
     # via
     #   -r requirements/edx/base.txt
     #   xblocks-contrib
-openedx-core==0.35.0
+openedx-core==0.36.0
     # via
     #   -c requirements/constraints.txt
     #   -r requirements/edx/base.txt
