@@ -579,6 +579,17 @@ ENABLE_ACCOUNT_DELETION = True
 #   toggle does not have a target removal date.
 ENABLE_AUTHN_MICROFRONTEND = os.environ.get("EDXAPP_ENABLE_AUTHN_MFE", False)
 
+# .. setting_name: ENABLE_2FA
+# .. setting_default: False
+# .. setting_description: Enables Email OTP-based Two Factor Authentication.
+#   When True, users who have 2FA enabled on their account will be required to
+#   verify a one-time code sent to their email after entering their password.
+#   Set ENABLE_2FA_EMAIL_LOG=True (or DEBUG=True) to log OTPs instead of emailing them.
+ENABLE_2FA = True
+ENABLE_2FA_EMAIL_LOG = True
+TWO_FACTOR_VERIFY_API_RATELIMIT = "10/m"
+TWO_FACTOR_RESEND_API_RATELIMIT = "3/m"
+
 # .. toggle_name: settings.ENABLE_CATALOG_MICROFRONTEND
 # .. toggle_implementation: DjangoSetting
 # .. toggle_default: False
@@ -2319,6 +2330,9 @@ INSTALLED_APPS = [
     'openedx.features.discounts',
     'openedx.features.effort_estimation',
     'openedx.features.name_affirmation_api.apps.NameAffirmationApiConfig',
+
+    # FBR Features
+    'openedx.features.fbr_features.two_factor_auth.apps.TwoFactorAuthConfig',
 
     'lms.djangoapps.experiments',
 
