@@ -47,6 +47,7 @@ from lms.djangoapps.bulk_email.models_api import is_bulk_email_feature_enabled
 from lms.djangoapps.commerce.utils import EcommerceService
 from lms.djangoapps.courseware.access import administrative_accesses_to_course_for_user
 from lms.djangoapps.courseware.access_utils import check_course_open_for_learner
+from lms.djangoapps.courseware.courses import get_course_blocks_completion_summary
 from lms.djangoapps.learner_home.serializers import (
     LearnerDashboardSerializer,
 )
@@ -543,6 +544,12 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
         # Get social media sharing config
         course_share_urls = get_course_share_urls(course_enrollments)
 
+        # Get completion summaries (complete/incomplete/locked unit counts) per course
+        completion_summaries = {
+            enrollment.course_id: get_course_blocks_completion_summary(enrollment.course_id, user)
+            for enrollment in course_enrollments
+        }
+
         # Get credit availability
         user_credit_statuses = get_credit_statuses(user, course_enrollments)
 
@@ -564,6 +571,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             "course_optouts": course_optouts,
             "course_access_checks": course_access_checks,
             "credit_statuses": user_credit_statuses,
+            "completion_summaries": completion_summaries,
             "grade_statuses": grade_statuses,
             "resume_course_urls": resume_button_urls,
             "course_share_urls": course_share_urls,

@@ -281,9 +281,17 @@ class GradeDataSerializer(serializers.Serializer):
     requires_context = True
 
     isPassing = serializers.SerializerMethodField()
+    completionSummary = serializers.SerializerMethodField()
 
     def get_isPassing(self, enrollment):
         return self.context.get("grade_statuses", {}).get(enrollment.course_id, False)
+
+    def get_completionSummary(self, enrollment):
+        summary = self.context.get("completion_summaries", {}).get(enrollment.course_id, {})
+        total = summary.get("complete_count", 0) + summary.get("incomplete_count", 0) + summary.get("locked_count", 0)
+        if not total:
+            return 0
+        return round(summary.get("complete_count", 0) / total * 100, 2)
 
 
 class CertificateSerializer(serializers.Serializer):
