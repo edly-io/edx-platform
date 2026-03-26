@@ -62,7 +62,7 @@ from openedx.core.djangoapps.util.user_messages import PageLevelMessages
 from openedx.core.djangolib.markup import HTML, Text
 from openedx.core.lib.api.view_utils import require_post_params  # lint-amnesty, pylint: disable=unused-import
 from openedx.features.enterprise_support.api import activate_learner_enterprise, get_enterprise_learner_data_from_api
-from openedx.features.fbr_features.two_factor_auth.utils import (
+from fbr.common.two_factor_auth.utils import (
     OTP_SESSION_EXPIRY_SECONDS as SESSION_EXPIRY_SECONDS,
     SESSION_KEY_EXPIRES,
     SESSION_KEY_FINISH_AUTH_URL,

@@ -2331,9 +2331,6 @@ INSTALLED_APPS = [
     'openedx.features.effort_estimation',
     'openedx.features.name_affirmation_api.apps.NameAffirmationApiConfig',
 
-    # FBR Features
-    'openedx.features.fbr_features.two_factor_auth.apps.TwoFactorAuthConfig',
-
     'lms.djangoapps.experiments',
 
     # DRF filters

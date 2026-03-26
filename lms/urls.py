@@ -134,9 +134,6 @@ urlpatterns = [
     # Course API
     path('api/courses/', include('lms.djangoapps.course_api.urls')),
 
-    # Two Factor Authentication API endpoints
-    path('api/2fa/v1/', include('openedx.features.fbr_features.two_factor_auth.urls')),
-
     # User API endpoints
     path('api/user/', include('openedx.core.djangoapps.user_api.urls')),
     # Note: these are older versions of the User API that will eventually be
@@ -1057,4 +1054,3 @@ urlpatterns += [
 urlpatterns += [
     path('api/notifications/', include('openedx.core.djangoapps.notifications.urls')),
 ]
-
