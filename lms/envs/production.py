@@ -291,7 +291,6 @@ if ENABLE_THIRD_PARTY_AUTH:
         'common.djangoapps.third_party_auth.identityserver3.IdentityServer3',
         'common.djangoapps.third_party_auth.saml.SAMLAuthBackend',
         'common.djangoapps.third_party_auth.lti.LTIAuthBackend',
-        'openedx.features.fbr_features.paypeople_auth_backend.PayPeopleOAuth2'
     ]) + list(AUTHENTICATION_BACKENDS)
 
     # The reduced session expiry time during the third party login pipeline. (Value in seconds)
