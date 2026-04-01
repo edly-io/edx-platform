@@ -1,11 +1,12 @@
+from django.conf import settings
 from social_core.backends.oauth import BaseOAuth2
 
 class PayPeopleOAuth2(BaseOAuth2):
     name = 'paypeople-oauth2'
 
-    AUTHORIZATION_URL = 'https://sso.paypeople.com/authorize'
+    AUTHORIZATION_URL = getattr(settings, 'PAYPEOPLE_AUTHORIZATION_URL', None)
 
-    ACCESS_TOKEN_URL = 'https://sso.paypeople.com/RefreshToken'
+    ACCESS_TOKEN_URL = getattr(settings, 'PAYPEOPLE_ACCESS_TOKEN_URL', None)
 
     ACCESS_TOKEN_METHOD = 'POST'
 
