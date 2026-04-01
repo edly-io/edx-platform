@@ -36,7 +36,7 @@ from openedx.core.djangoapps.content.course_overviews.models import CourseOvervi
 from openedx.core.djangoapps.course_groups import cohorts
 from openedx.core.djangoapps.embargo.models import Country, CountryAccessRule, RestrictedCourse
 from openedx.core.djangoapps.embargo.test_utils import restrict_course
-from openedx.core.djangoapps.enrollments import api, data
+from openedx.core.djangoapps.enrollments import data
 from openedx.core.djangoapps.enrollments.errors import CourseEnrollmentError
 from openedx.core.djangoapps.enrollments.views import EnrollmentUserThrottle
 from openedx.core.djangoapps.notifications.config.waffle import ENABLE_NOTIFICATIONS
@@ -711,9 +711,9 @@ class EnrollmentTest(EnrollmentTestMixin, ModuleStoreTestCase, APITestCase, Ente
         )
         assert resp.status_code == status.HTTP_400_BAD_REQUEST
 
-    @patch.object(api, "get_enrollment")
-    def test_get_enrollment_internal_error(self, mock_get_enrollment):
-        mock_get_enrollment.side_effect = CourseEnrollmentError("Something bad happened.")
+    @patch.object(CourseEnrollment.objects, "get")
+    def test_get_enrollment_internal_error(self, mock_get):
+        mock_get.side_effect = CourseEnrollmentError("Something bad happened.")
         resp = self.client.get(
             reverse(
                 'courseenrollment',
@@ -2031,3 +2031,347 @@ class EnrollmentAllowedViewTest(APITestCase):
         self.client.post(self.url, self.data)
         response = self.client.delete(self.url, delete_data)
         assert response.status_code == expected_result
+
+    # --- Response-shape tests (ADR 0025 serializer migration) ---
+
+    def test_post_response_shape(self):
+        """POST 201 response contains the expected fields from CourseEnrollmentAllowedSerializer."""
+        response = self.client.post(self.url, self.data)
+        assert response.status_code == status.HTTP_201_CREATED
+        body = response.json()
+        assert body['email'] == self.data['email']
+        assert body['course_id'] == self.data['course_id']
+        assert body['auto_enroll'] is False
+        assert 'created' in body
+
+    def test_post_auto_enroll_true_in_response(self):
+        """POST with auto_enroll=true is reflected in the 201 response."""
+        response = self.client.post(self.url, {**self.data, 'auto_enroll': True})
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()['auto_enroll'] is True
+
+    def test_post_missing_email_returns_field_error(self):
+        """POST without email returns a serializer field-level 400 with an 'email' key."""
+        response = self.client.post(self.url, {'course_id': self.data['course_id']})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'email' in response.json()
+
+    def test_post_missing_course_id_returns_field_error(self):
+        """POST without course_id returns a serializer field-level 400 with a 'course_id' key."""
+        response = self.client.post(self.url, {'email': self.data['email']})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'course_id' in response.json()
+
+    def test_post_duplicate_returns_409_with_message(self):
+        """A duplicate POST returns 409 with a 'message' key."""
+        self.client.post(self.url, self.data)
+        response = self.client.post(self.url, self.data)
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert 'message' in response.json()
+
+    def test_get_response_is_list(self):
+        """GET response body is a JSON list."""
+        response = self.client.get(self.url, {'email': self.data['email']})
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.json(), list)
+
+    def test_get_empty_response_is_empty_list(self):
+        """GET with no matching enrollments returns an empty list, not null."""
+        response = self.client.get(self.url, {'email': 'nobody@example.com'})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == []
+
+    def test_get_item_shape(self):
+        """Each item in the GET response has the fields from CourseEnrollmentAllowedSerializer."""
+        self.client.post(self.url, self.data)
+        response = self.client.get(self.url, {'email': self.data['email']})
+        assert response.status_code == status.HTTP_200_OK
+        item = response.json()[0]
+        assert item['email'] == self.data['email']
+        assert item['course_id'] == self.data['course_id']
+        assert 'auto_enroll' in item
+        assert 'created' in item
+
+    def test_get_multiple_entries_returned(self):
+        """GET returns all enrollment-allowed records for a given email."""
+        second_course = 'course-v1:edX+OtherX+Other_Course'
+        self.client.post(self.url, self.data)
+        self.client.post(self.url, {'email': self.data['email'], 'course_id': second_course})
+        response = self.client.get(self.url, {'email': self.data['email']})
+        assert response.status_code == status.HTTP_200_OK
+        results = response.json()
+        assert len(results) == 2
+        assert all(r['email'] == self.data['email'] for r in results)
+
+    def test_delete_missing_email_returns_field_error(self):
+        """DELETE without email returns a serializer field-level 400 with an 'email' key."""
+        self.client.post(self.url, self.data)
+        response = self.client.delete(self.url, {'course_id': self.data['course_id']})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'email' in response.json()
+
+
+@skip_unless_lms
+class EnrollmentViewResponseShapeTest(ModuleStoreTestCase, APITestCase):
+    """
+    Tests that verify EnrollmentView (GET /enrollment/v1/enrollment/{course_id} and
+    /enrollment/v1/enrollment/{username},{course_id}) response structure is preserved
+    after migrating to direct serializer usage (ADR 0025).
+    """
+
+    USERNAME = "Bob"
+    PASSWORD = "edx"
+
+    def setUp(self):
+        super().setUp()
+        self.course = CourseFactory.create(emit_signals=True)
+        self.user = UserFactory.create(username=self.USERNAME, password=self.PASSWORD)
+        self.client.login(username=self.USERNAME, password=self.PASSWORD)
+        CourseModeFactory.create(
+            course_id=self.course.id,
+            mode_slug=CourseMode.DEFAULT_MODE_SLUG,
+            mode_display_name=CourseMode.DEFAULT_MODE_SLUG,
+        )
+        CourseEnrollment.enroll(self.user, self.course.id)
+
+    def _get_by_course_id(self):
+        return self.client.get(
+            reverse('courseenrollment', kwargs={'course_id': str(self.course.id)})
+        )
+
+    def _get_by_username_and_course_id(self):
+        return self.client.get(
+            reverse('courseenrollment', kwargs={'username': self.USERNAME, 'course_id': str(self.course.id)})
+        )
+
+    def test_get_by_course_id_returns_200(self):
+        assert self._get_by_course_id().status_code == status.HTTP_200_OK
+
+    def test_get_by_username_course_id_returns_200(self):
+        assert self._get_by_username_and_course_id().status_code == status.HTTP_200_OK
+
+    def test_get_response_top_level_fields(self):
+        """Response contains the expected top-level enrollment fields."""
+        body = self._get_by_course_id().json()
+        for field in ('created', 'mode', 'is_active', 'user', 'course_details'):
+            assert field in body, f"Missing top-level field: {field}"
+
+    def test_get_response_user_and_mode(self):
+        """user and mode values match the enrollment."""
+        body = self._get_by_course_id().json()
+        assert body['user'] == self.USERNAME
+        assert body['mode'] == CourseMode.DEFAULT_MODE_SLUG
+        assert body['is_active'] is True
+
+    def test_get_by_username_course_id_matches_by_course_id(self):
+        """Both URL shapes return identical response bodies."""
+        by_course = self._get_by_course_id().json()
+        by_username = self._get_by_username_and_course_id().json()
+        assert by_course == by_username
+
+    def test_get_course_details_fields(self):
+        """course_details contains the expected nested fields."""
+        course_details = self._get_by_course_id().json()['course_details']
+        for field in (
+            'course_id', 'course_name', 'enrollment_start', 'enrollment_end',
+            'course_start', 'course_end', 'invite_only', 'course_modes', 'pacing_type',
+        ):
+            assert field in course_details, f"Missing course_details field: {field}"
+        assert course_details['course_id'] == str(self.course.id)
+
+    def test_get_no_enrollment_returns_null(self):
+        """GET for a course the user never enrolled in returns HTTP 200 with a null body."""
+        unenrolled_course = CourseFactory.create(emit_signals=True)
+        resp = self.client.get(
+            reverse('courseenrollment', kwargs={'course_id': str(unenrolled_course.id)})
+        )
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.json() is None
+
+
+@skip_unless_lms
+class EnrollmentCourseDetailViewResponseShapeTest(ModuleStoreTestCase, APITestCase):
+    """
+    Tests that verify EnrollmentCourseDetailView (GET /enrollment/v1/course/{course_id})
+    response structure is preserved after migrating to CourseSerializer + direct ORM (ADR 0025).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = CourseFactory.create(emit_signals=True)
+        CourseModeFactory.create(
+            course_id=self.course.id,
+            mode_slug=CourseMode.DEFAULT_MODE_SLUG,
+            mode_display_name=CourseMode.DEFAULT_MODE_SLUG,
+        )
+
+    def _get_course_details(self, course_id=None, include_expired=False):
+        url = reverse('courseenrollmentdetails', kwargs={'course_id': course_id or str(self.course.id)})
+        if include_expired:
+            url += '?include_expired=1'
+        return self.client.get(url)
+
+    def test_returns_200(self):
+        assert self._get_course_details().status_code == status.HTTP_200_OK
+
+    def test_response_top_level_fields(self):
+        """Response contains the expected top-level CourseSerializer fields."""
+        body = self._get_course_details().json()
+        for field in ('course_id', 'course_name', 'enrollment_start', 'enrollment_end',
+                      'course_start', 'course_end', 'invite_only', 'course_modes', 'pacing_type'):
+            assert field in body, f"Missing field: {field}"
+
+    def test_course_id_matches_requested_course(self):
+        body = self._get_course_details().json()
+        assert body['course_id'] == str(self.course.id)
+
+    def test_course_modes_is_list(self):
+        body = self._get_course_details().json()
+        assert isinstance(body['course_modes'], list)
+
+    def test_course_mode_fields(self):
+        """Each mode entry contains the expected fields."""
+        body = self._get_course_details().json()
+        mode = body['course_modes'][0]
+        for field in ('slug', 'name', 'min_price', 'suggested_prices', 'currency',
+                      'expiration_datetime', 'description', 'sku', 'bulk_sku'):
+            assert field in mode, f"Missing course_mode field: {field}"
+
+    def test_invalid_course_id_returns_400(self):
+        resp = self._get_course_details(course_id='not/a/real/course')
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_nonexistent_course_returns_400(self):
+        resp = self._get_course_details(course_id='course-v1:Org+NonExistent+2099')
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@skip_unless_lms
+class EnrollmentListViewResponseShapeTest(ModuleStoreTestCase, APITestCase):
+    """
+    Tests that verify EnrollmentListView (GET /enrollment/v1/enrollment)
+    response structure is preserved after migrating to CourseEnrollmentSerializer + ORM (ADR 0025).
+    """
+
+    USERNAME = "TestLearner"
+    PASSWORD = "edx"
+
+    def setUp(self):
+        super().setUp()
+        self.course = CourseFactory.create(emit_signals=True)
+        CourseModeFactory.create(
+            course_id=self.course.id,
+            mode_slug=CourseMode.DEFAULT_MODE_SLUG,
+            mode_display_name=CourseMode.DEFAULT_MODE_SLUG,
+        )
+        self.user = UserFactory.create(username=self.USERNAME, password=self.PASSWORD)
+        self.client.login(username=self.USERNAME, password=self.PASSWORD)
+        CourseEnrollment.enroll(self.user, self.course.id)
+
+    def _get_enrollments(self, user=None):
+        url = reverse('courseenrollments')
+        if user:
+            url += f'?user={user}'
+        return self.client.get(url)
+
+    def test_returns_200(self):
+        assert self._get_enrollments().status_code == status.HTTP_200_OK
+
+    def test_response_is_list(self):
+        body = self._get_enrollments().json()
+        assert isinstance(body, list)
+
+    def test_enrollment_top_level_fields(self):
+        """Each enrollment entry contains the expected top-level fields."""
+        body = self._get_enrollments().json()
+        assert len(body) >= 1
+        entry = body[0]
+        for field in ('created', 'mode', 'is_active', 'user', 'course_details'):
+            assert field in entry, f"Missing top-level field: {field}"
+
+    def test_enrollment_user_and_mode_values(self):
+        body = self._get_enrollments().json()
+        entry = body[0]
+        assert entry['user'] == self.USERNAME
+        assert entry['mode'] == CourseMode.DEFAULT_MODE_SLUG
+        assert entry['is_active'] is True
+
+    def test_enrollment_course_details_fields(self):
+        """course_details nested object contains the expected fields."""
+        body = self._get_enrollments().json()
+        course_details = body[0]['course_details']
+        for field in ('course_id', 'course_name', 'enrollment_start', 'enrollment_end',
+                      'course_start', 'course_end', 'invite_only', 'course_modes'):
+            assert field in course_details, f"Missing course_details field: {field}"
+
+    def test_no_enrollments_returns_empty_list(self):
+        """A user with no enrollments gets an empty list, not null or an error."""
+        new_user = UserFactory.create(password=self.PASSWORD)
+        self.client.login(username=new_user.username, password=self.PASSWORD)
+        body = self.client.get(reverse('courseenrollments')).json()
+        assert body == []
+
+
+@skip_unless_lms
+class UserRoleViewResponseShapeTest(ModuleStoreTestCase):
+    """
+    Tests that verify EnrollmentUserRolesView (GET /enrollment/v1/roles/)
+    response structure is preserved after migrating to UserRolesResponseSerializer (ADR 0025).
+    """
+
+    USERNAME = "RoleTester"
+    PASSWORD = "edx"
+
+    def setUp(self):
+        super().setUp()
+        self.course = CourseFactory.create(emit_signals=True, org="testorg", course="c1", run="r1")
+        self.user = UserFactory.create(username=self.USERNAME, password=self.PASSWORD)
+        self.client.login(username=self.USERNAME, password=self.PASSWORD)
+
+    def _get_roles(self, course_id=None):
+        url = reverse('roles')
+        if course_id:
+            url += f'?course_id={course_id}'
+        return self.client.get(url)
+
+    def test_returns_200(self):
+        assert self._get_roles().status_code == status.HTTP_200_OK
+
+    def test_response_top_level_keys(self):
+        """Response always contains 'roles' (list) and 'is_staff' (bool)."""
+        body = self._get_roles().json()
+        assert 'roles' in body
+        assert 'is_staff' in body
+        assert isinstance(body['roles'], list)
+        assert isinstance(body['is_staff'], bool)
+
+    def test_no_roles_returns_empty_list(self):
+        body = self._get_roles().json()
+        assert body['roles'] == []
+        assert body['is_staff'] is False
+
+    def test_role_entry_shape(self):
+        """A role entry contains org, course_id, and role fields."""
+        role = CourseStaffRole(self.course.id)
+        role.add_users(self.user)
+        body = self._get_roles().json()
+        assert len(body['roles']) == 1
+        entry = body['roles'][0]
+        for field in ('org', 'course_id', 'role'):
+            assert field in entry, f"Missing role field: {field}"
+        assert entry['org'] == self.course.org
+        assert entry['course_id'] == str(self.course.id)
+
+    def test_is_staff_true_for_staff_user(self):
+        staff_user = UserFactory.create(password=self.PASSWORD, is_staff=True)
+        self.client.login(username=staff_user.username, password=self.PASSWORD)
+        body = self._get_roles().json()
+        assert body['is_staff'] is True
+
+    def test_filter_by_course_id(self):
+        """course_id query param filters roles to that course only."""
+        course2 = CourseFactory.create(emit_signals=True, org="other", course="c2", run="r2")
+        CourseStaffRole(self.course.id).add_users(self.user)
+        CourseStaffRole(course2.id).add_users(self.user)
+        body = self._get_roles(course_id=str(self.course.id)).json()
+        assert all(r['course_id'] == str(self.course.id) for r in body['roles'])
