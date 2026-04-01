@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 import urllib
 
 from django.conf import settings
@@ -61,6 +62,15 @@ from openedx.core.djangoapps.util.user_messages import PageLevelMessages
 from openedx.core.djangolib.markup import HTML, Text
 from openedx.core.lib.api.view_utils import require_post_params  # lint-amnesty, pylint: disable=unused-import
 from openedx.features.enterprise_support.api import activate_learner_enterprise, get_enterprise_learner_data_from_api
+from fbr.common.two_factor_auth.utils import (
+    OTP_SESSION_EXPIRY_SECONDS as SESSION_EXPIRY_SECONDS,
+    SESSION_KEY_EXPIRES,
+    SESSION_KEY_FINISH_AUTH_URL,
+    SESSION_KEY_NEXT_URL,
+    SESSION_KEY_USER_ID,
+    generate_and_send_otp,
+    is_2fa_enabled_for_user,
+)
 
 log = logging.getLogger("edx.student")
 AUDIT_LOG = logging.getLogger("audit")
@@ -635,14 +645,36 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
         ):
             raise VulnerablePasswordError(accounts.AUTHN_LOGIN_BLOCK_HIBP_POLICY_MSG, "require-password-change")
 
-        _handle_successful_authentication_and_login(possibly_authenticated_user, request)
-
-        # The AJAX method calling should know the default destination upon success
-        redirect_url, finish_auth_url = None, ""
-
+        finish_auth_url = ""
         if third_party_auth_requested:
             running_pipeline = pipeline.get(request)
             finish_auth_url = pipeline.get_complete_url(backend_name=running_pipeline["backend"])
+
+        if is_2fa_enabled_for_user():
+            generate_and_send_otp(possibly_authenticated_user)
+            request.session.flush()
+            request.session[SESSION_KEY_USER_ID] = possibly_authenticated_user.id
+            request.session[SESSION_KEY_EXPIRES] = time.time() + SESSION_EXPIRY_SECONDS
+            if finish_auth_url:
+                request.session[SESSION_KEY_FINISH_AUTH_URL] = finish_auth_url
+            next_url = get_next_url_for_login_page(request, include_host=False)
+            if next_url:
+                request.session[SESSION_KEY_NEXT_URL] = next_url
+            email = possibly_authenticated_user.email
+            local, domain = email.split('@', 1) if '@' in email else (email, '')
+            masked_email = local[:2] + '***@' + domain if domain else '***'
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error_code": "2fa-required",
+                    "masked_email": masked_email,
+                }
+            )
+
+        _handle_successful_authentication_and_login(possibly_authenticated_user, request)
+
+        # The AJAX method calling should know the default destination upon success
+        redirect_url = None
 
         if is_user_third_party_authenticated:
             redirect_url = finish_auth_url
