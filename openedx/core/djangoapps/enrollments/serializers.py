@@ -137,3 +137,22 @@ class CourseEnrollmentAllowedSerializer(serializers.ModelSerializer):
         model = CourseEnrollmentAllowed
         exclude = ["id"]
         lookup_field = "user"
+
+
+class UserRoleSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializes a single course-level role entry for a user."""
+
+    org = serializers.CharField()
+    course_id = serializers.SerializerMethodField()
+    role = serializers.CharField()
+
+    def get_course_id(self, obj):
+        """Return course_id as a string."""
+        return str(obj.course_id)
+
+
+class UserRolesResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializes the full response payload for EnrollmentUserRolesView."""
+
+    roles = UserRoleSerializer(many=True)
+    is_staff = serializers.BooleanField()
