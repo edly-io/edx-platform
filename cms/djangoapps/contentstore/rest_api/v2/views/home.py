@@ -45,6 +45,7 @@ class HomePageCoursesPaginator(PageNumberPagination):
 @view_auth_classes(is_authenticated=True)
 class HomePageCoursesViewV2(APIView):
     """View for getting all courses available to the logged in user."""
+    serializer_class = CourseHomeTabSerializerV2
 
     @apidocs.schema(
         parameters=[
@@ -140,7 +141,7 @@ class HomePageCoursesViewV2(APIView):
             self.request,
             view=self
         )
-        serializer = CourseHomeTabSerializerV2({
+        serializer = self.serializer_class({
             'courses': courses_page,
             'in_process_course_actions': in_process_course_actions,
         })
