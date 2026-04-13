@@ -21,6 +21,7 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
     """
     View for getting and setting the course details.
     """
+    serializer_class = CourseDetailsSerializer
     @apidocs.schema(
         parameters=[
             apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
@@ -102,7 +103,7 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
             self.permission_denied(request)
 
         course_details = CourseDetails.fetch(course_key)
-        serializer = CourseDetailsSerializer(course_details)
+        serializer = self.serializer_class(course_details)
         return Response(serializer.data)
 
     @apidocs.schema(
@@ -151,5 +152,5 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
         except ValidationError as err:
             return JsonResponseBadRequest({"error": err.message})
 
-        serializer = CourseDetailsSerializer(updated_data)
+        serializer = self.serializer_class(updated_data)
         return Response(serializer.data)
