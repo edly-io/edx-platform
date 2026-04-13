@@ -18,6 +18,7 @@ class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
     """
     View for getting and setting the advanced settings for a course.
     """
+    serializer_class = CourseGradingModelSerializer
     @apidocs.schema(
         body=CourseGradingModelSerializer,
         parameters=[
@@ -84,5 +85,5 @@ class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
             update_credit_course_requirements.delay(str(course_key))
 
         updated_data = CourseGradingModel.update_from_json(course_key, request.data, request.user)
-        serializer = CourseGradingModelSerializer(updated_data)
+        serializer = self.serializer_class(updated_data)
         return Response(serializer.data)
