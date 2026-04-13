@@ -104,6 +104,7 @@ class HomePageCoursesView(APIView):
     """
     View for getting all courses and libraries available to the logged in user.
     """
+    serializer_class = CourseHomeTabSerializer
     @apidocs.schema(
         parameters=[
             apidocs.string_parameter(
@@ -170,7 +171,7 @@ class HomePageCoursesView(APIView):
             "archived_courses": archived_courses,
             "in_process_course_actions": in_process_course_actions,
         }
-        serializer = CourseHomeTabSerializer(courses_context)
+        serializer = self.serializer_class(courses_context)
         return Response(serializer.data)
 
 
