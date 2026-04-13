@@ -26,6 +26,13 @@ class XblockView(DeveloperErrorViewMixin, RetrieveUpdateDestroyAPIView):
     course_key: required argument, needed to authorize course authors.
     usage_key_string (optional):
     xblock identifier, for example in the form of "block-v1:<course id>+type@<type>+block@<block id>"
+
+    ADR 0025 compliance notes:
+    - ``serializer_class`` is declared and used for input validation via
+      ``@validate_request_with_serializer`` on mutating methods.
+    - Response formatting is delegated to ``handle_xblock()`` which produces
+      its own JSON shape; wrapping its output in ``XblockSerializer`` requires
+      a deeper refactor and is tracked as a follow-up task.
     """
     serializer_class = XblockSerializer
 
@@ -60,6 +67,12 @@ class XblockCreateView(DeveloperErrorViewMixin, CreateAPIView):
     course_key: required argument, needed to authorize course authors.
     usage_key_string (optional):
     xblock identifier, for example in the form of "block-v1:<course id>+type@<type>+block@<block id>"
+
+    ADR 0025 compliance notes:
+    - ``serializer_class`` is declared and used for input validation via
+      ``@validate_request_with_serializer``.
+    - Response formatting is delegated to ``handle_xblock()``; full response
+      serialization is tracked as a follow-up task.
     """
     serializer_class = XblockSerializer
 
