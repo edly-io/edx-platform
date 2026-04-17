@@ -1,5 +1,10 @@
+import logging
+
 from django.conf import settings
 from social_core.backends.oauth import BaseOAuth2
+
+
+log = logging.getLogger(__name__)
 
 class PayPeopleOAuth2(BaseOAuth2):
     name = 'paypeople-oauth2'
@@ -9,6 +14,16 @@ class PayPeopleOAuth2(BaseOAuth2):
     ACCESS_TOKEN_URL = getattr(settings, 'PAYPEOPLE_ACCESS_TOKEN_URL', None)
 
     ACCESS_TOKEN_METHOD = 'POST'
+    DEFAULT_SCOPE = ['openid']
+
+    def auth_params(self, state=None, *args, **kwargs):
+        """Add custom required parameters to authorization request"""
+        params = super().auth_params(state=state, *args, **kwargs)
+        params['scope'] = 'openid'
+        params['origin'] = 'paypeople.app'
+        if state:
+            params['state'] = state
+        return params
 
     def request_access_token(self, *args, **kwargs):
         return self.get_json(
@@ -23,6 +38,7 @@ class PayPeopleOAuth2(BaseOAuth2):
         }
 
     def get_user_details(self, response):
+        log.info("Paypeople user data response: %s", response)
         return {
             'username':   str(response.get('EmployeeID', '')),
             'email':      response.get('Email', ''),
