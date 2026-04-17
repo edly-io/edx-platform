@@ -12,6 +12,7 @@ class PayPeopleOAuth2(BaseOAuth2):
     AUTHORIZATION_URL = getattr(settings, 'PAYPEOPLE_AUTHORIZATION_URL', None)
 
     ACCESS_TOKEN_URL = getattr(settings, 'PAYPEOPLE_ACCESS_TOKEN_URL', None)
+    USER_INFO_URL = getattr(settings, 'PAYPEOPLE_USER_INFO_URL', None)
 
     ACCESS_TOKEN_METHOD = 'POST'
     DEFAULT_SCOPE = ['openid']
@@ -47,7 +48,12 @@ class PayPeopleOAuth2(BaseOAuth2):
         }
 
     def user_data(self, access_token, *args, **kwargs):
-        return access_token
+        url = self.USER_INFO_URL
+        # The access token returned from the service's token route.
+        header = {"Authorization": "Bearer %s" % access_token}
+        data = self.get_json(url, headers=header)
+        log.info("Paypeople user data response: %s", data)
+        return data
 
     def get_user_id(self, details, response):
         return response.get('EmployeeID') or response.get('UserID')

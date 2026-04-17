@@ -3694,3 +3694,5 @@ SSL_AUTH_DN_FORMAT_STRING = (
 
 PAYPEOPLE_AUTHORIZATION_URL = "https://dev.paypeople.app/ServiceApi/api/accounts/authorize"
 PAYPEOPLE_ACCESS_TOKEN_URL = "https://dev.paypeople.app/ServiceApi/api/accounts/RefreshToken"
+PAYPEOPLE_USER_INFO_URL = "https://dev.paypeople.app/ServiceApi/api/accounts/userinfo"
+
