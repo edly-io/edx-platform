@@ -3,9 +3,12 @@
 import edx_api_doc_tools as apidocs
 from django.conf import settings
 from organizations import api as org_api
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 
 from openedx.core.lib.api.view_utils import view_auth_classes
 
@@ -99,11 +102,12 @@ class HomePageView(APIView):
         return Response(serializer.data)
 
 
-@view_auth_classes(is_authenticated=True)
 class HomePageCoursesView(APIView):
     """
     View for getting all courses and libraries available to the logged in user.
     """
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    permission_classes = (IsAuthenticated,)
     serializer_class = CourseHomeTabSerializer
     @apidocs.schema(
         parameters=[
