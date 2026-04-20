@@ -6,18 +6,28 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
+from rest_framework.permissions import IsAuthenticated
+
+from cms.djangoapps.contentstore.views.permissions import HasStudioReadAccess
 from cms.djangoapps.models.settings.course_grading import CourseGradingModel
-from common.djangoapps.student.auth import has_studio_read_access
 from openedx.core.djangoapps.credit.tasks import update_credit_course_requirements
-from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists, view_auth_classes
+from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists
 from ..serializers import CourseGradingModelSerializer
 
 
-@view_auth_classes(is_authenticated=True)
 class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
     """
     View for getting and setting the advanced settings for a course.
     """
+    authentication_classes = (  # ADR 0026
+        JwtAuthentication,
+        BearerAuthenticationAllowInactiveUser,
+        SessionAuthenticationAllowInactiveUser,
+    )
+    permission_classes = (IsAuthenticated, HasStudioReadAccess)  # ADR 0026
     serializer_class = CourseGradingModelSerializer
     @apidocs.schema(
         body=CourseGradingModelSerializer,
@@ -77,9 +87,6 @@ class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
         If the request is successful, an HTTP 200 "OK" response is returned,
         """
         course_key = CourseKey.from_string(course_id)
-
-        if not has_studio_read_access(request.user, course_key):
-            self.permission_denied(request)
 
         if 'minimum_grade_credit' in request.data:
             update_credit_course_requirements.delay(str(course_key))
