@@ -5,10 +5,13 @@ import json
 from unittest.mock import patch
 
 import ddt
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
+from rest_framework.test import APIClient
 
 from cms.djangoapps.contentstore.tests.utils import CourseTestCase
+from common.djangoapps.student.tests.factories import UserFactory
 
 from ...mixins import PermissionAccessMixin
 
@@ -110,4 +113,73 @@ class CourseDetailsViewTest(CourseTestCase, PermissionAccessMixin):
             data=json.dumps(request_data),
             content_type="application/json",
         )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class CourseDetailsViewPermissionsTest(CourseTestCase):
+    """
+    ADR 0026 – permission regression tests for CourseDetailsView.
+
+    Verifies that permission_classes = (IsAuthenticated, HasStudioReadAccess) enforces
+    the same access rules previously split between @view_auth_classes(is_authenticated=True)
+    and the inline has_studio_read_access() checks in get() and put().
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse(
+            "cms.djangoapps.contentstore:v1:course_details",
+            kwargs={"course_id": self.course.id},
+        )
+
+    # --- Unauthenticated ---
+    def test_unauthenticated_get_returns_401(self):
+        """
+        Unauthenticated GET must return 401.
+
+        Before ADR 0026: enforced by @view_auth_classes(is_authenticated=True).
+        After ADR 0026: enforced by IsAuthenticated in permission_classes.
+        """
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_unauthenticated_put_returns_401(self):
+        """
+        Unauthenticated PUT must return 401.
+
+        Before ADR 0026: enforced by @view_auth_classes(is_authenticated=True).
+        After ADR 0026: enforced by IsAuthenticated in permission_classes.
+        """
+        self.client.logout()
+        response = self.client.put(self.url, data={}, content_type="application/json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # --- Authenticated but no course access ---
+    def test_non_staff_get_returns_403(self):
+        """
+        Authenticated user without course staff role must receive 403 on GET.
+
+        Before ADR 0026: enforced by inline has_studio_read_access() check in get().
+        After ADR 0026: enforced by HasStudioReadAccess in permission_classes.
+        """
+        client, _ = self.create_non_staff_authed_user_client()
+        response = client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_staff_put_returns_403(self):
+        """
+        Authenticated user without course staff role must receive 403 on PUT.
+
+        Before ADR 0026: enforced by inline has_studio_read_access() check in put().
+        After ADR 0026: enforced by HasStudioReadAccess in permission_classes.
+        """
+        client, _ = self.create_non_staff_authed_user_client()
+        response = client.put(self.url, data={}, content_type="application/json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Authorized ---
+    def test_course_staff_get_returns_200(self):
+        """Course staff/instructor must receive 200 on GET."""
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

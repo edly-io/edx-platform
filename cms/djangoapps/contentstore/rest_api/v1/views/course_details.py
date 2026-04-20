@@ -4,23 +4,27 @@ import edx_api_doc_tools as apidocs
 from django.core.exceptions import ValidationError
 from common.djangoapps.util.json_request import JsonResponseBadRequest
 from opaque_keys.edx.keys import CourseKey
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from common.djangoapps.student.auth import has_studio_read_access
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from openedx.core.djangoapps.models.course_details import CourseDetails
-from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists, view_auth_classes
+from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists
 from xmodule.modulestore.django import modulestore
 
+from cms.djangoapps.contentstore.views.permissions import HasStudioReadAccess
 from ..serializers import CourseDetailsSerializer
 from ....utils import update_course_details
 
 
-@view_auth_classes(is_authenticated=True)
 class CourseDetailsView(DeveloperErrorViewMixin, APIView):
     """
     View for getting and setting the course details.
     """
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    permission_classes = (IsAuthenticated, HasStudioReadAccess)
     serializer_class = CourseDetailsSerializer
     @apidocs.schema(
         parameters=[
@@ -99,9 +103,6 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
         ```
         """
         course_key = CourseKey.from_string(course_id)
-        if not has_studio_read_access(request.user, course_key):
-            self.permission_denied(request)
-
         course_details = CourseDetails.fetch(course_key)
         serializer = self.serializer_class(course_details)
         return Response(serializer.data)
@@ -142,9 +143,6 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
         along with all the course's details similar to a ``GET`` request.
         """
         course_key = CourseKey.from_string(course_id)
-        if not has_studio_read_access(request.user, course_key):
-            self.permission_denied(request)
-
         course_block = modulestore().get_course(course_key)
 
         try:
