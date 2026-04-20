@@ -2,12 +2,13 @@
 
 import edx_api_doc_tools as apidocs
 from collections import OrderedDict
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.views import APIView
 from rest_framework.pagination import PageNumberPagination
-
-from openedx.core.lib.api.view_utils import view_auth_classes
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 
 from cms.djangoapps.contentstore.utils import get_course_context_v2
 from cms.djangoapps.contentstore.rest_api.v2.serializers import CourseHomeTabSerializerV2
@@ -42,9 +43,10 @@ class HomePageCoursesPaginator(PageNumberPagination):
         return super().paginate_queryset(queryset, request, view)
 
 
-@view_auth_classes(is_authenticated=True)
 class HomePageCoursesViewV2(APIView):
     """View for getting all courses available to the logged in user."""
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    permission_classes = (IsAuthenticated,)
     serializer_class = CourseHomeTabSerializerV2
 
     @apidocs.schema(
