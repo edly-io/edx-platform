@@ -38,6 +38,21 @@ class PayPeopleOAuth2(BaseOAuth2):
             'Token': self.data.get('code'),
         }
 
+    def auth_complete(self, *args, **kwargs):
+        """Intercept and log the full response during token exchange"""
+        try:
+            response = self.request_access_token(
+                self.ACCESS_TOKEN_URL,
+                data=self.auth_complete_params(self.validate_state()),
+                headers=self.auth_headers(),
+                method=self.ACCESS_TOKEN_METHOD,
+            )
+            log.info(f"PayPeople full token response: {response}")
+        except Exception as e:
+            log.error(f"PayPeople token exchange failed: {e}")
+
+        return super().auth_complete(*args, **kwargs)
+
     def get_user_details(self, response):
         log.info("Paypeople user data response: %s", response)
         return {
