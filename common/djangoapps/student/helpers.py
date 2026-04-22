@@ -276,7 +276,7 @@ def _has_submitted_biodata_declaration(user):
     return declaration.is_submitted and declaration.confirmed
 
 
-def _get_biodata_profile_redirect_url(user):
+def get_biodata_profile_redirect_url(user):
     """
     Return the learner profile URL when biodata is incomplete, otherwise None.
     """
@@ -350,7 +350,7 @@ def get_next_url_for_login_page(request, include_host=False, user=None):
             root_url = f'{scheme}://{settings.CMS_BASE}'
 
     if settings.ROOT_URLCONF == 'lms.urls':
-        biodata_profile_redirect_url = _get_biodata_profile_redirect_url(user or getattr(request, 'user', None))
+        biodata_profile_redirect_url = get_biodata_profile_redirect_url(user or getattr(request, 'user', None))
         if biodata_profile_redirect_url:
             redirect_to = biodata_profile_redirect_url
 
