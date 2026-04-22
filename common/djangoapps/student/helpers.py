@@ -16,7 +16,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import load_backend
 from django.contrib.auth.models import User  # lint-amnesty, pylint: disable=imported-auth-user
-from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
+from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist, PermissionDenied
 from django.core.validators import ValidationError
 from django.db import IntegrityError, ProgrammingError, transaction
 from django.urls import NoReverseMatch, reverse
@@ -269,11 +269,24 @@ def _has_submitted_biodata_declaration(user):
         return True
 
     try:
-        declaration = declaration_model.objects.only('is_submitted', 'confirmed').get(user=user)
+        declaration_model._meta.get_field('is_submitted')
+        has_is_submitted_field = True
+    except FieldDoesNotExist:
+        has_is_submitted_field = False
+
+    declaration_fields = ['confirmed']
+    if has_is_submitted_field:
+        declaration_fields.append('is_submitted')
+
+    try:
+        declaration = declaration_model.objects.only(*declaration_fields).get(user=user)
     except ObjectDoesNotExist:
         return False
 
-    return declaration.is_submitted and declaration.confirmed
+    if has_is_submitted_field:
+        return declaration.is_submitted and declaration.confirmed
+
+    return declaration.confirmed
 
 
 def get_biodata_profile_redirect_url(user):
