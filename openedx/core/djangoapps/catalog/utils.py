@@ -32,6 +32,13 @@ from openedx.core.djangoapps.catalog.models import CatalogIntegration
 from openedx.core.djangoapps.oauth_dispatch.jwt import create_jwt_for_user
 from openedx.core.lib.edx_api_utils import get_api_data
 
+try:
+    from eox_tenant.constants import LMS_CONFIG_COLUMN
+    from eox_tenant.receivers_helpers import get_tenant_config_by_domain
+    EOX_TENANT_AVAILABLE = True
+except ImportError:
+    EOX_TENANT_AVAILABLE = False
+
 if TYPE_CHECKING:
     from django.contrib.sites.models import Site
 
@@ -40,11 +47,29 @@ logger = logging.getLogger(__name__)
 missing_details_msg_tpl = "Failed to get details for program {uuid} from the cache."
 
 
+def _get_tenant_catalog_api_url(domain):
+    """
+    Returns COURSE_CATALOG_API_URL from eox_tenant TenantConfig for the given domain, or None.
+    """
+    if not EOX_TENANT_AVAILABLE:
+        return None
+    try:
+        lms_config, _ = get_tenant_config_by_domain(domain, LMS_CONFIG_COLUMN)
+        return lms_config.get('COURSE_CATALOG_API_URL')
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
 def get_catalog_api_base_url(site=None):
     """
     Returns a base API url used to make Catalog API requests.
+
+    Checks eox_tenant TenantConfig first, then falls back to SiteConfiguration.
     """
     if site:
+        tenant_url = _get_tenant_catalog_api_url(site.domain)
+        if tenant_url:
+            return tenant_url
         return site.configuration.get_value("COURSE_CATALOG_API_URL")
 
     return CatalogIntegration.current().get_internal_api_url()
@@ -149,7 +174,9 @@ def get_programs(
             return []
     elif site:
         site_config = getattr(site, "configuration", None)
-        catalog_url = site_config.get_value("COURSE_CATALOG_API_URL") if site_config else None
+        catalog_url = _get_tenant_catalog_api_url(site.domain) or (
+            site_config.get_value("COURSE_CATALOG_API_URL") if site_config else None
+        )
         if site_config and catalog_url:
             uuids = cache.get(SITE_PROGRAM_UUIDS_CACHE_KEY_TPL.format(domain=site.domain), [])
             if not uuids:
