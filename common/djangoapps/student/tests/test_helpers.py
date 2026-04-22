@@ -174,6 +174,29 @@ class TestLoginHelper(TestCase):
         assert next_page == 'http://profile-mfe/u/test-user'
 
     @skip_unless_lms
+    @patch('common.djangoapps.student.helpers.apps.get_model')
+    def test_redirects_to_profile_when_biodata_profile_url_already_includes_user_path(self, mock_get_model):
+        """
+        Test profile URL config ending in /u does not duplicate the user path segment.
+        """
+        user = SimpleNamespace(username='fbrAdmin')
+        declaration_model = Mock()
+        declaration_model.objects.only.return_value.get.side_effect = ObjectDoesNotExist
+        mock_get_model.return_value = declaration_model
+
+        req = self.request.get(settings.LOGIN_URL)
+        req.META["HTTP_ACCEPT"] = "text/html"
+
+        with with_site_configuration_context(
+            configuration={
+                'INDIGO_BIODATA_PROFILE_URL': 'http://apps.local.openedx.io:1995/profile/u',
+            }
+        ):
+            next_page = get_next_url_for_login_page(req, user=user)
+
+        assert next_page == 'http://apps.local.openedx.io:1995/profile/u/fbrAdmin'
+
+    @skip_unless_lms
     @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
     @patch('common.djangoapps.student.helpers.apps.get_model')
     def test_redirects_to_profile_when_biodata_declaration_is_incomplete(self, mock_get_model):

@@ -303,9 +303,22 @@ def get_biodata_profile_redirect_url(user):
         'INDIGO_BIODATA_PROFILE_URL',
         getattr(settings, 'PROFILE_MICROFRONTEND_URL', None),
     ) or '/profile'
+    profile_base_url = profile_base_url.rstrip('/')
+    profile_base_url_parts = urllib.parse.urlsplit(profile_base_url)
+    profile_base_url_path = profile_base_url_parts.path.rstrip('/')
+
+    if profile_base_url_path.endswith('/u'):
+        profile_base_url_path = profile_base_url_path[:-2]
+        profile_base_url = urllib.parse.urlunsplit((
+            profile_base_url_parts.scheme,
+            profile_base_url_parts.netloc,
+            profile_base_url_path,
+            '',
+            '',
+        )).rstrip('/')
 
     return '{profile_base_url}/u/{username}'.format(
-        profile_base_url=profile_base_url.rstrip('/'),
+        profile_base_url=profile_base_url,
         username=urllib.parse.quote(user.username),
     )
 
