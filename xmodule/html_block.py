@@ -14,7 +14,7 @@ from lxml import etree
 from path import Path as path
 from web_fragments.fragment import Fragment
 from xblock.core import XBlock
-from xblock.fields import Boolean, List, Scope, String
+from xblock.fields import Boolean, Dict, List, Scope, String
 from xblocks_contrib.html import HtmlBlock as _ExtractedHtmlBlock
 
 from common.djangoapps.xblock_django.constants import ATTR_KEY_DEPRECATED_ANONYMOUS_USER_ID
@@ -77,6 +77,11 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
         default=False,
         scope=Scope.settings
     )
+    iframe_state = Dict(
+        help=_("Persisted learner state for iframe-based content"),
+        default={},
+        scope=Scope.user_state,
+    )
     editor = String(
         help=_(
             "Select Visual to enter content and have the editor automatically create the HTML. Select Raw to edit "
@@ -98,11 +103,74 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
         """
         Return a fragment that contains the html for the student view
         """
-        fragment = Fragment(self.get_html())
+        html = self.get_html()
+        fragment = Fragment(html + self._get_iframe_bridge(html))
         add_css_to_fragment(fragment, 'HtmlBlockDisplay.css')
         add_webpack_js_to_fragment(fragment, 'HtmlBlockDisplay')
         shim_xmodule_js(fragment, 'HTMLModule')
         return fragment
+
+    def _get_iframe_bridge(self, html):
+        """Inject a postMessage bridge for iframe state persistence when content contains an iframe."""
+        if '<iframe' not in html.lower():
+            return ''
+        try:
+            save_url = self.runtime.handler_url(self, 'save_iframe_state')
+            get_url = self.runtime.handler_url(self, 'get_iframe_state')
+        except Exception:  # pylint: disable=broad-except
+            return ''
+        return f'''<script>
+(function() {{
+  var script = document.currentScript;
+  var SAVE_URL = "{save_url}";
+  var GET_URL = "{get_url}";
+  function getCsrf() {{
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }}
+  function init() {{
+    var container = script ? script.parentElement : document.body;
+    var iframe = container ? container.querySelector('iframe') : null;
+    if (!iframe) return;
+    iframe.addEventListener('load', function() {{
+      fetch(GET_URL, {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
+        body: '{{}}'
+      }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(state) {{
+          if (state && Object.keys(state).length > 0) {{
+            iframe.contentWindow.postMessage({{type: 'xblock_restore', state: state}}, '*');
+          }}
+        }})
+        .catch(function(err) {{ console.error('[xblock iframe bridge] restore failed', err); }});
+    }});
+    window.addEventListener('message', function(e) {{
+      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+      if (!e.data || e.data.type !== 'xblock_save') return;
+      fetch(SAVE_URL, {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
+        body: JSON.stringify(e.data.state)
+      }}).catch(function(err) {{ console.error('[xblock iframe bridge] save failed', err); }});
+    }});
+  }}
+  if (document.readyState === 'loading') {{ document.addEventListener('DOMContentLoaded', init); }}
+  else {{ setTimeout(init, 0); }}
+}})();
+</script>'''
+
+    @XBlock.json_handler
+    def save_iframe_state(self, data, suffix=''):
+        """Persist learner state sent from an iframe via postMessage."""
+        self.iframe_state = data
+        return {'status': 'ok'}
+
+    @XBlock.json_handler
+    def get_iframe_state(self, data, suffix=''):
+        """Return the persisted learner state for the iframe."""
+        return dict(self.iframe_state)
 
     @XBlock.supports("multi_device")
     def public_view(self, context):
