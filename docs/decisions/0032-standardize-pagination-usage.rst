@@ -28,6 +28,22 @@ Implementation requirements:
 * Custom ``page_size`` overrides per endpoint are acceptable when justified (e.g., mobile APIs may use a smaller default), but MUST be implemented by subclassing ``DefaultPagination`` rather than using an unrelated pagination class.
 * Maintain backward compatibility for all APIs during migration. If a fully compatible migration is not possible, a new API version MUST be created and the old version deprecated following the standard deprecation process.
 
+Scope and Tree-Shaped Endpoints
+-------------------------------
+
+This ADR applies to **flat list endpoints** — endpoints whose response is a collection of sibling items with no hierarchical nesting between items.
+
+**Tree-shaped endpoints** — where each item may contain an arbitrary subtree of child items (Course Blocks, Taxonomy, OLX structure, progress trees) — are out of scope for the standard item-count pagination envelope described here. Applying ``DefaultPagination`` to such endpoints is ill-defined: a "page size of 10" has no consistent meaning when items may contain hundreds of descendants, and paginating over a flat node set risks splitting parents from their children across page boundaries.
+
+Tree-shaped endpoints MUST instead follow one of these patterns:
+
+1. Return the complete structural representation (IDs, types, parent/child relationships, display names) unpaginated at a controlled depth, and paginate separately over node *content* via follow-up endpoints. The Course Blocks API's ``requested_fields`` behavior is the reference implementation of this pattern.
+2. Return the tree to a fixed maximum depth, and provide explicit child-fetch URLs for any subtrees beyond that depth.
+
+Response-shape conventions for these endpoints — minimal vs full views, field selection (``?fields=...``), and flattening of deeply nested JSON — are specified in ADR-0036 (*Reduce Deeply Nested JSON via Minimal/Flattened Views*), which is the canonical place for those decisions.
+
+Where a tree endpoint exposes a flat list of node IDs alongside its structural representation (for example via ``?fields=id,type``), standard ``DefaultPagination`` over that flat ID list is appropriate and in scope.
+
 Relevance in edx-platform
 --------------------------
 
@@ -37,7 +53,7 @@ Current example patterns that should be migrated:
 * **User Accounts API** (``/api/user/v1/accounts/``) — pagination behavior differs from other user-related APIs, making it difficult for consumers to use a single data-loading pattern.
 * **Course Members API** (``/api/courses/v1/.../members/``) — returns all enrollments without pagination, relying on a ``COURSE_MEMBER_API_ENROLLMENT_LIMIT`` setting (default 1000) to cap results and raising ``OverEnrollmentLimitException`` instead of paginating.
 * **Enrollment API** (``/api/enrollment/v1/``) — some list endpoints return full result sets without pagination support.
-* **Course Blocks API** (``/api/courses/v2/blocks/``) — intentionally returns unpaginated data for the entire course structure, which can result in very large response payloads.
+* **Course Blocks API** (``/api/courses/v2/blocks/``) — a tree-shaped endpoint. Out of scope for standard item-count pagination per the *Scope and Tree-Shaped Endpoints* section above; its ``requested_fields`` behavior is the reference pattern for structural queries over trees. Response-shape conventions for such endpoints are specified in ADR-0036.
 
 Code example (target pagination usage)
 ---------------------------------------
@@ -127,7 +143,7 @@ Positive
 Negative / Trade-offs
 ~~~~~~~~~~~~~~~~~~~~~
 
-* Endpoints that currently return full result sets (e.g., Course Blocks API) will require consumers to implement pagination loops where they previously did not need to.
+* Endpoints that currently return full result sets (e.g., Course Members, Completion) will require consumers to implement pagination loops where they previously did not need to.
 * Requires refactoring views that use ``APIView`` directly without DRF's generic pagination machinery.
 * Migrating ``limit``/``offset`` endpoints to ``page``/``page_size`` is a breaking change for existing consumers of those specific endpoints and must be versioned.
 * Some internal consumers (e.g., modulestore aggregation) may need to be updated to handle paginated results instead of full lists.
@@ -135,8 +151,8 @@ Negative / Trade-offs
 Alternatives Considered
 -----------------------
 
-* **Standardize on LimitOffsetPagination instead of PageNumberPagination**: Rejected because ``edx-drf-extensions`` already ships ``DefaultPagination`` based on ``PageNumberPagination``, and a significant portion of the platform already uses it. Additionally, ``limit``/``offset`` pagination degrades in performance with large offsets because the database must scan and skip all preceding rows, making it unsuitable for large Open edX datasets such as enrollments and completions.
-* **Adopt CursorPagination as the platform standard**: Rejected because cursor-based pagination, while performant for large and frequently-changing datasets, does not support random page access (jumping to page N). This would break existing MFE patterns that display numbered page controls. Cursor pagination also requires a stable, unique, sequential sort key on every queryset, which not all Open edX models guarantee today.
+* **Standardize on LimitOffsetPagination instead of PageNumberPagination**: Rejected because ``edx-drf-extensions`` already ships ``DefaultPagination`` based on ``PageNumberPagination``, and a significant portion of the platform already uses it — standardizing on it minimizes migration churn. Numbered pages are also easier for humans to reason about, bookmark, and share, and map directly onto existing MFE numbered-page UI controls. Note that the two styles have equivalent database query characteristics by default (both emit ``LIMIT ... OFFSET ...`` SQL via Django's core Paginator); the choice here is about ecosystem fit, not query cost.
+* **Adopt CursorPagination as the platform standard**: Rejected because cursor-based pagination does not support random page access (jumping directly to page N), which would break existing MFE numbered-page controls and bookmarkable deep links. The ``CursorPagination`` response envelope (opaque ``next`` / ``previous`` cursors, no ``count``) also differs substantially from what existing Open edX consumers expect, so adoption would require coordinated client-side changes across MFEs and mobile rather than a gradual per-endpoint rollout. ``CursorPagination`` remains a reasonable per-endpoint choice for very large, append-only, or high-churn datasets where numbered pages are not needed.
 * **Allow each API app to choose its own pagination style**: Rejected because this is the current state, and it is the root cause of the inconsistency this ADR aims to resolve.
 * **Do nothing and document the differences**: Rejected because documentation alone does not reduce the integration burden on consumers or prevent future inconsistencies.
 
@@ -155,5 +171,6 @@ References
 
 * ``edx-drf-extensions`` ``DefaultPagination`` class: https://github.com/openedx/edx-drf-extensions/blob/master/edx_rest_framework_extensions/paginators.py
 * Django REST Framework Pagination documentation: https://www.django-rest-framework.org/api-guide/pagination/
+* ADR-0036 — Reduce Deeply Nested JSON via Minimal/Flattened Views (docs/decisions/0036-normalize-deeply-nested-json-apis.rst).
 * Open edX REST API Standards: "Pagination" recommendations for API consistency.
 * Open edX API Thoughts wiki: https://openedx.atlassian.net/wiki/spaces/AC/pages/16646635/API+Thoughts
