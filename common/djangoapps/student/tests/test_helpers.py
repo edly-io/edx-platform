@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import ddt
 from django.conf import settings
 from django.contrib.sessions.middleware import SessionMiddleware
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
 from django.test import TestCase
 from django.test.client import RequestFactory
 from django.test.utils import override_settings
@@ -174,6 +174,29 @@ class TestLoginHelper(TestCase):
         assert next_page == 'http://profile-mfe/u/test-user'
 
     @skip_unless_lms
+    @patch('common.djangoapps.student.helpers.apps.get_model')
+    def test_redirects_to_profile_when_biodata_profile_url_already_includes_user_path(self, mock_get_model):
+        """
+        Test profile URL config ending in /u does not duplicate the user path segment.
+        """
+        user = SimpleNamespace(username='fbrAdmin')
+        declaration_model = Mock()
+        declaration_model.objects.only.return_value.get.side_effect = ObjectDoesNotExist
+        mock_get_model.return_value = declaration_model
+
+        req = self.request.get(settings.LOGIN_URL)
+        req.META["HTTP_ACCEPT"] = "text/html"
+
+        with with_site_configuration_context(
+            configuration={
+                'INDIGO_BIODATA_PROFILE_URL': 'http://apps.local.openedx.io:1995/profile/u',
+            }
+        ):
+            next_page = get_next_url_for_login_page(req, user=user)
+
+        assert next_page == 'http://apps.local.openedx.io:1995/profile/u/fbrAdmin'
+
+    @skip_unless_lms
     @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
     @patch('common.djangoapps.student.helpers.apps.get_model')
     def test_redirects_to_profile_when_biodata_declaration_is_incomplete(self, mock_get_model):
@@ -211,6 +234,52 @@ class TestLoginHelper(TestCase):
 
         next_page = get_next_url_for_login_page(req, user=user)
 
+        assert next_page == '/dashboard'
+
+    @skip_unless_lms
+    @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
+    @patch('common.djangoapps.student.helpers.apps.get_model')
+    def test_redirects_to_profile_when_biodata_declaration_is_unconfirmed_without_submitted_field(
+        self,
+        mock_get_model,
+    ):
+        """
+        Test unconfirmed biodata declarations redirect when the model has no submitted field.
+        """
+        user = SimpleNamespace(username='test-user')
+        declaration = SimpleNamespace(confirmed=False)
+        declaration_model = Mock()
+        declaration_model._meta.get_field.side_effect = FieldDoesNotExist
+        declaration_model.objects.only.return_value.get.return_value = declaration
+        mock_get_model.return_value = declaration_model
+
+        req = self.request.get(settings.LOGIN_URL)
+        req.META["HTTP_ACCEPT"] = "text/html"
+
+        next_page = get_next_url_for_login_page(req, user=user)
+
+        declaration_model.objects.only.assert_called_once_with('confirmed')
+        assert next_page == 'http://profile-mfe/u/test-user'
+
+    @skip_unless_lms
+    @patch('common.djangoapps.student.helpers.apps.get_model')
+    def test_keeps_login_redirect_when_biodata_declaration_is_confirmed_without_submitted_field(self, mock_get_model):
+        """
+        Test confirmed biodata declarations pass when the model has no submitted field.
+        """
+        user = SimpleNamespace(username='test-user')
+        declaration = SimpleNamespace(confirmed=True)
+        declaration_model = Mock()
+        declaration_model._meta.get_field.side_effect = FieldDoesNotExist
+        declaration_model.objects.only.return_value.get.return_value = declaration
+        mock_get_model.return_value = declaration_model
+
+        req = self.request.get(settings.LOGIN_URL)
+        req.META["HTTP_ACCEPT"] = "text/html"
+
+        next_page = get_next_url_for_login_page(req, user=user)
+
+        declaration_model.objects.only.assert_called_once_with('confirmed')
         assert next_page == '/dashboard'
 
     @skip_unless_lms
