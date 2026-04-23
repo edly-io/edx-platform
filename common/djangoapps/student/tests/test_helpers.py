@@ -13,7 +13,11 @@ from django.test.client import RequestFactory
 from django.test.utils import override_settings
 from testfixtures import LogCapture
 
-from common.djangoapps.student.helpers import get_next_url_for_login_page
+from common.djangoapps.student.helpers import (
+    get_biodata_profile_redirect_url,
+    get_next_url_for_login_page,
+    is_administrator_user,
+)
 from openedx.core.djangoapps.site_configuration.tests.test_util import with_site_configuration_context
 from openedx.core.djangolib.testing.utils import skip_unless_lms
 
@@ -215,6 +219,55 @@ class TestLoginHelper(TestCase):
         next_page = get_next_url_for_login_page(req, user=user)
 
         assert next_page == 'http://profile-mfe/u/test-user'
+
+    @ddt.data('administrator', 'is_staff', 'is_superuser')
+    def test_identifies_administrator_user(self, attribute_name):
+        """
+        Test admin-type user attributes are honored for biodata redirects.
+        """
+        user = SimpleNamespace(**{attribute_name: True})
+
+        assert is_administrator_user(user)
+
+    def test_identifies_non_administrator_user(self):
+        """
+        Test regular learner users are not treated as administrator users.
+        """
+        user = SimpleNamespace(username='test-user')
+
+        assert not is_administrator_user(user)
+
+    def test_biodata_profile_redirect_url_returns_none_without_username(self):
+        """
+        Test users without a username are not redirected to the biodata profile.
+        """
+        assert get_biodata_profile_redirect_url(SimpleNamespace()) is None
+
+    @skip_unless_lms
+    @ddt.data('administrator', 'is_staff', 'is_superuser')
+    @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
+    @patch('common.djangoapps.student.helpers.apps.get_model')
+    def test_keeps_login_redirect_for_admin_type_user_with_incomplete_biodata(
+        self,
+        attribute_name,
+        mock_get_model,
+    ):
+        """
+        Test admin-type users are not redirected to profile for incomplete biodata.
+        """
+        user = SimpleNamespace(username='test-user', **{attribute_name: True})
+        declaration = SimpleNamespace(is_submitted=True, confirmed=False)
+        declaration_model = Mock()
+        declaration_model.objects.only.return_value.get.return_value = declaration
+        mock_get_model.return_value = declaration_model
+
+        req = self.request.get(settings.LOGIN_URL)
+        req.META["HTTP_ACCEPT"] = "text/html"
+
+        next_page = get_next_url_for_login_page(req, user=user)
+
+        assert next_page == '/dashboard'
+        mock_get_model.assert_not_called()
 
     @skip_unless_lms
     @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')

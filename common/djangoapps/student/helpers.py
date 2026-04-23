@@ -289,11 +289,25 @@ def _has_submitted_biodata_declaration(user):
     return declaration.confirmed
 
 
+def is_administrator_user(user):
+    """
+    Return whether the user has administrator access for biodata redirects.
+    """
+    return bool(
+        getattr(user, 'administrator', False) or
+        getattr(user, 'is_staff', False) or
+        getattr(user, 'is_superuser', False)
+    )
+
+
 def get_biodata_profile_redirect_url(user):
     """
     Return the learner profile URL when biodata is incomplete, otherwise None.
     """
     if not getattr(user, 'username', None):
+        return None
+
+    if is_administrator_user(user):
         return None
 
     if _has_submitted_biodata_declaration(user):
