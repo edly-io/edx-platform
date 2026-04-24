@@ -111,7 +111,14 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
         return fragment
 
     def _get_iframe_bridge(self, html):
-        """Inject a postMessage bridge for iframe state persistence when content contains an iframe."""
+        """
+        Inject a dual-protocol state bridge into any iframe-based HTML block.
+
+        Supports two types of HTML files without modification to SCORM files:
+          1. SCORM 1.2 files  — exposes window.API in the LMS parent page so the
+             file's findAPI(window) call succeeds automatically.
+          2. postMessage files — listens for xblock_save and sends xblock_restore.
+        """
         if '<iframe' not in html.lower():
             return ''
         try:
@@ -119,9 +126,6 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
             get_url = self.runtime.handler_url(self, 'get_iframe_state')
         except Exception:  # pylint: disable=broad-except
             return ''
-        # Use a stable, unique ID derived from the block's usage_id so the bridge
-        # finds the correct iframe even when multiple IFrame blocks are on the same page.
-        # document.currentScript is null when edX's JavascriptLoader executes scripts async.
         safe_id = re.sub(r'[^a-zA-Z0-9]', '-', str(self.scope_ids.usage_id))
         bridge_id = f'xblock-bridge-{safe_id}'
         return f'''<span id="{bridge_id}" style="display:none" \
@@ -134,48 +138,112 @@ data-save="{save_url}" data-get="{get_url}"></span>
     var SAVE_URL = el.getAttribute('data-save');
     var GET_URL = el.getAttribute('data-get');
     var iframe = el.parentElement && el.parentElement.querySelector('iframe');
-    if (!iframe) return;
+    if (!iframe) {{ console.warn('[xblock bridge] no iframe found'); return; }}
+
+    var _state = {{}};
+    var _stateLoaded = false;
 
     function getCsrf() {{
       var m = document.cookie.match(/csrftoken=([^;]+)/);
       return m ? m[1] : '';
     }}
 
-    function restoreState() {{
-      fetch(GET_URL, {{
-        method: 'POST',
-        headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
-        body: '{{}}'
-      }})
-        .then(function(r) {{ return r.json(); }})
-        .then(function(state) {{
-          console.log('[iframe bridge] got state from server', state);
-          if (state && Object.keys(state).length > 0) {{
-            console.log('[iframe bridge] sending xblock_restore to iframe');
-            iframe.contentWindow.postMessage({{type: 'xblock_restore', state: state}}, '*');
-          }}
-        }})
-        .catch(function(err) {{ console.error('[iframe bridge] restore failed', err); }});
-    }}
-
-    var alreadyLoaded = false;
-    try {{ alreadyLoaded = iframe.contentDocument && iframe.contentDocument.readyState === 'complete'; }} catch (e) {{}}
-    if (alreadyLoaded) {{
-      restoreState();
-    }} else {{
-      iframe.addEventListener('load', restoreState);
-      // Cross-origin iframes may already be loaded; fallback after 1 s
-      setTimeout(function() {{ if (iframe.contentWindow) restoreState(); }}, 1000);
-    }}
-
-    window.addEventListener('message', function(e) {{
-      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
-      if (!e.data || e.data.type !== 'xblock_save') return;
+    function saveToXBlock(data) {{
       fetch(SAVE_URL, {{
         method: 'POST',
         headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
-        body: JSON.stringify(e.data.state)
-      }}).catch(function(err) {{ console.error('[iframe bridge] save failed', err); }});
+        body: JSON.stringify(data)
+      }}).catch(function(err) {{ console.error('[xblock bridge] save failed', err); }});
+    }}
+
+    // ── SCORM 1.2 API ────────────────────────────────────────────────────────
+    // SCORM files call findAPI(window) which walks window.parent.
+    // We expose window.API here so SCORM files find it with zero modification.
+    window.API = {{
+      LMSInitialize: function(s) {{
+        // If async fetch hasn't finished, load synchronously as fallback
+        if (!_stateLoaded) {{
+          try {{
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', GET_URL, false);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-CSRFToken', getCsrf());
+            xhr.send('{{}}');
+            if (xhr.status === 200) {{ _state = JSON.parse(xhr.responseText) || {{}}; }}
+            _stateLoaded = true;
+          }} catch(e) {{ console.warn('[xblock bridge] SCORM sync load failed', e); }}
+        }}
+        console.log('[xblock bridge] SCORM LMSInitialize, state:', _state);
+        return 'true';
+      }},
+      LMSFinish: function(s) {{ saveToXBlock(_state); return 'true'; }},
+      LMSGetValue: function(key) {{
+        if (key === 'cmi.core.lesson_location') return String(_state.location || '');
+        if (key === 'cmi.suspend_data') {{
+          var d = _state.suspend_data;
+          if (!d) return '';
+          return typeof d === 'string' ? d : JSON.stringify(d);
+        }}
+        if (key === 'cmi.core.lesson_status') return String(_state.status || 'incomplete');
+        if (key === 'cmi.core.score.raw') return String(_state.score || '');
+        if (key === 'cmi.core.score.max') return '100';
+        if (key === 'cmi.core.score.min') return '0';
+        return '';
+      }},
+      LMSSetValue: function(key, val) {{
+        if (key === 'cmi.core.lesson_location') _state.location = val;
+        else if (key === 'cmi.suspend_data') {{
+          try {{ _state.suspend_data = JSON.parse(val); }} catch(e) {{ _state.suspend_data = val; }}
+        }}
+        else if (key === 'cmi.core.lesson_status') _state.status = val;
+        else if (key === 'cmi.core.score.raw') _state.score = parseFloat(val) || 0;
+        return 'true';
+      }},
+      LMSCommit: function(s) {{ saveToXBlock(_state); return 'true'; }},
+      LMSGetLastError: function() {{ return '0'; }},
+      LMSGetErrorString: function(e) {{ return ''; }},
+      LMSGetDiagnostic: function(e) {{ return ''; }}
+    }};
+
+    // ── postMessage bridge ────────────────────────────────────────────────────
+    // For non-SCORM files: call window.parent.postMessage({{type:'xblock_save', state:{{...}}}}, '*')
+    // to save, and listen for xblock_restore to restore.
+    window.addEventListener('message', function(e) {{
+      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+      if (!e.data || e.data.type !== 'xblock_save') return;
+      _state = e.data.state;
+      saveToXBlock(_state);
+    }});
+
+    function sendRestore() {{
+      if (!_state || Object.keys(_state).length === 0) return;
+      try {{
+        iframe.contentWindow.postMessage({{type: 'xblock_restore', state: _state}}, '*');
+        console.log('[xblock bridge] sent xblock_restore', _state);
+      }} catch(e) {{ console.error('[xblock bridge] postMessage failed', e); }}
+    }}
+
+    // Fetch saved state immediately so SCORM state is ready before LMSInitialize
+    fetch(GET_URL, {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
+      body: '{{}}'
+    }})
+      .then(function(r) {{ return r.json(); }})
+      .then(function(state) {{
+        console.log('[xblock bridge] loaded state from server:', state);
+        _state = state || {{}};
+        _stateLoaded = true;
+      }})
+      .catch(function(err) {{
+        console.error('[xblock bridge] get state failed', err);
+        _stateLoaded = true;
+      }});
+
+    // Send xblock_restore after iframe loads (postMessage protocol)
+    iframe.addEventListener('load', function() {{
+      function doRestore() {{ if (_stateLoaded) {{ sendRestore(); }} else {{ setTimeout(doRestore, 50); }} }}
+      doRestore();
     }});
   }}
 
