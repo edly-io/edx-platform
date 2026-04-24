@@ -14,7 +14,7 @@ from lxml import etree
 from path import Path as path
 from web_fragments.fragment import Fragment
 from xblock.core import XBlock
-from xblock.fields import Boolean, List, Scope, String
+from xblock.fields import Boolean, Dict, List, Scope, String
 from xblocks_contrib.html import HtmlBlock as _ExtractedHtmlBlock
 
 from common.djangoapps.xblock_django.constants import ATTR_KEY_DEPRECATED_ANONYMOUS_USER_ID
@@ -77,6 +77,11 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
         default=False,
         scope=Scope.settings
     )
+    iframe_state = Dict(
+        help=_("Persisted learner state for iframe-based content"),
+        default={},
+        scope=Scope.user_state,
+    )
     editor = String(
         help=_(
             "Select Visual to enter content and have the editor automatically create the HTML. Select Raw to edit "
@@ -98,11 +103,132 @@ class HtmlBlockMixin(  # lint-amnesty, pylint: disable=abstract-method
         """
         Return a fragment that contains the html for the student view
         """
-        fragment = Fragment(self.get_html())
+        html = self.get_html()
+        fragment = Fragment(html + self._get_iframe_bridge(html))
         add_css_to_fragment(fragment, 'HtmlBlockDisplay.css')
         add_webpack_js_to_fragment(fragment, 'HtmlBlockDisplay')
         shim_xmodule_js(fragment, 'HTMLModule')
         return fragment
+
+    def _get_iframe_bridge(self, html):
+        """Inject a postMessage bridge for iframe state persistence when content contains an iframe."""
+        if '<iframe' not in html.lower():
+            return ''
+        try:
+            save_url = self.runtime.handler_url(self, 'save_iframe_state')
+            get_url = self.runtime.handler_url(self, 'get_iframe_state')
+        except Exception:  # pylint: disable=broad-except
+            return ''
+        # Use a stable, unique ID derived from the block's usage_id so the bridge
+        # finds the correct iframe even when multiple IFrame blocks are on the same page.
+        # document.currentScript is null when edX's JavascriptLoader executes scripts async.
+        safe_id = re.sub(r'[^a-zA-Z0-9]', '-', str(self.scope_ids.usage_id))
+        bridge_id = f'xblock-bridge-{safe_id}'
+        return f'''<span id="{bridge_id}" style="display:none" \
+data-save="{save_url}" data-get="{get_url}"></span>
+<script>
+(function() {{
+  function run() {{
+    var el = document.getElementById('{bridge_id}');
+    if (!el) return;
+    var SAVE_URL = el.getAttribute('data-save');
+    var GET_URL = el.getAttribute('data-get');
+    var iframe = el.parentElement && el.parentElement.querySelector('iframe');
+    if (!iframe) return;
+
+    function getCsrf() {{
+      var m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : '';
+    }}
+
+    function restoreState() {{
+      fetch(GET_URL, {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
+        body: '{{}}'
+      }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(state) {{
+          console.log('[iframe bridge] got state from server', state);
+          if (state && Object.keys(state).length > 0) {{
+            console.log('[iframe bridge] sending xblock_restore to iframe');
+            iframe.contentWindow.postMessage({{type: 'xblock_restore', state: state}}, '*');
+          }}
+        }})
+        .catch(function(err) {{ console.error('[iframe bridge] restore failed', err); }});
+    }}
+
+    var alreadyLoaded = false;
+    try {{ alreadyLoaded = iframe.contentDocument && iframe.contentDocument.readyState === 'complete'; }} catch (e) {{}}
+    if (alreadyLoaded) {{
+      restoreState();
+    }} else {{
+      iframe.addEventListener('load', restoreState);
+      // Cross-origin iframes may already be loaded; fallback after 1 s
+      setTimeout(function() {{ if (iframe.contentWindow) restoreState(); }}, 1000);
+    }}
+
+    window.addEventListener('message', function(e) {{
+      if (!iframe.contentWindow || e.source !== iframe.contentWindow) return;
+      if (!e.data || e.data.type !== 'xblock_save') return;
+      fetch(SAVE_URL, {{
+        method: 'POST',
+        headers: {{'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()}},
+        body: JSON.stringify(e.data.state)
+      }}).catch(function(err) {{ console.error('[iframe bridge] save failed', err); }});
+    }});
+  }}
+
+  if (document.readyState === 'loading') {{ document.addEventListener('DOMContentLoaded', run); }}
+  else {{ run(); }}
+}})();
+</script>'''
+
+    def _iframe_state_db_key(self):
+        """Return (user, course_id, usage_key) needed to look up StudentModule directly."""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user_service = self.runtime.service(self, 'user')
+        current_user = user_service.get_current_user()
+        user = User.objects.get(id=current_user.opt_attrs.get('edx-platform.user_id'))
+        return user, self.scope_ids.usage_id.context_key, self.scope_ids.usage_id
+
+    @XBlock.json_handler
+    def save_iframe_state(self, data, suffix=''):
+        """Persist learner state sent from an iframe via postMessage."""
+        import json as _json
+        try:
+            from lms.djangoapps.courseware.models import StudentModule
+            user, course_id, usage_key = self._iframe_state_db_key()
+            StudentModule.objects.update_or_create(
+                student=user,
+                course_id=course_id,
+                module_state_key=usage_key,
+                defaults={
+                    'state': _json.dumps({'iframe_state': data}),
+                    'module_type': 'html',
+                },
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.exception("[iframe_bridge] save failed: %s", exc)
+            return {'status': 'error', 'message': str(exc)}
+        return {'status': 'ok'}
+
+    @XBlock.json_handler
+    def get_iframe_state(self, data, suffix=''):
+        """Return the persisted learner state for the iframe."""
+        import json as _json
+        try:
+            from lms.djangoapps.courseware.models import StudentModule
+            user, course_id, usage_key = self._iframe_state_db_key()
+            sm = StudentModule.objects.get(
+                student=user,
+                course_id=course_id,
+                module_state_key=usage_key,
+            )
+            return _json.loads(sm.state).get('iframe_state', {})
+        except Exception:  # pylint: disable=broad-except
+            return {}
 
     @XBlock.supports("multi_device")
     def public_view(self, context):
