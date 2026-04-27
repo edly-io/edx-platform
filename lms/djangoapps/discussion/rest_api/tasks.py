@@ -7,6 +7,7 @@ from celery import shared_task
 from django.contrib.auth import get_user_model
 from edx_django_utils.monitoring import set_code_owner_attribute
 from eventtracking import tracker
+from forum import api as forum_api
 from opaque_keys.edx.locator import CourseKey
 
 from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRole
@@ -99,8 +100,12 @@ def delete_course_post_for_user(user_id, username, course_ids, event_data=None):
     """
     event_data = event_data or {}
     log.info(f"<<Bulk Delete>> Deleting all posts for {username} in course {course_ids}")
-    threads_deleted = Thread.delete_user_threads(user_id, course_ids)
-    comments_deleted = Comment.delete_user_comments(user_id, course_ids)
+    threads_deleted = 0
+    comments_deleted = 0
+    for course_id in course_ids:
+        counts = forum_api.delete_user_posts(str(user_id), course_id)
+        threads_deleted += counts["thread_count"]
+        comments_deleted += counts["comment_count"]
     log.info(f"<<Bulk Delete>> Deleted {threads_deleted} posts and {comments_deleted} comments for {username} "
              f"in course {course_ids}")
     event_data.update({
