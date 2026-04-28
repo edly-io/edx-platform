@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.urls import re_path, path
+from rest_framework.routers import DefaultRouter
 
 from openedx.core.constants import COURSE_ID_PATTERN
 
@@ -9,6 +10,7 @@ from .views import (
     AdvancedCourseSettingsView,
     APIHeartBeatView,
     AuthoringGradingView,
+    AuthoringGradingViewSet,
     CourseTabListView,
     CourseTabReorderView,
     CourseTabSettingsView,
@@ -26,9 +28,14 @@ from .views import xblock
 
 app_name = "v0"
 
+# ADR 0028: AuthoringGradingViewSet registered via DefaultRouter.
+# Generates: PATCH /grading/{course_id}/  (authoring-grading-detail)
+router = DefaultRouter()
+router.register(r'grading', AuthoringGradingViewSet, basename='authoring-grading')
+
 VIDEO_ID_PATTERN = r'(?P<edx_video_id>[-\w]+)'
 
-urlpatterns = [
+urlpatterns = router.urls + [
     re_path(
         fr"^advanced_settings/{COURSE_ID_PATTERN}$",
         AdvancedCourseSettingsView.as_view(),
@@ -66,6 +73,8 @@ urlpatterns = [
         fr'^videos/encodings/{settings.COURSE_ID_PATTERN}$',
         authoring_videos.VideoEncodingsDownloadView.as_view(), name='cms_api_videos_encodings'
     ),
+    # DEPRECATED (ADR 0028): POST /grading/{course_id} kept for backward compatibility.
+    # Will be removed after one named release. Use PATCH grading/{course_id}/ (router URL) instead.
     re_path(
         fr'grading/{settings.COURSE_ID_PATTERN}$',
         AuthoringGradingView.as_view(), name='cms_api_update_grading'
