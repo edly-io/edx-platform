@@ -2375,3 +2375,148 @@ class UserRoleViewResponseShapeTest(ModuleStoreTestCase):
         CourseStaffRole(course2.id).add_users(self.user)
         body = self._get_roles(course_id=str(self.course.id)).json()
         assert all(r['course_id'] == str(self.course.id) for r in body['roles'])
+
+
+# ---------------------------------------------------------------------------
+# ADR 0028 – EnrollmentViewSet permission regression tests
+# ---------------------------------------------------------------------------
+
+@skip_unless_lms
+class TestEnrollmentViewSetList(APITestCase):
+    """
+    ADR 0028 – permission regression tests for EnrollmentViewSet.list (GET /enrollment/).
+    Migrated from EnrollmentListView.
+    """
+    API_KEY = "test-api-key"
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create(password="test")
+        self.url = reverse("enrollment-list")
+
+    def test_unauthenticated_gets_401(self):
+        """Unauthenticated request must be rejected."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    @patch("openedx.core.djangoapps.enrollments.views.CourseEnrollment.objects")
+    def test_authenticated_user_gets_200(self, mock_objects):
+        """An authenticated user must reach the list action (permission check passes)."""
+        mock_objects.filter.return_value.select_related.return_value = []
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+
+    @patch("openedx.core.djangoapps.enrollments.views.CourseEnrollment.objects")
+    def test_valid_api_key_gets_200(self, mock_objects):
+        """A valid API key must bypass session auth and reach the list action."""
+        mock_objects.filter.return_value.select_related.return_value = []
+        with override_settings(EDX_API_KEY=self.API_KEY):
+            response = self.client.get(self.url, HTTP_X_EDX_API_KEY=self.API_KEY)
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_invalid_api_key_without_session_gets_401(self):
+        """An invalid API key without session auth must be rejected."""
+        response = self.client.get(self.url, HTTP_X_EDX_API_KEY="wrong-key")
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@skip_unless_lms
+class TestEnrollmentViewSetCreate(APITestCase):
+    """
+    ADR 0028 – permission regression tests for EnrollmentViewSet.create (POST /enrollment/).
+    Migrated from EnrollmentListView.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create(password="test")
+        self.url = reverse("enrollment-list")
+
+    def test_unauthenticated_post_gets_401(self):
+        """Unauthenticated POST must be rejected."""
+        response = self.client.post(self.url, data={}, content_type="application/json")
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_authenticated_post_missing_course_id_gets_400(self):
+        """Authenticated POST without course_id must return 400."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(self.url, data={}, content_type="application/json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@skip_unless_lms
+class TestEnrollmentViewSetUnenroll(APITestCase):
+    """
+    ADR 0028 – permission regression tests for EnrollmentViewSet.unenroll (POST /enrollment/unenroll/).
+    Migrated from UnenrollmentView. Requires IsAuthenticated + CanRetireUser.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create(password="test")
+        self.url = reverse("enrollment-unenroll")
+
+    def test_unauthenticated_gets_401(self):
+        """Unauthenticated request must be rejected."""
+        response = self.client.post(self.url, data={"username": self.user.username}, content_type="application/json")
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_authenticated_non_retirement_user_gets_403(self):
+        """An authenticated user without CanRetireUser permission must get 403."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(self.url, data={"username": self.user.username}, content_type="application/json")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@skip_unless_lms
+class TestEnrollmentViewSetAllowed(APITestCase):
+    """
+    ADR 0028 – permission regression tests for EnrollmentViewSet.allowed
+    (GET/POST/DELETE /enrollment/enrollment_allowed/). Migrated from EnrollmentAllowedView.
+    Requires IsAdminUser.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create(password="test")
+        self.admin = AdminFactory.create(password="test")
+        self.url = reverse("enrollment-allowed")
+
+    def test_unauthenticated_get_gets_401(self):
+        """Unauthenticated GET must be rejected."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_non_admin_get_gets_403(self):
+        """Regular authenticated user must get 403."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_admin_get_gets_200(self):
+        """Admin user must get 200 and an empty list."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+    def test_non_admin_post_gets_403(self):
+        """Regular authenticated user POST must get 403."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            self.url,
+            data={"email": "test@example.com", "course_id": "course-v1:edX+DemoX+Demo_Course"},
+            content_type="application/json",
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_non_admin_delete_gets_403(self):
+        """Regular authenticated user DELETE must get 403."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.delete(
+            self.url,
+            data={"email": "test@example.com", "course_id": "course-v1:edX+DemoX+Demo_Course"},
+            content_type="application/json",
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
