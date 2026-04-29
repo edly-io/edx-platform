@@ -3,6 +3,14 @@ Public rest API endpoints for the CMS API.
 """
 import json
 import logging
+
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiParameter,
+    OpenApiRequest,
+    OpenApiResponse,
+)
 from rest_framework import viewsets
 from rest_framework.generics import RetrieveUpdateDestroyAPIView, CreateAPIView
 from django.views.decorators.csrf import csrf_exempt
@@ -25,6 +33,31 @@ from .utils import validate_request_with_serializer
 
 log = logging.getLogger(__name__)
 handle_xblock = view_handlers.handle_xblock
+
+
+_COURSE_ID_PARAMETER = OpenApiParameter(
+    name="course_id",
+    description="Course ID",
+    required=True,
+    type=str,
+    location=OpenApiParameter.PATH,
+)
+_USAGE_KEY_PARAMETER = OpenApiParameter(
+    name="usage_key_string",
+    description=(
+        "XBlock identifier, e.g. "
+        "'block-v1:<course id>+type@<type>+block@<block id>'."
+    ),
+    required=True,
+    type=str,
+    location=OpenApiParameter.PATH,
+)
+_COMMON_ERROR_RESPONSES = {
+    400: OpenApiResponse(description="Bad request - invalid data."),
+    401: OpenApiResponse(description="The requester is not authenticated."),
+    403: OpenApiResponse(description="The requester cannot access the specified course."),
+    404: OpenApiResponse(description="The requested course or xblock does not exist."),
+}
 
 
 # ADR 0028 – consolidated from XblockView and XblockCreateView
@@ -109,26 +142,88 @@ class XblockViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
         super().initial(request, *args, **kwargs)
 
     # pylint: disable=arguments-differ
+    @extend_schema(
+        summary="Retrieve an xblock",
+        description="Retrieve an xblock by its usage key.",
+        parameters=[_USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock retrieved successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
     @expect_json_in_class_view
     def retrieve(self, request, usage_key_string=None, **kwargs):
         return handle_xblock(request, usage_key_string)
 
+    @extend_schema(
+        summary="Create a new xblock",
+        description=(
+            "Create a new xblock. The parent xblock is identified via "
+            "``parent_locator`` in the request body."
+        ),
+        request=OpenApiRequest(request=XblockSerializer),
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock created successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
     @csrf_exempt
     @expect_json_in_class_view
     @validate_request_with_serializer
     def create(self, request, **kwargs):
         return handle_xblock(request, None)
 
+    @extend_schema(
+        summary="Update an xblock",
+        description="Replace an xblock's data.",
+        request=OpenApiRequest(request=XblockSerializer),
+        parameters=[_USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock updated successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
     @expect_json_in_class_view
     @validate_request_with_serializer
     def update(self, request, usage_key_string=None, **kwargs):
         return handle_xblock(request, usage_key_string)
 
+    @extend_schema(
+        summary="Partially update an xblock",
+        description="Patch an xblock's data.",
+        request=OpenApiRequest(request=XblockSerializer),
+        parameters=[_USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock updated successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
     @expect_json_in_class_view
     @validate_request_with_serializer
     def partial_update(self, request, usage_key_string=None, **kwargs):
         return handle_xblock(request, usage_key_string)
 
+    @extend_schema(
+        summary="Delete an xblock",
+        description="Delete an xblock by its usage key.",
+        parameters=[_USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(description="XBlock deleted successfully."),
+            **_COMMON_ERROR_RESPONSES,
+        },
+    )
     @expect_json_in_class_view
     def destroy(self, request, usage_key_string=None, **kwargs):
         return handle_xblock(request, usage_key_string)
@@ -136,6 +231,71 @@ class XblockViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
 
 # DEPRECATED (ADR 0028): Use XblockViewSet instead.
 # Will be removed after one named release. Use GET/PUT/PATCH/DELETE xblock/{usage_key_string}/ instead.
+@extend_schema_view(
+    get=extend_schema(
+        operation_id="v0_xblock_retrieve_deprecated",
+        summary="Retrieve an xblock (deprecated)",
+        description=(
+            "Deprecated. Use GET /api/contentstore/v0/xblock/{usage_key_string}/ instead."
+        ),
+        parameters=[_COURSE_ID_PARAMETER, _USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock retrieved successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+        deprecated=True,
+    ),
+    put=extend_schema(
+        operation_id="v0_xblock_update_deprecated",
+        summary="Update an xblock (deprecated)",
+        description=(
+            "Deprecated. Use PUT /api/contentstore/v0/xblock/{usage_key_string}/ instead."
+        ),
+        request=OpenApiRequest(request=XblockSerializer),
+        parameters=[_COURSE_ID_PARAMETER, _USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock updated successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+        deprecated=True,
+    ),
+    patch=extend_schema(
+        operation_id="v0_xblock_partial_update_deprecated",
+        summary="Partially update an xblock (deprecated)",
+        description=(
+            "Deprecated. Use PATCH /api/contentstore/v0/xblock/{usage_key_string}/ instead."
+        ),
+        request=OpenApiRequest(request=XblockSerializer),
+        parameters=[_COURSE_ID_PARAMETER, _USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock updated successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+        deprecated=True,
+    ),
+    delete=extend_schema(
+        operation_id="v0_xblock_destroy_deprecated",
+        summary="Delete an xblock (deprecated)",
+        description=(
+            "Deprecated. Use DELETE /api/contentstore/v0/xblock/{usage_key_string}/ instead."
+        ),
+        parameters=[_COURSE_ID_PARAMETER, _USAGE_KEY_PARAMETER],
+        responses={
+            200: OpenApiResponse(description="XBlock deleted successfully."),
+            **_COMMON_ERROR_RESPONSES,
+        },
+        deprecated=True,
+    ),
+)
 class XblockView(DeveloperErrorViewMixin, RetrieveUpdateDestroyAPIView):
     """
     Public rest API endpoints for the CMS API.
@@ -180,6 +340,23 @@ class XblockView(DeveloperErrorViewMixin, RetrieveUpdateDestroyAPIView):
 
 # DEPRECATED (ADR 0028): Use XblockViewSet instead.
 # Will be removed after one named release. Use POST xblock/ instead.
+@extend_schema_view(
+    post=extend_schema(
+        operation_id="v0_xblock_create_deprecated",
+        summary="Create a new xblock (deprecated)",
+        description="Deprecated. Use POST /api/contentstore/v0/xblock/ instead.",
+        request=OpenApiRequest(request=XblockSerializer),
+        parameters=[_COURSE_ID_PARAMETER],
+        responses={
+            200: OpenApiResponse(
+                response=XblockSerializer,
+                description="XBlock created successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
+        },
+        deprecated=True,
+    ),
+)
 class XblockCreateView(DeveloperErrorViewMixin, CreateAPIView):
     """
     Public rest API endpoints for the CMS API.
