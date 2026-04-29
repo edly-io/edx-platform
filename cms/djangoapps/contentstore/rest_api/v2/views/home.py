@@ -1,7 +1,12 @@
 """HomePageCoursesViewV2 APIView for getting content available to the logged in user."""
 
-import edx_api_doc_tools as apidocs
 from collections import OrderedDict
+
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiParameter,
+    OpenApiResponse,
+)
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,6 +18,29 @@ from edx_rest_framework_extensions.auth.session.authentication import SessionAut
 
 from cms.djangoapps.contentstore.utils import get_course_context_v2
 from cms.djangoapps.contentstore.rest_api.v2.serializers import CourseHomeTabSerializerV2
+
+
+def _query_param(name: str, description: str) -> OpenApiParameter:
+    """Build a string-typed, optional query parameter (preserves api-doc-tools behavior)."""
+    return OpenApiParameter(
+        name=name,
+        description=description,
+        required=False,
+        type=str,
+        location=OpenApiParameter.QUERY,
+    )
+
+
+_HOME_COURSES_QUERY_PARAMETERS = [
+    _query_param("org", "Query param to filter by course org"),
+    _query_param("search", "Query param to filter by course name, org, or number"),
+    _query_param("order", "Query param to order by course name, org, or number"),
+    _query_param("active_only", "Query param to filter by active courses only"),
+    _query_param("archived_only", "Query param to filter by archived courses only"),
+    _query_param("page", "Query param to paginate the courses"),
+    _query_param("page_size", "Query param to set page size"),
+]
+_UNAUTHENTICATED_RESPONSE = OpenApiResponse(description="The requester is not authenticated.")
 
 
 class HomePageCoursesPaginator(PageNumberPagination):
@@ -60,47 +88,19 @@ class HomeCoursesViewSetV2(viewsets.ViewSet):
         """Instantiate and return the configured serializer class."""
         return self.serializer_class(*args, **kwargs)
 
-    @apidocs.schema(
-        parameters=[
-            apidocs.string_parameter(
-                "org",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by course org",
-            ),
-            apidocs.string_parameter(
-                "search",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by course name, org, or number",
-            ),
-            apidocs.string_parameter(
-                "order",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to order by course name, org, or number",
-            ),
-            apidocs.string_parameter(
-                "active_only",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by active courses only",
-            ),
-            apidocs.string_parameter(
-                "archived_only",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by archived courses only",
-            ),
-            apidocs.string_parameter(
-                "page",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to paginate the courses",
-            ),
-            apidocs.string_parameter(
-                "page_size",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to set page size",
-            ),
-        ],
+    @extend_schema(
+        summary="List courses for the Studio home page (paginated)",
+        description=(
+            "Returns a paginated list of all courses available to the logged-in user, "
+            "with optional filtering and ordering."
+        ),
+        parameters=_HOME_COURSES_QUERY_PARAMETERS,
         responses={
-            200: CourseHomeTabSerializerV2,
-            401: "The requester is not authenticated.",
+            200: OpenApiResponse(
+                response=CourseHomeTabSerializerV2,
+                description="Paginated course list retrieved successfully.",
+            ),
+            401: _UNAUTHENTICATED_RESPONSE,
         },
     )
     def list(self, request: Request):
@@ -145,48 +145,21 @@ class HomePageCoursesViewV2(APIView):
     permission_classes = (IsAuthenticated,)
     serializer_class = CourseHomeTabSerializerV2
 
-    @apidocs.schema(
-        parameters=[
-            apidocs.string_parameter(
-                "org",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by course org",
-            ),
-            apidocs.string_parameter(
-                "search",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by course name, org, or number",
-            ),
-            apidocs.string_parameter(
-                "order",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to order by course name, org, or number",
-            ),
-            apidocs.string_parameter(
-                "active_only",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by active courses only",
-            ),
-            apidocs.string_parameter(
-                "archived_only",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to filter by archived courses only",
-            ),
-            apidocs.string_parameter(
-                "page",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to paginate the courses",
-            ),
-            apidocs.string_parameter(
-                "page_size",
-                apidocs.ParameterLocation.QUERY,
-                description="Query param to set page size",
-            ),
-        ],
+    @extend_schema(
+        operation_id="v2_home_courses_retrieve_deprecated",
+        summary="List courses for the Studio home page (deprecated)",
+        description=(
+            "Deprecated. Use GET /api/contentstore/v2/home/courses/ instead."
+        ),
+        parameters=_HOME_COURSES_QUERY_PARAMETERS,
         responses={
-            200: CourseHomeTabSerializerV2,
-            401: "The requester is not authenticated.",
+            200: OpenApiResponse(
+                response=CourseHomeTabSerializerV2,
+                description="Paginated course list retrieved successfully.",
+            ),
+            401: _UNAUTHENTICATED_RESPONSE,
         },
+        deprecated=True,
     )
     def get(self, request: Request):
         """
