@@ -1,6 +1,11 @@
 """ API Views for course details """
 
-import edx_api_doc_tools as apidocs
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiParameter,
+    OpenApiRequest,
+    OpenApiResponse,
+)
 from django.core.exceptions import ValidationError
 from common.djangoapps.util.json_request import JsonResponseBadRequest
 from opaque_keys.edx.keys import CourseKey
@@ -20,6 +25,20 @@ from ..serializers import CourseDetailsSerializer
 from ....utils import update_course_details
 
 
+_COURSE_ID_PARAMETER = OpenApiParameter(
+    name="course_id",
+    description="Course ID",
+    required=True,
+    type=str,
+    location=OpenApiParameter.PATH,
+)
+_COMMON_ERROR_RESPONSES = {
+    401: OpenApiResponse(description="The requester is not authenticated."),
+    403: OpenApiResponse(description="The requester cannot access the specified course."),
+    404: OpenApiResponse(description="The requested course does not exist."),
+}
+
+
 # ADR 0028 – consolidated from CourseDetailsView
 class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
     """
@@ -30,7 +49,7 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
       PUT  /api/contentstore/v1/course_details/{course_id}/  → update
 
     ADR 0025 compliance notes:
-    - ``serializer_class`` declared; used for both response serialization and apidocs schema.
+    - ``serializer_class`` declared; used for both response serialization and OpenAPI schema.
     - Request validation is handled by ``update_course_details()`` (service layer) and
       the ``@verify_course_exists()`` decorator.
     """
@@ -43,15 +62,16 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
     lookup_field = 'course_id'
     lookup_value_regex = r'[^/+]+(?:/|\+)[^/+]+(?:/|\+)[^/?]+'
 
-    @apidocs.schema(
-        parameters=[
-            apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
-        ],
+    @extend_schema(
+        summary="Retrieve a course's details",
+        description="Get an object containing all the course details for the specified course.",
+        parameters=[_COURSE_ID_PARAMETER],
         responses={
-            200: CourseDetailsSerializer,
-            401: "The requester is not authenticated.",
-            403: "The requester cannot access the specified course.",
-            404: "The requested course does not exist.",
+            200: OpenApiResponse(
+                response=CourseDetailsSerializer,
+                description="Course details retrieved successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
         },
     )
     @verify_course_exists()
@@ -75,16 +95,18 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
         serializer = self.serializer_class(course_details)
         return Response(serializer.data)
 
-    @apidocs.schema(
-        body=CourseDetailsSerializer,
-        parameters=[
-            apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
-        ],
+    @extend_schema(
+        summary="Update a course's details",
+        description="Update the details for the specified course.",
+        request=OpenApiRequest(request=CourseDetailsSerializer),
+        parameters=[_COURSE_ID_PARAMETER],
         responses={
-            200: CourseDetailsSerializer,
-            401: "The requester is not authenticated.",
-            403: "The requester cannot access the specified course.",
-            404: "The requested course does not exist.",
+            200: OpenApiResponse(
+                response=CourseDetailsSerializer,
+                description="Course details updated successfully.",
+            ),
+            400: OpenApiResponse(description="Bad request - invalid data."),
+            **_COMMON_ERROR_RESPONSES,
         },
     )
     @verify_course_exists()
@@ -129,16 +151,21 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
     authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
     permission_classes = (IsAuthenticated, HasStudioReadAccess)
     serializer_class = CourseDetailsSerializer
-    @apidocs.schema(
-        parameters=[
-            apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
-        ],
+    @extend_schema(
+        operation_id="v1_course_details_retrieve_deprecated",
+        summary="Retrieve a course's details (deprecated)",
+        description=(
+            "Deprecated. Use GET /api/contentstore/v1/course_details/{course_id}/ instead."
+        ),
+        parameters=[_COURSE_ID_PARAMETER],
         responses={
-            200: CourseDetailsSerializer,
-            401: "The requester is not authenticated.",
-            403: "The requester cannot access the specified course.",
-            404: "The requested course does not exist.",
+            200: OpenApiResponse(
+                response=CourseDetailsSerializer,
+                description="Course details retrieved successfully.",
+            ),
+            **_COMMON_ERROR_RESPONSES,
         },
+        deprecated=True,
     )
     @verify_course_exists()
     def get(self, request: Request, course_id: str):
@@ -210,17 +237,23 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
         serializer = self.serializer_class(course_details)
         return Response(serializer.data)
 
-    @apidocs.schema(
-        body=CourseDetailsSerializer,
-        parameters=[
-            apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
-        ],
+    @extend_schema(
+        operation_id="v1_course_details_update_deprecated",
+        summary="Update a course's details (deprecated)",
+        description=(
+            "Deprecated. Use PUT /api/contentstore/v1/course_details/{course_id}/ instead."
+        ),
+        request=OpenApiRequest(request=CourseDetailsSerializer),
+        parameters=[_COURSE_ID_PARAMETER],
         responses={
-            200: CourseDetailsSerializer,
-            401: "The requester is not authenticated.",
-            403: "The requester cannot access the specified course.",
-            404: "The requested course does not exist.",
+            200: OpenApiResponse(
+                response=CourseDetailsSerializer,
+                description="Course details updated successfully.",
+            ),
+            400: OpenApiResponse(description="Bad request - invalid data."),
+            **_COMMON_ERROR_RESPONSES,
         },
+        deprecated=True,
     )
     @verify_course_exists()
     def put(self, request: Request, course_id: str):
