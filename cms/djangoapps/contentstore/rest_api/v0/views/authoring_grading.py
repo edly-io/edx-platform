@@ -1,6 +1,11 @@
 """ API Views for course grading settings """
 
-import edx_api_doc_tools as apidocs
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiParameter,
+    OpenApiRequest,
+    OpenApiResponse,
+)
 from opaque_keys.edx.keys import CourseKey
 from rest_framework import viewsets
 from rest_framework.request import Request
@@ -44,16 +49,27 @@ class AuthoringGradingViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
         """Return a serializer instance using the configured serializer_class."""
         return self.serializer_class(*args, **kwargs)
 
-    @apidocs.schema(
-        body=CourseGradingModelSerializer,
+    @extend_schema(
+        summary="Update a course's grading settings",
+        description="Partially update the grading settings for the specified course.",
+        request=OpenApiRequest(request=CourseGradingModelSerializer),
         parameters=[
-            apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
+            OpenApiParameter(
+                name="course_id",
+                description="Course ID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
         ],
         responses={
-            200: CourseGradingModelSerializer,
-            401: "The requester is not authenticated.",
-            403: "The requester cannot access the specified course.",
-            404: "The requested course does not exist.",
+            200: OpenApiResponse(
+                response=CourseGradingModelSerializer,
+                description="Grading settings updated successfully.",
+            ),
+            401: OpenApiResponse(description="The requester is not authenticated."),
+            403: OpenApiResponse(description="The requester cannot access the specified course."),
+            404: OpenApiResponse(description="The requested course does not exist."),
         },
     )
     @verify_course_exists()
@@ -125,17 +141,32 @@ class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
     permission_classes = (IsAuthenticated, HasStudioReadAccess)  # ADR 0026
     serializer_class = CourseGradingModelSerializer
 
-    @apidocs.schema(
-        body=CourseGradingModelSerializer,
+    @extend_schema(
+        summary="Update a course's grading settings (deprecated)",
+        description=(
+            "Deprecated POST alias for updating course grading settings. "
+            "Use PATCH /api/contentstore/v0/grading/{course_id}/ instead."
+        ),
+        request=OpenApiRequest(request=CourseGradingModelSerializer),
         parameters=[
-            apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
+            OpenApiParameter(
+                name="course_id",
+                description="Course ID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
         ],
         responses={
-            200: CourseGradingModelSerializer,
-            401: "The requester is not authenticated.",
-            403: "The requester cannot access the specified course.",
-            404: "The requested course does not exist.",
+            200: OpenApiResponse(
+                response=CourseGradingModelSerializer,
+                description="Grading settings updated successfully.",
+            ),
+            401: OpenApiResponse(description="The requester is not authenticated."),
+            403: OpenApiResponse(description="The requester cannot access the specified course."),
+            404: OpenApiResponse(description="The requested course does not exist."),
         },
+        deprecated=True,
     )
     @verify_course_exists()
     def post(self, request: Request, course_id: str):
