@@ -2,6 +2,7 @@
 
 import edx_api_doc_tools as apidocs
 from collections import OrderedDict
+from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.request import Request
@@ -43,6 +44,101 @@ class HomePageCoursesPaginator(PageNumberPagination):
         return super().paginate_queryset(queryset, request, view)
 
 
+# ADR 0028 – consolidated from HomePageCoursesViewV2
+class HomeCoursesViewSetV2(viewsets.ViewSet):
+    """
+    ViewSet for course listing (v2).  Registered via DefaultRouter (basename ``home-courses``).
+
+    Router-generated URLs:
+      GET  /api/contentstore/v2/home/courses/  → list
+    """
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    permission_classes = (IsAuthenticated,)
+    serializer_class = CourseHomeTabSerializerV2
+
+    def get_serializer(self, *args, **kwargs):
+        """Instantiate and return the configured serializer class."""
+        return self.serializer_class(*args, **kwargs)
+
+    @apidocs.schema(
+        parameters=[
+            apidocs.string_parameter(
+                "org",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to filter by course org",
+            ),
+            apidocs.string_parameter(
+                "search",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to filter by course name, org, or number",
+            ),
+            apidocs.string_parameter(
+                "order",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to order by course name, org, or number",
+            ),
+            apidocs.string_parameter(
+                "active_only",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to filter by active courses only",
+            ),
+            apidocs.string_parameter(
+                "archived_only",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to filter by archived courses only",
+            ),
+            apidocs.string_parameter(
+                "page",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to paginate the courses",
+            ),
+            apidocs.string_parameter(
+                "page_size",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to set page size",
+            ),
+        ],
+        responses={
+            200: CourseHomeTabSerializerV2,
+            401: "The requester is not authenticated.",
+        },
+    )
+    def list(self, request: Request):
+        """
+        Get a paginated list of all courses available to the logged-in user.
+
+        **Example Request**
+
+            GET /api/contentstore/v2/home/courses/
+            GET /api/contentstore/v2/home/courses/?org=edX
+            GET /api/contentstore/v2/home/courses/?search=E2E
+            GET /api/contentstore/v2/home/courses/?order=-org
+            GET /api/contentstore/v2/home/courses/?active_only=true
+            GET /api/contentstore/v2/home/courses/?archived_only=true
+            GET /api/contentstore/v2/home/courses/?page=2
+            GET /api/contentstore/v2/home/courses/?page_size=20
+
+        **Response Values**
+
+        If the request is successful, an HTTP 200 \"OK\" response is returned.
+
+        The HTTP 200 response is paginated and contains ``count``, ``num_pages``,
+        ``next``, ``previous`` and ``results`` keys.  ``results`` contains the
+        serialized course data.
+        """
+        courses, in_process_course_actions = get_course_context_v2(request)
+        paginator = HomePageCoursesPaginator()
+        courses_page = paginator.paginate_queryset(courses, request, view=self)
+        serializer = self.get_serializer({
+            'courses': courses_page,
+            'in_process_course_actions': in_process_course_actions,
+        })
+        return paginator.get_paginated_response(serializer.data)
+
+
+# DEPRECATED (ADR 0028): Use HomeCoursesViewSetV2 instead.
+# Will be removed after one named release.
+# Use GET home/courses/ (router URL name: home-courses-list) instead.
 class HomePageCoursesViewV2(APIView):
     """View for getting all courses available to the logged in user."""
     authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)

@@ -2,12 +2,21 @@
 
 from django.conf import settings
 from django.urls import path, re_path
+from rest_framework.routers import DefaultRouter
 
 from cms.djangoapps.contentstore.rest_api.v2.views import downstreams, home, utils
 
 app_name = "v2"
 
-urlpatterns = [
+# ADR 0028: HomeCoursesViewSetV2 registered via DefaultRouter.
+# Generates: GET home/courses/ → home-courses-list
+router = DefaultRouter()
+router.register(r'home/courses', home.HomeCoursesViewSetV2, basename='home-courses')
+
+urlpatterns = router.urls + [
+    # DEPRECATED (ADR 0028): kept for backward compatibility.
+    # Will be removed after one named release.
+    # Use GET home/courses/ (router URL name: home-courses-list) instead.
     path(
         "home/courses",
         home.HomePageCoursesViewV2.as_view(),
