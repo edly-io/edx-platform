@@ -2,7 +2,7 @@
 Views for v1 contentstore API.
 """
 from .certificates import CourseCertificatesView
-from .course_details import CourseDetailsView
+from .course_details import CourseDetailsView, CourseDetailsViewSet
 from .course_index import ContainerChildrenView, CourseIndexView
 from .course_rerun import CourseRerunView
 from .course_team import CourseTeamView

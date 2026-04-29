@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.urls import path, re_path
+from rest_framework.routers import DefaultRouter
 
 from openedx.core.constants import COURSE_ID_PATTERN
 
@@ -10,6 +11,7 @@ from .views import (
     ContainerHandlerView,
     CourseCertificatesView,
     CourseDetailsView,
+    CourseDetailsViewSet,
     CourseGradingView,
     CourseGroupConfigurationsView,
     CourseIndexView,
@@ -34,7 +36,11 @@ app_name = 'v1'
 
 VIDEO_ID_PATTERN = r'(?P<edx_video_id>[-\w]+)'
 
-urlpatterns = [
+# ADR 0028: ViewSets registered via DefaultRouter.
+router = DefaultRouter()
+router.register(r'course_details', CourseDetailsViewSet, basename='course_details')
+
+urlpatterns = router.urls + [
     path(
         'home',
         HomePageView.as_view(),
@@ -83,6 +89,8 @@ urlpatterns = [
         CourseIndexView.as_view(),
         name="course_index"
     ),
+    # DEPRECATED (ADR 0028): Use CourseDetailsViewSet instead (GET/PUT course_details/{course_id}/).
+    # Kept as a backward-compatible alias. Remove after one named release.
     re_path(
         fr'^course_details/{COURSE_ID_PATTERN}$',
         CourseDetailsView.as_view(),
