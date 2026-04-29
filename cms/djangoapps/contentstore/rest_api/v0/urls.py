@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.urls import re_path, path
+from rest_framework.routers import DefaultRouter
 
 from openedx.core.constants import COURSE_ID_PATTERN
 
@@ -26,9 +27,19 @@ from .views import xblock
 
 app_name = "v0"
 
+# ADR 0028: XblockViewSet registered via DefaultRouter.
+# Generates:
+#   POST   xblock/                          → xblock-list   (create)
+#   GET    xblock/{usage_key_string}/       → xblock-detail (retrieve)
+#   PUT    xblock/{usage_key_string}/       → xblock-detail (update)
+#   PATCH  xblock/{usage_key_string}/       → xblock-detail (partial_update)
+#   DELETE xblock/{usage_key_string}/       → xblock-detail (destroy)
+router = DefaultRouter()
+router.register(r'xblock', xblock.XblockViewSet, basename='xblock')
+
 VIDEO_ID_PATTERN = r'(?P<edx_video_id>[-\w]+)'
 
-urlpatterns = [
+urlpatterns = router.urls + [
     re_path(
         fr"^advanced_settings/{COURSE_ID_PATTERN}$",
         AdvancedCourseSettingsView.as_view(),
@@ -90,6 +101,8 @@ urlpatterns = [
         fr'^video_transcripts/{settings.COURSE_ID_PATTERN}$',
         TranscriptView.as_view(), name='cms_api_video_transcripts'
     ),
+    # DEPRECATED (ADR 0028): xblock URLs with course_id kept for backward compatibility.
+    # Will be removed after one named release. Use xblock/ router URLs instead.
     re_path(
         fr'^xblock/{settings.COURSE_ID_PATTERN}$',
         xblock.XblockCreateView.as_view(), name='cms_api_create_xblock'
