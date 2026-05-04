@@ -2520,3 +2520,126 @@ class TestEnrollmentViewSetAllowed(APITestCase):
             content_type="application/json",
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+# ---------------------------------------------------------------------------
+# ADR 0032 – Pagination standardization tests
+# ---------------------------------------------------------------------------
+
+@skip_unless_lms
+class TestCourseEnrollmentsApiListPaginatorStructure(APITestCase):
+    """
+    ADR 0032 – structural checks for CourseEnrollmentsApiListPagination.
+
+    Verifies that the paginator subclasses DefaultPagination (not CursorPagination)
+    and that CourseEnrollmentsApiListView wires it up correctly.
+    """
+
+    def test_paginator_is_defaultpagination_subclass(self):
+        """CourseEnrollmentsApiListPagination must subclass DefaultPagination (not CursorPagination)."""
+        from edx_rest_framework_extensions.paginators import DefaultPagination
+        from openedx.core.djangoapps.enrollments.paginators import CourseEnrollmentsApiListPagination
+        assert issubclass(CourseEnrollmentsApiListPagination, DefaultPagination)
+
+    def test_view_uses_correct_paginator(self):
+        """CourseEnrollmentsApiListView.pagination_class must be CourseEnrollmentsApiListPagination."""
+        from openedx.core.djangoapps.enrollments.paginators import CourseEnrollmentsApiListPagination
+        from openedx.core.djangoapps.enrollments.views import CourseEnrollmentsApiListView
+        assert CourseEnrollmentsApiListView.pagination_class is CourseEnrollmentsApiListPagination
+
+    def test_enrollment_viewset_uses_defaultpagination(self):
+        """EnrollmentViewSet.pagination_class must be DefaultPagination (ADR 0032)."""
+        from edx_rest_framework_extensions.paginators import DefaultPagination
+        from openedx.core.djangoapps.enrollments.views import EnrollmentViewSet
+        assert EnrollmentViewSet.pagination_class is DefaultPagination
+
+
+@skip_unless_lms
+class TestCourseEnrollmentsApiListPaginationEnvelope(APITestCase):
+    """
+    ADR 0032 – pagination envelope regression tests for CourseEnrollmentsApiListView
+    (GET /api/enrollment/v1/enrollments).
+
+    Verifies that the response includes all 7 required envelope fields after
+    migration from CursorPagination to DefaultPagination.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.admin = UserFactory.create(is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=self.admin)
+        self.url = reverse("courseenrollmentsapilist")
+
+    def test_response_includes_full_envelope(self):
+        """All 7 ADR 0032 envelope fields must be present in every paginated response."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        for field in ('count', 'num_pages', 'current_page', 'start', 'next', 'previous', 'results'):
+            assert field in response.data, f"ADR 0032: missing envelope field '{field}'"
+
+    def test_current_page_is_one_on_first_page(self):
+        """?page=1 must return current_page=1 in the response envelope."""
+        response = self.client.get(self.url, {'page': 1})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['current_page'] == 1
+
+    def test_start_is_zero_on_first_page(self):
+        """start must be 0 for the first page (0-based index of first item on the page)."""
+        response = self.client.get(self.url, {'page': 1})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['start'] == 0
+
+    def test_results_is_a_list(self):
+        """results must be a list (not null or a dict)."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data['results'], list)
+
+
+@skip_unless_lms
+class TestEnrollmentViewSetListPaginationEnvelope(APITestCase):
+    """
+    ADR 0032 – pagination envelope regression tests for EnrollmentViewSet.list
+    (GET /api/enrollment/v1/enrollment/).
+
+    Verifies that the response includes all 7 required envelope fields after
+    adding DefaultPagination to the ViewSet.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create(password="test")
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("enrollment-list")
+
+    def test_response_includes_full_envelope(self):
+        """All 7 ADR 0032 envelope fields must be present in the list response."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        for field in ('count', 'num_pages', 'current_page', 'start', 'next', 'previous', 'results'):
+            assert field in response.data, f"ADR 0032: missing envelope field '{field}'"
+
+    def test_current_page_is_one_on_first_page(self):
+        """?page=1 must return current_page=1 in the response envelope."""
+        response = self.client.get(self.url, {'page': 1})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['current_page'] == 1
+
+    def test_start_is_zero_on_first_page(self):
+        """start must be 0 for the first page."""
+        response = self.client.get(self.url, {'page': 1})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['start'] == 0
+
+    def test_results_is_a_list(self):
+        """results must be a list (empty for a new user with no enrollments)."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data['results'], list)
+
+    def test_count_reflects_user_enrollment_count(self):
+        """count must equal the number of enrollments for the user."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        expected = CourseEnrollment.objects.filter(user=self.user).count()
+        assert response.data['count'] == expected

@@ -19,6 +19,7 @@ from edx_rest_framework_extensions.auth.jwt.authentication import (
 from edx_rest_framework_extensions.auth.session.authentication import (
     SessionAuthenticationAllowInactiveUser,
 )  # lint-amnesty, pylint: disable=wrong-import-order
+from edx_rest_framework_extensions.paginators import DefaultPagination  # lint-amnesty, pylint: disable=wrong-import-order
 from opaque_keys import InvalidKeyError  # lint-amnesty, pylint: disable=wrong-import-order
 from opaque_keys.edx.keys import CourseKey  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework import permissions, status, viewsets  # lint-amnesty, pylint: disable=wrong-import-order
@@ -506,6 +507,7 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
     permission_classes = (ApiKeyHeaderPermissionIsAuthenticated,)
     throttle_classes = (EnrollmentUserThrottle,)
     serializer_class = CourseEnrollmentSerializer
+    pagination_class = DefaultPagination  # ADR 0032
 
     def get_serializer_class(self):
         """Return CourseEnrollmentAllowedSerializer for the 'allowed' action, else the default."""
@@ -521,25 +523,43 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
     def list(self, request):
         """Gets a list of all course enrollments for a user.
 
-        Returns a list for the currently logged-in user, or for the user named by the 'user' GET
-        parameter. If the username does not match that of the currently logged-in user, only
-        courses for which the currently logged-in user has the Staff or Admin role are listed.
+        Returns a paginated list for the currently logged-in user, or for the user named by the
+        'user' GET parameter. If the username does not match that of the currently logged-in user,
+        only courses for which the currently logged-in user has the Staff or Admin role are listed.
+
+        **Pagination Parameters**
+
+            - ``page`` (int): Page number to retrieve. Default is 1.
+            - ``page_size`` (int): Items per page. Default is 10, max is 100.
+
+        **Response Envelope**
+
+            - ``count`` (int): Total number of results.
+            - ``num_pages`` (int): Total number of pages.
+            - ``current_page`` (int): The current page number.
+            - ``start`` (int): The 0-based index of the first item on this page.
+            - ``next`` (str|null): URL for the next page, or null.
+            - ``previous`` (str|null): URL for the previous page, or null.
+            - ``results`` (list): The list of enrollments for this page.
         """
         username = request.GET.get("user", request.user.username)
         enrollments = CourseEnrollment.objects.filter(
             user__username=username
-        ).select_related("user", "course_overview")
+        ).select_related("user", "course")  # "course" is the FK field; "course_overview" is a property
+        paginator = self.pagination_class()
         if (
             username == request.user.username
             or GlobalStaff().has_user(request.user)
             or self.has_api_key_permissions(request)
         ):
-            return Response(self.get_serializer(enrollments, many=True).data)
+            page = paginator.paginate_queryset(enrollments, request, view=self)
+            return paginator.get_paginated_response(self.get_serializer(page, many=True).data)
         filtered_enrollments = [
             enrollment for enrollment in enrollments
             if user_has_role(request.user, CourseStaffRole(enrollment.course_id))
         ]
-        return Response(self.get_serializer(filtered_enrollments, many=True).data)
+        page = paginator.paginate_queryset(filtered_enrollments, request, view=self)
+        return paginator.get_paginated_response(self.get_serializer(page, many=True).data)
 
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def create(self, request):
@@ -1403,9 +1423,9 @@ class CourseEnrollmentsApiListView(DeveloperErrorViewMixin, ListAPIView):
         * email: List of comma-separated emails. Filters the result to the course enrollments
           of the given users. Optional.
 
-        * page_size: Number of results to return per page. Optional.
+        * page_size: Number of results to return per page. Default 100, max 100. Optional.
 
-        * page: Page number to retrieve. Optional.
+        * page: Page number to retrieve. Default is 1. Optional.
 
     **Response Values**
 
@@ -1413,6 +1433,20 @@ class CourseEnrollmentsApiListView(DeveloperErrorViewMixin, ListAPIView):
         is returned.
 
         The HTTP 200 response has the following values.
+
+        * count: Total number of course enrollments matching the request.
+
+        * num_pages: Total number of pages.
+
+        * current_page: The current page number.
+
+        * start: The 0-based index of the first item on this page.
+
+        * next: The URL to the next page of results, or null if this is the
+          last page.
+
+        * previous: The URL to the previous page of results, or null if this
+          is the first page.
 
         * results: A list of the course enrollments matching the request.
 
@@ -1425,12 +1459,6 @@ class CourseEnrollmentsApiListView(DeveloperErrorViewMixin, ListAPIView):
             * user: Username of the user in the course enrollment.
 
             * course_id: Course ID of the course in the course enrollment.
-
-        * next: The URL to the next page of results, or null if this is the
-          last page.
-
-        * previous: The URL to the next page of results, or null if this
-          is the first page.
 
         If the user is not logged in, a 401 error is returned.
 
