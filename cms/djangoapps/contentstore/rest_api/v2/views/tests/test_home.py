@@ -12,6 +12,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from rest_framework.test import APITestCase as DRFAPITestCase  # noqa: E402
 
 from cms.djangoapps.contentstore.tests.utils import CourseTestCase
 from cms.djangoapps.contentstore.utils import reverse_course_url
@@ -89,13 +90,15 @@ class HomePageCoursesViewV2Test(CourseTestCase):
             ],
             "in_process_course_actions": [],
         }
-        expected_response = OrderedDict([
-            ('count', 2),
-            ('num_pages', 1),
-            ('next', None),
-            ('previous', None),
-            ('results', expected_data),
-        ])
+        expected_response = {
+            'count': 2,
+            'num_pages': 1,
+            'current_page': 1,
+            'start': 0,
+            'next': None,
+            'previous': None,
+            'results': expected_data,
+        }
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertDictEqual(expected_response, response.data)
@@ -301,6 +304,71 @@ class HomePageCoursesViewV2Test(CourseTestCase):
 
         self.assertEqual(len(response.data["results"]["courses"]), 0)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class TestHomePageCoursesPaginatorStructure(TestCase):
+    """
+    ADR 0032 – structural checks for HomePageCoursesPaginator.
+
+    Pure import-level check: no course data or MongoDB required.
+    Verifies the paginator inherits from DefaultPagination, satisfying the
+    ADR 0032 requirement that all list endpoints use the standard paginator.
+    """
+
+    def test_paginator_is_defaultpagination_subclass(self):
+        """HomePageCoursesPaginator must subclass DefaultPagination (not PageNumberPagination directly)."""
+        from edx_rest_framework_extensions.paginators import DefaultPagination
+        from cms.djangoapps.contentstore.rest_api.v2.views.home import HomePageCoursesPaginator
+        self.assertTrue(
+            issubclass(HomePageCoursesPaginator, DefaultPagination),
+            "ADR 0032: HomePageCoursesPaginator must subclass DefaultPagination",
+        )
+
+
+class TestHomePageCoursesViewV2PaginationEnvelope(DRFAPITestCase):
+    """
+    ADR 0032 – pagination envelope regression tests for HomePageCoursesViewV2.
+
+    Uses a plain staff user (no CourseFactory / MongoDB) so that the test can
+    run in any environment.  The endpoint returns an empty course list for a
+    user with no courses, which is sufficient to verify the 7-field envelope.
+
+    Verifies that the GET /api/contentstore/v2/home/courses endpoint returns
+    the full 7-field ADR 0032 response envelope: count, num_pages, current_page,
+    start, next, previous, results.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create(is_staff=True)
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("cms.djangoapps.contentstore:v2:courses")
+
+    def test_response_includes_full_envelope(self):
+        """All 7 ADR 0032 envelope fields must be present in every paginated response."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in ('count', 'num_pages', 'current_page', 'start', 'next', 'previous', 'results'):
+            self.assertIn(field, response.data, f"ADR 0032: missing envelope field '{field}'")
+
+    def test_current_page_is_one_on_first_page(self):
+        """current_page must equal 1 when requesting the first page."""
+        response = self.client.get(self.url, {'page': 1})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['current_page'], 1)
+
+    def test_start_is_zero_on_first_page(self):
+        """start must be 0 on the first page (0-based index of the first item)."""
+        response = self.client.get(self.url, {'page': 1})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['start'], 0)
+
+    def test_results_contains_courses_key(self):
+        """results must be a dict containing the 'courses' key."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data['results'], dict)
+        self.assertIn('courses', response.data['results'])
 
 
 class HomePageCoursesViewV2PermissionsTest(TestCase):

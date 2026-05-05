@@ -9,12 +9,11 @@ from drf_spectacular.utils import (
 )
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework.views import APIView
-from rest_framework.pagination import PageNumberPagination
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from edx_rest_framework_extensions.paginators import DefaultPagination
 
 from cms.djangoapps.contentstore.utils import get_course_context_v2
 from cms.djangoapps.contentstore.rest_api.v2.serializers import CourseHomeTabSerializerV2
@@ -43,19 +42,15 @@ _HOME_COURSES_QUERY_PARAMETERS = [
 _UNAUTHENTICATED_RESPONSE = OpenApiResponse(description="The requester is not authenticated.")
 
 
-class HomePageCoursesPaginator(PageNumberPagination):
-    """Custom paginator for the home page courses view version 2."""
-    page_size_query_param = 'page_size'
+class HomePageCoursesPaginator(DefaultPagination):
+    """
+    ADR 0032 – standard pagination for the Studio home courses list (v2).
 
-    def get_paginated_response(self, data):
-        """Return a paginated style `Response` object for the given output data."""
-        return Response(OrderedDict([
-            ('count', self.page.paginator.count),
-            ('num_pages', self.page.paginator.num_pages),
-            ('next', self.get_next_link()),
-            ('previous', self.get_previous_link()),
-            ('results', data),
-        ]))
+    Extends DefaultPagination with the full 7-field response envelope:
+    count, num_pages, current_page, start, next, previous, results.
+    Handles Python ``filter`` objects returned by get_course_context_v2.
+    """
+    page_size_query_param = 'page_size'
 
     def paginate_queryset(self, queryset, request, view=None):
         """
@@ -72,7 +67,6 @@ class HomePageCoursesPaginator(PageNumberPagination):
         return super().paginate_queryset(queryset, request, view)
 
 
-# ADR 0028 – consolidated from HomePageCoursesViewV2
 class HomeCoursesViewSetV2(viewsets.ViewSet):
     """
     ViewSet for course listing (v2).  Registered via DefaultRouter (basename ``home-courses``).
@@ -136,9 +130,6 @@ class HomeCoursesViewSetV2(viewsets.ViewSet):
         return paginator.get_paginated_response(serializer.data)
 
 
-# DEPRECATED (ADR 0028): Use HomeCoursesViewSetV2 instead.
-# Will be removed after one named release.
-# Use GET home/courses/ (router URL name: home-courses-list) instead.
 class HomePageCoursesViewV2(APIView):
     """View for getting all courses available to the logged in user."""
     authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
@@ -176,32 +167,54 @@ class HomePageCoursesViewV2(APIView):
             GET /api/contentstore/v2/home/courses?page=2
             GET /api/contentstore/v2/home/courses?page_size=20
 
+        **Pagination Parameters**
+
+            - ``page`` (int): Page number to retrieve. Default is 1.
+            - ``page_size`` (int): Items per page. Default is 10, max is 100.
+
         **Response Values**
 
         If the request is successful, an HTTP 200 "OK" response is returned.
 
-        The HTTP 200 response contains a single dict that contains keys that
-        are the course's home.
+        The HTTP 200 response contains the ADR 0032 standard pagination envelope.
+
+        **Response Envelope (ADR 0032)**
+
+            - ``count`` (int): Total number of courses matching the filters.
+            - ``num_pages`` (int): Total number of pages.
+            - ``current_page`` (int): The current page number.
+            - ``start`` (int): The 0-based index of the first course on this page.
+            - ``next`` (str|null): URL for the next page, or null if this is the last page.
+            - ``previous`` (str|null): URL for the previous page, or null if this is the first page.
+            - ``results`` (dict): Course data for the current page.
 
         **Example Response**
 
         ```json
         {
-            "courses": [
-                 {
-                    "course_key": "course-v1:edX+E2E-101+course",
-                    "display_name": "E2E Test Course",
-                    "lms_link": "//localhost:18000/courses/course-v1:edX+E2E-101+course",
-                    "cms_link": "//localhost:18010/course/course-v1:edX+E2E-101+course",
-                    "number": "E2E-101",
-                    "org": "edX",
-                    "rerun_link": "/course_rerun/course-v1:edX+E2E-101+course",
-                    "run": "course",
-                    "url": "/course/course-v1:edX+E2E-101+course",
-                    "is_active": true
-                },
-            ],
-            "in_process_course_actions": [],
+            "count": 2,
+            "num_pages": 1,
+            "current_page": 1,
+            "start": 0,
+            "next": null,
+            "previous": null,
+            "results": {
+                "courses": [
+                     {
+                        "course_key": "course-v1:edX+E2E-101+course",
+                        "display_name": "E2E Test Course",
+                        "lms_link": "//localhost:18000/courses/course-v1:edX+E2E-101+course",
+                        "cms_link": "//localhost:18010/course/course-v1:edX+E2E-101+course",
+                        "number": "E2E-101",
+                        "org": "edX",
+                        "rerun_link": "/course_rerun/course-v1:edX+E2E-101+course",
+                        "run": "course",
+                        "url": "/course/course-v1:edX+E2E-101+course",
+                        "is_active": true
+                    }
+                ],
+                "in_process_course_actions": []
+            }
         }
         ```
         """
