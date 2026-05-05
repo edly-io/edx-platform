@@ -1,13 +1,11 @@
 """ Test Student helpers """
 
 import logging
-from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import ddt
 from django.conf import settings
 from django.contrib.sessions.middleware import SessionMiddleware
-from django.core.exceptions import ObjectDoesNotExist
 from django.test import TestCase
 from django.test.client import RequestFactory
 from django.test.utils import override_settings
@@ -153,78 +151,3 @@ class TestLoginHelper(TestCase):
             next_page = get_next_url_for_login_page(req)
 
         assert next_page == expected_url
-
-    @skip_unless_lms
-    @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
-    @patch('common.djangoapps.student.helpers.apps.get_model')
-    def test_redirects_to_profile_when_biodata_declaration_is_missing(self, mock_get_model):
-        """
-        Test incomplete biodata declaration redirects the authenticated user to their profile.
-        """
-        user = SimpleNamespace(username='test-user')
-        declaration_model = Mock()
-        declaration_model.objects.only.return_value.get.side_effect = ObjectDoesNotExist
-        mock_get_model.return_value = declaration_model
-
-        req = self.request.get(settings.LOGIN_URL)
-        req.META["HTTP_ACCEPT"] = "text/html"
-
-        next_page = get_next_url_for_login_page(req, user=user)
-
-        assert next_page == 'http://profile-mfe/u/test-user'
-
-    @skip_unless_lms
-    @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
-    @patch('common.djangoapps.student.helpers.apps.get_model')
-    def test_redirects_to_profile_when_biodata_declaration_is_incomplete(self, mock_get_model):
-        """
-        Test unconfirmed biodata declaration redirects the authenticated user to their profile.
-        """
-        user = SimpleNamespace(username='test-user')
-        declaration = SimpleNamespace(is_submitted=True, confirmed=False)
-        declaration_model = Mock()
-        declaration_model.objects.only.return_value.get.return_value = declaration
-        mock_get_model.return_value = declaration_model
-
-        req = self.request.get(settings.LOGIN_URL)
-        req.META["HTTP_ACCEPT"] = "text/html"
-
-        next_page = get_next_url_for_login_page(req, user=user)
-
-        assert next_page == 'http://profile-mfe/u/test-user'
-
-    @skip_unless_lms
-    @override_settings(PROFILE_MICROFRONTEND_URL='http://profile-mfe')
-    @patch('common.djangoapps.student.helpers.apps.get_model')
-    def test_keeps_login_redirect_when_biodata_declaration_is_complete(self, mock_get_model):
-        """
-        Test completed biodata declaration allows the normal login redirect.
-        """
-        user = SimpleNamespace(username='test-user')
-        declaration = SimpleNamespace(is_submitted=True, confirmed=True)
-        declaration_model = Mock()
-        declaration_model.objects.only.return_value.get.return_value = declaration
-        mock_get_model.return_value = declaration_model
-
-        req = self.request.get(settings.LOGIN_URL)
-        req.META["HTTP_ACCEPT"] = "text/html"
-
-        next_page = get_next_url_for_login_page(req, user=user)
-
-        assert next_page == '/dashboard'
-
-    @skip_unless_lms
-    @patch('common.djangoapps.student.helpers.apps.get_model')
-    def test_keeps_login_redirect_when_biodata_app_is_not_installed(self, mock_get_model):
-        """
-        Test default login redirect remains unchanged without the FBR biodata app.
-        """
-        user = SimpleNamespace(username='test-user')
-        mock_get_model.side_effect = LookupError
-
-        req = self.request.get(settings.LOGIN_URL)
-        req.META["HTTP_ACCEPT"] = "text/html"
-
-        next_page = get_next_url_for_login_page(req, user=user)
-
-        assert next_page == '/dashboard'
