@@ -244,24 +244,6 @@ class StudentDashboardTests(SharedModuleStoreTestCase, MilestonesTestCaseMixin, 
         response = self.client.get(self.path)
         self.assertRedirects(response, settings.LEARNER_HOME_MICROFRONTEND_URL, fetch_redirect_response=False)
 
-    @patch('common.djangoapps.student.views.dashboard.get_biodata_profile_redirect_url')
-    @patch('common.djangoapps.student.views.dashboard.learner_home_mfe_enabled')
-    def test_redirect_to_biodata_profile_before_learner_home(
-        self,
-        mock_learner_home_mfe_enabled,
-        mock_get_biodata_profile_redirect_url,
-    ):
-        """
-        If biodata is incomplete, redirect to learner profile before learner home MFE.
-        """
-        profile_url = 'http://profile-mfe/u/test-user'
-        mock_learner_home_mfe_enabled.return_value = True
-        mock_get_biodata_profile_redirect_url.return_value = profile_url
-
-        response = self.client.get(self.path)
-
-        self.assertRedirects(response, profile_url, fetch_redirect_response=False)
-
     def test_course_cert_available_message_after_course_end(self):
         course_key = CourseKey.from_string('course-v1:edX+DemoX+Demo_Course')
         course = CourseOverviewFactory.create(

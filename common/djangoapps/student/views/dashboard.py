@@ -55,12 +55,7 @@ from openedx.features.enterprise_support.api import (
 from openedx.features.enterprise_support.utils import is_enterprise_learner
 
 from common.djangoapps.student.api import COURSE_DASHBOARD_PLUGIN_VIEW_NAME
-from common.djangoapps.student.helpers import (
-    cert_info,
-    check_verify_status_by_course,
-    get_biodata_profile_redirect_url,
-    get_resume_urls_for_enrollments,
-)
+from common.djangoapps.student.helpers import cert_info, check_verify_status_by_course, get_resume_urls_for_enrollments
 from common.djangoapps.student.models import (
     AccountRecovery,
     CourseEnrollment,
@@ -534,10 +529,6 @@ def student_dashboard(request):  # lint-amnesty, pylint: disable=too-many-statem
     user = request.user
     if not UserProfile.objects.filter(user=user).exists():
         return redirect(settings.ACCOUNT_MICROFRONTEND_URL)
-
-    biodata_profile_redirect_url = get_biodata_profile_redirect_url(user)
-    if biodata_profile_redirect_url:
-        return redirect(biodata_profile_redirect_url)
 
     if learner_home_mfe_enabled():
         return redirect(settings.LEARNER_HOME_MICROFRONTEND_URL)

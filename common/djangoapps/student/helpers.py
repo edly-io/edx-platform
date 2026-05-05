@@ -16,7 +16,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import load_backend
 from django.contrib.auth.models import User  # lint-amnesty, pylint: disable=imported-auth-user
-from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist, PermissionDenied
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.core.validators import ValidationError
 from django.db import IntegrityError, ProgrammingError, transaction
 from django.urls import NoReverseMatch, reverse
@@ -269,27 +269,14 @@ def _has_submitted_biodata_declaration(user):
         return True
 
     try:
-        declaration_model._meta.get_field('is_submitted')
-        has_is_submitted_field = True
-    except FieldDoesNotExist:
-        has_is_submitted_field = False
-
-    declaration_fields = ['confirmed']
-    if has_is_submitted_field:
-        declaration_fields.append('is_submitted')
-
-    try:
-        declaration = declaration_model.objects.only(*declaration_fields).get(user=user)
+        declaration = declaration_model.objects.only('is_submitted', 'confirmed').get(user=user)
     except ObjectDoesNotExist:
         return False
 
-    if has_is_submitted_field:
-        return declaration.is_submitted and declaration.confirmed
-
-    return declaration.confirmed
+    return declaration.is_submitted and declaration.confirmed
 
 
-def get_biodata_profile_redirect_url(user):
+def _get_biodata_profile_redirect_url(user):
     """
     Return the learner profile URL when biodata is incomplete, otherwise None.
     """
@@ -303,22 +290,9 @@ def get_biodata_profile_redirect_url(user):
         'INDIGO_BIODATA_PROFILE_URL',
         getattr(settings, 'PROFILE_MICROFRONTEND_URL', None),
     ) or '/profile'
-    profile_base_url = profile_base_url.rstrip('/')
-    profile_base_url_parts = urllib.parse.urlsplit(profile_base_url)
-    profile_base_url_path = profile_base_url_parts.path.rstrip('/')
-
-    if profile_base_url_path.endswith('/u'):
-        profile_base_url_path = profile_base_url_path[:-2]
-        profile_base_url = urllib.parse.urlunsplit((
-            profile_base_url_parts.scheme,
-            profile_base_url_parts.netloc,
-            profile_base_url_path,
-            '',
-            '',
-        )).rstrip('/')
 
     return '{profile_base_url}/u/{username}'.format(
-        profile_base_url=profile_base_url,
+        profile_base_url=profile_base_url.rstrip('/'),
         username=urllib.parse.quote(user.username),
     )
 
@@ -376,7 +350,7 @@ def get_next_url_for_login_page(request, include_host=False, user=None):
             root_url = f'{scheme}://{settings.CMS_BASE}'
 
     if settings.ROOT_URLCONF == 'lms.urls':
-        biodata_profile_redirect_url = get_biodata_profile_redirect_url(user or getattr(request, 'user', None))
+        biodata_profile_redirect_url = _get_biodata_profile_redirect_url(user or getattr(request, 'user', None))
         if biodata_profile_redirect_url:
             redirect_to = biodata_profile_redirect_url
 
