@@ -10,6 +10,7 @@ from drf_spectacular.utils import (
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
+from rest_framework.response import Response
 from rest_framework.views import APIView
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
@@ -19,7 +20,7 @@ from cms.djangoapps.contentstore.utils import get_course_context_v2
 from cms.djangoapps.contentstore.rest_api.v2.serializers import CourseHomeTabSerializerV2
 
 
-def _query_param(name: str, description: str) -> OpenApiParameter:
+def _query_param(name: str, description: str, deprecated: bool = False) -> OpenApiParameter:
     """Build a string-typed, optional query parameter (preserves api-doc-tools behavior)."""
     return OpenApiParameter(
         name=name,
@@ -27,19 +28,51 @@ def _query_param(name: str, description: str) -> OpenApiParameter:
         required=False,
         type=str,
         location=OpenApiParameter.QUERY,
+        deprecated=deprecated,
     )
 
 
+# ADR 0033 – sorting standardization:
+#   ``ordering`` is the DRF-standard parameter name and is the preferred form.
+#   ``order`` is kept as a deprecated alias; requests using it receive a
+#   ``Deprecation`` HTTP header.  Removal is scheduled for the named release
+#   tracked in ADR 0033's deprecation window (see _LEGACY_ORDER_DEPRECATION_HEADER).
 _HOME_COURSES_QUERY_PARAMETERS = [
     _query_param("org", "Query param to filter by course org"),
     _query_param("search", "Query param to filter by course name, org, or number"),
-    _query_param("order", "Query param to order by course name, org, or number"),
+    _query_param("ordering", "Query param to order by course name, org, or number (DRF standard, ADR 0033)"),
+    _query_param(
+        "order",
+        "Deprecated alias for 'ordering' (ADR 0033). Use 'ordering' instead.",
+        deprecated=True,
+    ),
     _query_param("active_only", "Query param to filter by active courses only"),
     _query_param("archived_only", "Query param to filter by archived courses only"),
     _query_param("page", "Query param to paginate the courses"),
     _query_param("page_size", "Query param to set page size"),
 ]
 _UNAUTHENTICATED_RESPONSE = OpenApiResponse(description="The requester is not authenticated.")
+
+# ADR 0033 BC strategy §2: deprecation warning header emitted when the legacy
+# ``order`` query parameter is used in place of the standardized ``ordering``.
+_LEGACY_ORDER_DEPRECATION_HEADER = (
+    "Parameter 'order' is deprecated. Use 'ordering' instead. "
+    "Support will be removed in release '<release_name>'."
+)
+
+
+def _maybe_set_legacy_order_deprecation_header(request: Request, response: Response) -> Response:
+    """
+    Set the ADR 0033 ``Deprecation`` header on ``response`` when the request
+    used the legacy ``order`` query parameter.
+
+    The header is emitted whenever ``order`` appears in the query string, even
+    if ``ordering`` was also supplied (in which case ``ordering`` wins, but the
+    caller should still be told that ``order`` is deprecated).
+    """
+    if 'order' in request.query_params:
+        response['Deprecation'] = _LEGACY_ORDER_DEPRECATION_HEADER
+    return response
 
 
 class HomePageCoursesPaginator(DefaultPagination):
@@ -73,6 +106,17 @@ class HomeCoursesViewSetV2(viewsets.ViewSet):
 
     Router-generated URLs:
       GET  /api/contentstore/v2/home/courses/  → list
+
+    ADR 0033 compliance notes:
+    - Sorting uses the DRF-standard ``ordering`` parameter; ``order`` is
+      retained as a deprecated alias (Phase 1 of the BC strategy) and
+      requests using it receive a ``Deprecation`` HTTP header.
+    - Full migration to ``django-filter``/``DjangoFilterBackend`` is tracked
+      as a follow-up: the underlying data source returned by
+      ``get_courses_accessible_to_user`` is a Python ``filter()`` wrapper
+      around a hybrid queryset, so attaching a ``FilterSet`` requires
+      reshaping ``_accessible_courses_summary_iter`` /
+      ``_accessible_courses_list_from_groups`` first.
     """
     authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
     permission_classes = (IsAuthenticated,)
@@ -106,7 +150,8 @@ class HomeCoursesViewSetV2(viewsets.ViewSet):
             GET /api/contentstore/v2/home/courses/
             GET /api/contentstore/v2/home/courses/?org=edX
             GET /api/contentstore/v2/home/courses/?search=E2E
-            GET /api/contentstore/v2/home/courses/?order=-org
+            GET /api/contentstore/v2/home/courses/?ordering=-org
+            GET /api/contentstore/v2/home/courses/?order=-org   # deprecated, use ?ordering=
             GET /api/contentstore/v2/home/courses/?active_only=true
             GET /api/contentstore/v2/home/courses/?archived_only=true
             GET /api/contentstore/v2/home/courses/?page=2
@@ -127,7 +172,8 @@ class HomeCoursesViewSetV2(viewsets.ViewSet):
             'courses': courses_page,
             'in_process_course_actions': in_process_course_actions,
         })
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+        return _maybe_set_legacy_order_deprecation_header(request, response)
 
 
 class HomePageCoursesViewV2(APIView):
@@ -161,7 +207,8 @@ class HomePageCoursesViewV2(APIView):
             GET /api/contentstore/v2/home/courses
             GET /api/contentstore/v2/home/courses?org=edX
             GET /api/contentstore/v2/home/courses?search=E2E
-            GET /api/contentstore/v2/home/courses?order=-org
+            GET /api/contentstore/v2/home/courses?ordering=-org
+            GET /api/contentstore/v2/home/courses?order=-org   # deprecated, use ?ordering=
             GET /api/contentstore/v2/home/courses?active_only=true
             GET /api/contentstore/v2/home/courses?archived_only=true
             GET /api/contentstore/v2/home/courses?page=2
@@ -229,4 +276,5 @@ class HomePageCoursesViewV2(APIView):
             'courses': courses_page,
             'in_process_course_actions': in_process_course_actions,
         })
-        return paginator.get_paginated_response(serializer.data)
+        response = paginator.get_paginated_response(serializer.data)
+        return _maybe_set_legacy_order_deprecation_header(request, response)
