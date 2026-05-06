@@ -13,6 +13,13 @@ from django.core.exceptions import (  # lint-amnesty, pylint: disable=wrong-impo
 from django.db import IntegrityError  # lint-amnesty, pylint: disable=wrong-import-order
 from django.db.models import Q  # lint-amnesty, pylint: disable=wrong-import-order
 from django.utils.decorators import method_decorator  # lint-amnesty, pylint: disable=wrong-import-order
+from drf_spectacular.utils import (  # lint-amnesty, pylint: disable=wrong-import-order
+    extend_schema,
+    extend_schema_view,
+    OpenApiParameter,
+    OpenApiRequest,
+    OpenApiResponse,
+)
 from edx_rest_framework_extensions.auth.jwt.authentication import (
     JwtAuthentication,
 )  # lint-amnesty, pylint: disable=wrong-import-order
@@ -74,6 +81,34 @@ log = logging.getLogger(__name__)
 REQUIRED_ATTRIBUTES = {
     "credit": ["credit:provider_id"],
 }
+
+
+# ADR 0027 — shared OpenAPI parameter and response building blocks
+def _path_param(name: str, description: str) -> OpenApiParameter:
+    return OpenApiParameter(
+        name=name, description=description, required=True, type=str, location=OpenApiParameter.PATH,
+    )
+
+
+def _query_param(name: str, description: str, required: bool = False, type_=str) -> OpenApiParameter:
+    return OpenApiParameter(
+        name=name, description=description, required=required, type=type_, location=OpenApiParameter.QUERY,
+    )
+
+
+_COURSE_ID_PATH_PARAM = _path_param("course_id", "Course ID (e.g. course-v1:org+course+run).")
+_USERNAME_PATH_PARAM = _path_param("username", "Username of the user.")
+_USER_QUERY_PARAM = _query_param("user", "Username of the user whose enrollments to list.")
+_INCLUDE_EXPIRED_QUERY_PARAM = _query_param(
+    "include_expired", "If '1', include expired enrollment modes in the response.",
+)
+_PAGE_QUERY_PARAM = _query_param("page", "Page number to retrieve. Default 1.")
+_PAGE_SIZE_QUERY_PARAM = _query_param("page_size", "Items per page (default 10, max 100).")
+
+_RESP_UNAUTHENTICATED = OpenApiResponse(description="The requester is not authenticated.")
+_RESP_FORBIDDEN = OpenApiResponse(description="The requester does not have permission for this operation.")
+_RESP_NOT_FOUND = OpenApiResponse(description="The requested resource does not exist.")
+_RESP_BAD_REQUEST = OpenApiResponse(description="Invalid request data or parameters.")
 
 
 class EnrollmentCrossDomainSessionAuth(SessionAuthenticationAllowInactiveUser, SessionAuthenticationCrossDomainCsrf):
@@ -197,6 +232,23 @@ class EnrollmentView(APIView, ApiKeyPermissionMixIn):
 
     # Since the course about page on the marketing site uses this API to auto-enroll users,
     # we need to support cross-domain CSRF.
+    @extend_schema(
+        summary="Retrieve a user's enrollment in a course",
+        description=(
+            "Returns the current user's enrollment for the specified course, or the named user's "
+            "enrollment when invoked with the {username},{course_id} URL form (server-to-server or "
+            "staff only)."
+        ),
+        parameters=[_USERNAME_PATH_PARAM, _COURSE_ID_PATH_PARAM],
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentSerializer,
+                description="Enrollment retrieved successfully (or empty body if no enrollment).",
+            ),
+            400: _RESP_BAD_REQUEST,
+            404: _RESP_NOT_FOUND,
+        },
+    )
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def get(self, request, course_id=None, username=None):
         """Create, read, or update enrollment information for a user.
@@ -288,6 +340,21 @@ class EnrollmentUserRolesView(APIView):
     throttle_classes = (EnrollmentUserThrottle,)
     serializer_class = UserRolesResponseSerializer
 
+    @extend_schema(
+        summary="List the current user's course roles",
+        description=(
+            "Returns the list of course-level roles held by the currently logged-in user, plus an "
+            "is_staff flag. Optionally filters by course_id."
+        ),
+        parameters=[_query_param("course_id", "If provided, only roles for this course are returned.")],
+        responses={
+            200: OpenApiResponse(
+                response=UserRolesResponseSerializer,
+                description="Roles retrieved successfully.",
+            ),
+            400: _RESP_BAD_REQUEST,
+        },
+    )
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def get(self, request):
         """
@@ -383,6 +450,22 @@ class EnrollmentCourseDetailView(APIView):
     throttle_classes = (EnrollmentUserThrottle,)
     serializer_class = CourseSerializer
 
+    @extend_schema(
+        summary="Get enrollment details for a course",
+        description=(
+            "Returns the course schedule and the enrollment modes supported by the course. "
+            "This endpoint does not require authentication. Use ?include_expired=1 to include "
+            "expired enrollment modes."
+        ),
+        parameters=[_COURSE_ID_PATH_PARAM, _INCLUDE_EXPIRED_QUERY_PARAM],
+        responses={
+            200: OpenApiResponse(
+                response=CourseSerializer,
+                description="Course enrollment details retrieved successfully.",
+            ),
+            400: _RESP_BAD_REQUEST,
+        },
+    )
     def get(self, request, course_id=None):
         """Read enrollment information for a particular course.
 
@@ -460,6 +543,28 @@ class UnenrollmentView(APIView):
     )
     serializer_class = CourseEnrollmentSerializer
 
+    @extend_schema(
+        operation_id="enrollment_v1_unenroll_deprecated",
+        summary="Unenroll a user from all courses (deprecated)",
+        description=(
+            "Deprecated. Use POST /api/enrollment/v1/enrollment/unenroll/ "
+            "(EnrollmentViewSet.unenroll action) instead. Privileged retirement-pipeline use only."
+        ),
+        request=OpenApiRequest(
+            request={
+                "type": "object",
+                "properties": {"username": {"type": "string"}},
+                "required": ["username"],
+            }
+        ),
+        responses={
+            200: OpenApiResponse(description="List of courses from which the user was unenrolled."),
+            204: OpenApiResponse(description="User has no active enrollments."),
+            404: OpenApiResponse(description="Username not specified or no retirement status for user."),
+            500: OpenApiResponse(description="Unexpected error during unenrollment."),
+        },
+        deprecated=True,
+    )
     def post(self, request):
         """
         Unenrolls the specified user from all courses.
@@ -519,6 +624,22 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         """Instantiate and return the appropriate serializer for this action."""
         return self.get_serializer_class()(*args, **kwargs)
 
+    @extend_schema(
+        summary="List enrollments for a user (paginated)",
+        description=(
+            "Returns a paginated list of enrollments for the currently logged-in user, or for the "
+            "user named by the 'user' query parameter (staff/admin/api-key access required to view "
+            "another user's enrollments — otherwise filtered to courses the requester staffs)."
+        ),
+        parameters=[_USER_QUERY_PARAM, _PAGE_QUERY_PARAM, _PAGE_SIZE_QUERY_PARAM],
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentSerializer(many=True),
+                description="Paginated enrollment list.",
+            ),
+            401: _RESP_UNAUTHENTICATED,
+        },
+    )
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def list(self, request):
         """Gets a list of all course enrollments for a user.
@@ -561,6 +682,25 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         page = paginator.paginate_queryset(filtered_enrollments, request, view=self)
         return paginator.get_paginated_response(self.get_serializer(page, many=True).data)
 
+    @extend_schema(
+        summary="Create or update an enrollment",
+        description=(
+            "Enrolls a user in a course. Server-to-server calls may deactivate or modify the mode "
+            "of existing enrollments; all other requests go through add_enrollment(), which creates "
+            "or reactivates enrollments. The request body must include course_details.course_id."
+        ),
+        request=OpenApiRequest(request=CourseEnrollmentSerializer),
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentSerializer,
+                description="Enrollment created, reactivated, or updated successfully.",
+            ),
+            400: _RESP_BAD_REQUEST,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NOT_FOUND,
+            406: OpenApiResponse(description="The specified user does not exist."),
+        },
+    )
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def create(self, request):
         # pylint: disable=too-many-statements
@@ -809,6 +949,27 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
                     user_id=user.id,
                 )
 
+    @extend_schema(
+        summary="Unenroll a user from all courses (retirement)",
+        description=(
+            "Privileged retirement-pipeline use only. Unenrolls the named user from every active "
+            "enrollment. The request must be made by a service user with CanRetireUser permission, "
+            "not the user being unenrolled."
+        ),
+        request=OpenApiRequest(
+            request={
+                "type": "object",
+                "properties": {"username": {"type": "string"}},
+                "required": ["username"],
+            }
+        ),
+        responses={
+            200: OpenApiResponse(description="List of courses from which the user was unenrolled."),
+            204: OpenApiResponse(description="User has no active enrollments."),
+            404: OpenApiResponse(description="Username not specified or no retirement status for user."),
+            500: OpenApiResponse(description="Unexpected error during unenrollment."),
+        },
+    )
     @action(
         detail=False,
         methods=["post"],
@@ -837,6 +998,29 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         except Exception as exc:  # pylint: disable=broad-except
             return Response(str(exc), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @extend_schema(
+        summary="Manage CourseEnrollmentAllowed records (admin-only)",
+        description=(
+            "GET lists allowed enrollments for an email; POST creates a new one; DELETE removes one "
+            "by email + course_id. Admin-only."
+        ),
+        request=OpenApiRequest(request=CourseEnrollmentAllowedSerializer),
+        parameters=[_query_param("email", "Email to query (GET only). Defaults to the requester's email.")],
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentAllowedSerializer(many=True),
+                description="GET success — list of allowed enrollments for the email.",
+            ),
+            201: OpenApiResponse(
+                response=CourseEnrollmentAllowedSerializer,
+                description="POST success — allowed enrollment created.",
+            ),
+            204: OpenApiResponse(description="DELETE success — allowed enrollment deleted."),
+            400: _RESP_BAD_REQUEST,
+            404: OpenApiResponse(description="DELETE: allowed enrollment not found for the given email/course."),
+            409: OpenApiResponse(description="POST: allowed enrollment already exists for this email/course."),
+        },
+    )
     @action(
         detail=False,
         methods=["get", "post", "delete"],
@@ -1082,6 +1266,23 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
     # Since the course about page on the marketing site
     # uses this API to auto-enroll users, we need to support
     # cross-domain CSRF.
+    @extend_schema(
+        operation_id="enrollment_v1_enrollment_list_deprecated",
+        summary="List enrollments for a user (deprecated)",
+        description=(
+            "Deprecated. Use GET /api/enrollment/v1/enrollment/ (EnrollmentViewSet.list) instead. "
+            "This legacy endpoint returns an unpaginated list."
+        ),
+        parameters=[_USER_QUERY_PARAM],
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentSerializer(many=True),
+                description="Enrollments retrieved successfully.",
+            ),
+            401: _RESP_UNAUTHENTICATED,
+        },
+        deprecated=True,
+    )
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def get(self, request):
         """Gets a list of all course enrollments for a user.
@@ -1118,6 +1319,25 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
         serializer = self.serializer_class(filtered_enrollments, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        operation_id="enrollment_v1_enrollment_create_deprecated",
+        summary="Create or update an enrollment (deprecated)",
+        description=(
+            "Deprecated. Use POST /api/enrollment/v1/enrollment/ (EnrollmentViewSet.create) instead."
+        ),
+        request=OpenApiRequest(request=CourseEnrollmentSerializer),
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentSerializer,
+                description="Enrollment created, reactivated, or updated successfully.",
+            ),
+            400: _RESP_BAD_REQUEST,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NOT_FOUND,
+            406: OpenApiResponse(description="The specified user does not exist."),
+        },
+        deprecated=True,
+    )
     def post(self, request):
         # pylint: disable=too-many-statements
         """Enrolls the currently logged-in user in a course.
@@ -1387,6 +1607,32 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
                 )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="List all course enrollments (admin-only, paginated)",
+        description=(
+            "Admin-only paginated list of CourseEnrollment records, optionally filtered by "
+            "course_id, course_ids, username, or email."
+        ),
+        parameters=[
+            _query_param("course_id", "Filter to enrollments for this course."),
+            _query_param("course_ids", "Comma-separated list of course IDs."),
+            _query_param("username", "Comma-separated list of usernames."),
+            _query_param("email", "Comma-separated list of emails."),
+            _PAGE_QUERY_PARAM,
+            _PAGE_SIZE_QUERY_PARAM,
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentsApiListSerializer(many=True),
+                description="Paginated list of course enrollments.",
+            ),
+            400: _RESP_BAD_REQUEST,
+            401: _RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+        },
+    ),
+)
 @can_disable_rate_limit
 class CourseEnrollmentsApiListView(DeveloperErrorViewMixin, ListAPIView):
     """
@@ -1522,6 +1768,23 @@ class EnrollmentAllowedView(APIView):
     throttle_classes = (EnrollmentUserThrottle,)
     serializer_class = CourseEnrollmentAllowedSerializer
 
+    @extend_schema(
+        operation_id="enrollment_v1_enrollment_allowed_list_deprecated",
+        summary="List allowed enrollments by email (deprecated)",
+        description=(
+            "Deprecated. Use GET /api/enrollment/v1/enrollment/enrollment_allowed/ "
+            "(EnrollmentViewSet.allowed action) instead. Admin-only."
+        ),
+        parameters=[_query_param("email", "Email to query. Defaults to the requester's email if omitted.")],
+        responses={
+            200: OpenApiResponse(
+                response=CourseEnrollmentAllowedSerializer(many=True),
+                description="Allowed enrollments retrieved successfully.",
+            ),
+            403: _RESP_FORBIDDEN,
+        },
+        deprecated=True,
+    )
     def get(self, request):
         """
         Returns the enrollments allowed for a given user email.
@@ -1546,6 +1809,25 @@ class EnrollmentAllowedView(APIView):
         serializer = self.serializer_class(enrollments_allowed, many=True)
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
+    @extend_schema(
+        operation_id="enrollment_v1_enrollment_allowed_create_deprecated",
+        summary="Create an allowed enrollment (deprecated)",
+        description=(
+            "Deprecated. Use POST /api/enrollment/v1/enrollment/enrollment_allowed/ "
+            "(EnrollmentViewSet.allowed action) instead. Admin-only."
+        ),
+        request=OpenApiRequest(request=CourseEnrollmentAllowedSerializer),
+        responses={
+            201: OpenApiResponse(
+                response=CourseEnrollmentAllowedSerializer,
+                description="Allowed enrollment created.",
+            ),
+            400: _RESP_BAD_REQUEST,
+            403: _RESP_FORBIDDEN,
+            409: OpenApiResponse(description="Allowed enrollment already exists for this email/course."),
+        },
+        deprecated=True,
+    )
     def post(self, request):
         """
         Creates an enrollment allowed for a given user email and course id.
@@ -1597,6 +1879,22 @@ class EnrollmentAllowedView(APIView):
 
         return Response(status=status.HTTP_201_CREATED, data=self.serializer_class(enrollment_allowed).data)
 
+    @extend_schema(
+        operation_id="enrollment_v1_enrollment_allowed_destroy_deprecated",
+        summary="Delete an allowed enrollment (deprecated)",
+        description=(
+            "Deprecated. Use DELETE /api/enrollment/v1/enrollment/enrollment_allowed/ "
+            "(EnrollmentViewSet.allowed action) instead. Admin-only."
+        ),
+        request=OpenApiRequest(request=CourseEnrollmentAllowedSerializer),
+        responses={
+            204: OpenApiResponse(description="Allowed enrollment deleted."),
+            400: _RESP_BAD_REQUEST,
+            403: _RESP_FORBIDDEN,
+            404: OpenApiResponse(description="Allowed enrollment not found for the given email/course."),
+        },
+        deprecated=True,
+    )
     def delete(self, request):
         """
         Deletes an enrollment allowed for a given user email and course id.
