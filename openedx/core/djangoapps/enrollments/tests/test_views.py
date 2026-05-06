@@ -2643,3 +2643,213 @@ class TestEnrollmentViewSetListPaginationEnvelope(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         expected = CourseEnrollment.objects.filter(user=self.user).count()
         assert response.data['count'] == expected
+
+
+# ---------------------------------------------------------------------------
+# ADR 0033 – Sorting / OEP-68 parameter-naming standardization tests
+# ---------------------------------------------------------------------------
+
+
+_ADR_0033_DEPRECATION_HEADER_COURSE_ID = (
+    "Parameter 'course_id' is deprecated. Use 'course_key' instead. "
+    "Support will be removed in release '<release_name>'."
+)
+_ADR_0033_DEPRECATION_HEADER_COURSE_IDS = (
+    "Parameter 'course_ids' is deprecated. Use 'course_keys' instead. "
+    "Support will be removed in release '<release_name>'."
+)
+_ADR_0033_DEPRECATION_HEADER_COURSE_ID_AND_IDS = (
+    "Parameter 'course_id' is deprecated. Use 'course_key' instead. "
+    "Parameter 'course_ids' is deprecated. Use 'course_keys' instead. "
+    "Support will be removed in release '<release_name>'."
+)
+
+
+@skip_unless_lms
+class TestCourseEnrollmentsApiListAdr0033(APITestCase, ModuleStoreTestCase):
+    """
+    ADR 0033 – tests for CourseEnrollmentsApiListView (GET /api/enrollment/v1/enrollments).
+
+    Covers:
+      * OEP-68 §2: ``course_key`` / ``course_keys`` work identically to the
+        legacy ``course_id`` / ``course_ids`` filters.
+      * BC §1: legacy and preferred names are accepted simultaneously; preferred
+        wins when both are sent.
+      * BC §2: the ``Deprecation`` HTTP header is emitted when (and only when)
+        a legacy name appears in the request — even if the preferred name is
+        also present.
+      * §3: the standard ``ordering`` parameter applies a whitelisted ORDER BY.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("courseenrollmentsapilist")
+        self.admin = AdminFactory(username="adr33admin", email="adr33admin@example.com", password="edx")
+        self.student_a = UserFactory(username="adr33a", email="a@example.com", password="edx")
+        self.student_b = UserFactory(username="adr33b", email="b@example.com", password="edx")
+
+        self.course_a = CourseFactory.create(org="adr33", number="A", run="r", emit_signals=True)
+        self.course_b = CourseFactory.create(org="adr33", number="B", run="r", emit_signals=True)
+
+        for mode_slug in ("honor", "audit"):
+            CourseModeFactory.create(
+                course_id=self.course_a.id, mode_slug=mode_slug, mode_display_name=mode_slug,
+            )
+            CourseModeFactory.create(
+                course_id=self.course_b.id, mode_slug=mode_slug, mode_display_name=mode_slug,
+            )
+
+        data.create_course_enrollment(self.student_a.username, str(self.course_a.id), "honor", True)
+        data.create_course_enrollment(self.student_b.username, str(self.course_b.id), "audit", True)
+
+        self.client.login(username=self.admin.username, password="edx")
+
+    # ---- course_key / course_id ----
+
+    def test_new_course_key_param_no_header(self):
+        """``?course_key=…`` returns 200 and no ``Deprecation`` header."""
+        response = self.client.get(self.url, {"course_key": str(self.course_a.id)})
+        assert response.status_code == status.HTTP_200_OK
+        assert "Deprecation" not in response.headers
+        # Filtering still works through the alias path.
+        results = response.data["results"]
+        assert all(r["course_id"] == str(self.course_a.id) for r in results)
+        assert results
+
+    def test_legacy_course_id_param_emits_header(self):
+        """``?course_id=…`` returns 200 and emits the ADR 0033 header."""
+        response = self.client.get(self.url, {"course_id": str(self.course_a.id)})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers.get("Deprecation") == _ADR_0033_DEPRECATION_HEADER_COURSE_ID
+        assert response.data["results"]
+
+    def test_course_key_wins_when_both_sent_but_header_still_emitted(self):
+        """When both names are sent, the preferred name wins but the header is still emitted."""
+        response = self.client.get(self.url, {
+            "course_key": str(self.course_a.id),
+            "course_id": str(self.course_b.id),
+        })
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers.get("Deprecation") == _ADR_0033_DEPRECATION_HEADER_COURSE_ID
+        # course_key (course_a) must win — none of course_b's enrollments should appear.
+        results = response.data["results"]
+        assert all(r["course_id"] == str(self.course_a.id) for r in results)
+        assert results
+
+    # ---- course_keys / course_ids ----
+
+    def test_legacy_course_ids_param_emits_header(self):
+        """``?course_ids=…`` returns 200 and emits the ADR 0033 header."""
+        response = self.client.get(self.url, {
+            "course_ids": f"{self.course_a.id},{self.course_b.id}",
+        })
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers.get("Deprecation") == _ADR_0033_DEPRECATION_HEADER_COURSE_IDS
+
+    def test_new_course_keys_param_no_header(self):
+        """``?course_keys=…`` returns 200 with no ``Deprecation`` header."""
+        response = self.client.get(self.url, {
+            "course_keys": f"{self.course_a.id},{self.course_b.id}",
+        })
+        assert response.status_code == status.HTTP_200_OK
+        assert "Deprecation" not in response.headers
+
+    def test_both_legacy_names_combined_header(self):
+        """Sending both legacy names produces a combined deprecation header."""
+        response = self.client.get(self.url, {
+            "course_id": str(self.course_a.id),
+            "course_ids": f"{self.course_a.id},{self.course_b.id}",
+        })
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers.get("Deprecation") == _ADR_0033_DEPRECATION_HEADER_COURSE_ID_AND_IDS
+
+    # ---- baseline / no params ----
+
+    def test_no_legacy_params_no_header(self):
+        """A plain unfiltered request emits no ``Deprecation`` header."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        assert "Deprecation" not in response.headers
+
+    # ---- ordering whitelist ----
+
+    def test_ordering_created_ascending(self):
+        """``?ordering=created`` orders results by ``created`` ascending."""
+        response = self.client.get(self.url, {"ordering": "created"})
+        assert response.status_code == status.HTTP_200_OK
+        created_values = [row["created"] for row in response.data["results"]]
+        assert created_values == sorted(created_values)
+
+    def test_ordering_created_descending(self):
+        """``?ordering=-created`` orders results by ``created`` descending."""
+        response = self.client.get(self.url, {"ordering": "-created"})
+        assert response.status_code == status.HTTP_200_OK
+        created_values = [row["created"] for row in response.data["results"]]
+        assert created_values == sorted(created_values, reverse=True)
+
+    def test_ordering_invalid_value_is_ignored(self):
+        """A value outside the whitelist is silently ignored (no 400, no ORDER BY)."""
+        response = self.client.get(self.url, {"ordering": "user__email"})  # not in whitelist
+        assert response.status_code == status.HTTP_200_OK
+
+
+@ddt.ddt
+@skip_unless_lms
+class TestEnrollmentUserRolesAdr0033(ModuleStoreTestCase):
+    """
+    ADR 0033 – tests for EnrollmentUserRolesView (GET /api/enrollment/v1/roles/).
+
+    Covers:
+      * OEP-68 §2: ``course_key`` is the preferred filter; ``course_id`` is a
+        deprecated alias.
+      * BC §2: ``Deprecation`` header is emitted when the legacy name is used.
+      * Tie-break: when both names are sent, ``course_key`` wins and the
+        header is still emitted.
+    """
+
+    USERNAME = "adr33-roles"
+    EMAIL = "adr33-roles@example.com"
+    PASSWORD = "edx"
+
+    def setUp(self):
+        super().setUp()
+        self.course_a = CourseFactory.create(emit_signals=True, org="adr33r", course="a", run="r")
+        self.course_b = CourseFactory.create(emit_signals=True, org="adr33r", course="b", run="r")
+        self.user = UserFactory.create(username=self.USERNAME, email=self.EMAIL, password=self.PASSWORD)
+        CourseStaffRole(self.course_a.id).add_users(self.user)
+        CourseStaffRole(self.course_b.id).add_users(self.user)
+        self.client.login(username=self.USERNAME, password=self.PASSWORD)
+        self.url = reverse("roles")
+
+    def test_new_course_key_param_no_header(self):
+        """``?course_key=…`` returns 200 and no ``Deprecation`` header; filter applies."""
+        response = self.client.get(self.url, {"course_key": str(self.course_a.id)})
+        assert response.status_code == status.HTTP_200_OK
+        assert "Deprecation" not in response.headers
+        roles = json.loads(response.content.decode("utf-8"))["roles"]
+        assert {r["course_id"] for r in roles} == {str(self.course_a.id)}
+
+    def test_legacy_course_id_param_emits_header(self):
+        """``?course_id=…`` returns 200 and emits the ADR 0033 header; filter applies."""
+        response = self.client.get(self.url, {"course_id": str(self.course_a.id)})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers.get("Deprecation") == _ADR_0033_DEPRECATION_HEADER_COURSE_ID
+        roles = json.loads(response.content.decode("utf-8"))["roles"]
+        assert {r["course_id"] for r in roles} == {str(self.course_a.id)}
+
+    def test_course_key_wins_when_both_sent_header_still_emitted(self):
+        """When both names are sent, ``course_key`` wins and the header is still emitted."""
+        response = self.client.get(self.url, {
+            "course_key": str(self.course_a.id),
+            "course_id": str(self.course_b.id),
+        })
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers.get("Deprecation") == _ADR_0033_DEPRECATION_HEADER_COURSE_ID
+        roles = json.loads(response.content.decode("utf-8"))["roles"]
+        assert {r["course_id"] for r in roles} == {str(self.course_a.id)}
+
+    def test_no_filter_no_header(self):
+        """Plain ``GET /roles/`` does not emit the ``Deprecation`` header."""
+        response = self.client.get(self.url)
+        assert response.status_code == status.HTTP_200_OK
+        assert "Deprecation" not in response.headers

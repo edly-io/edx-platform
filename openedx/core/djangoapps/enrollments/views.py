@@ -111,6 +111,45 @@ _RESP_NOT_FOUND = OpenApiResponse(description="The requested resource does not e
 _RESP_BAD_REQUEST = OpenApiResponse(description="Invalid request data or parameters.")
 
 
+# ADR 0033 – sorting / OEP-68 parameter naming standardization helpers.
+# Used by list endpoints that accept legacy parameter names (e.g. ``course_id``
+# instead of ``course_key``) so they can emit the BC-strategy §2 ``Deprecation``
+# HTTP header without each view duplicating the boilerplate.
+def _build_legacy_param_deprecation_header(legacy_to_preferred):
+    """
+    Build the ``Deprecation`` HTTP header value for one or more legacy parameter
+    names, each paired with its OEP-68-compliant replacement.
+
+    Example: ``[('course_id', 'course_key')]`` →
+    ``"Parameter 'course_id' is deprecated. Use 'course_key' instead. ..."``
+    """
+    parts = [
+        f"Parameter '{legacy}' is deprecated. Use '{preferred}' instead."
+        for legacy, preferred in legacy_to_preferred
+    ]
+    parts.append("Support will be removed in release '<release_name>'.")
+    return " ".join(parts)
+
+
+def _maybe_set_legacy_param_deprecation_header(request, response, alias_pairs):
+    """
+    Set the ADR 0033 ``Deprecation`` HTTP header on ``response`` when any of
+    the legacy parameter names in ``alias_pairs`` is present in the request's
+    query string.
+
+    ``alias_pairs`` is a sequence of ``(legacy, preferred)`` tuples (e.g.
+    ``[('course_id', 'course_key'), ('course_ids', 'course_keys')]``).  The
+    header is emitted whenever any *legacy* name appears, even if the
+    corresponding ``preferred`` name was also supplied (in which case the
+    preferred value wins, but the caller should still be told that the legacy
+    alias is deprecated).
+    """
+    used = [(legacy, preferred) for legacy, preferred in alias_pairs if legacy in request.query_params]
+    if used:
+        response['Deprecation'] = _build_legacy_param_deprecation_header(used)
+    return response
+
+
 class EnrollmentCrossDomainSessionAuth(SessionAuthenticationAllowInactiveUser, SessionAuthenticationCrossDomainCsrf):
     """Session authentication that allows inactive users and cross-domain requests."""
 
@@ -340,13 +379,27 @@ class EnrollmentUserRolesView(APIView):
     throttle_classes = (EnrollmentUserThrottle,)
     serializer_class = UserRolesResponseSerializer
 
+    # ADR 0033 §2 / OEP-68: ``course_key`` is the standardized name;
+    # ``course_id`` is retained as a deprecated alias.
+    _LEGACY_PARAM_ALIASES = (("course_id", "course_key"),)
+
     @extend_schema(
         summary="List the current user's course roles",
         description=(
             "Returns the list of course-level roles held by the currently logged-in user, plus an "
-            "is_staff flag. Optionally filters by course_id."
+            "is_staff flag. Optionally filters by course_key."
         ),
-        parameters=[_query_param("course_id", "If provided, only roles for this course are returned.")],
+        parameters=[
+            _query_param("course_key", "If provided, only roles for this course are returned (per OEP-68)."),
+            OpenApiParameter(
+                name="course_id",
+                description="Deprecated alias for 'course_key' (ADR 0033). Use 'course_key' instead.",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+                deprecated=True,
+            ),
+        ],
         responses={
             200: OpenApiResponse(
                 response=UserRolesResponseSerializer,
@@ -358,13 +411,17 @@ class EnrollmentUserRolesView(APIView):
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def get(self, request):
         """
-        Gets a list of all roles for the currently logged-in user, filtered by course_id if supplied
+        Gets a list of all roles for the currently logged-in user, filtered by
+        ``course_key`` (preferred, ADR 0033 / OEP-68) or ``course_id`` (deprecated
+        alias).  When both are present, ``course_key`` wins; in either case the
+        response carries the ADR 0033 ``Deprecation`` header if the legacy name
+        was used.
         """
         try:
-            course_id = request.GET.get("course_id")
+            course_key = request.GET.get("course_key") or request.GET.get("course_id")
             roles_data = api.get_user_roles(request.user.username)
-            if course_id:
-                roles_data = [role for role in roles_data if str(role.course_id) == course_id]
+            if course_key:
+                roles_data = [role for role in roles_data if str(role.course_id) == course_key]
         except Exception:  # pylint: disable=broad-except
             return Response(
                 status=status.HTTP_400_BAD_REQUEST,
@@ -378,7 +435,10 @@ class EnrollmentUserRolesView(APIView):
             "roles": list(roles_data),
             "is_staff": request.user.is_staff,
         })
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        return _maybe_set_legacy_param_deprecation_header(
+            request, response, self._LEGACY_PARAM_ALIASES,
+        )
 
 
 @can_disable_rate_limit
@@ -1612,13 +1672,37 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
         summary="List all course enrollments (admin-only, paginated)",
         description=(
             "Admin-only paginated list of CourseEnrollment records, optionally filtered by "
-            "course_id, course_ids, username, or email."
+            "course_key, course_keys, username, or email, and optionally ordered."
         ),
         parameters=[
-            _query_param("course_id", "Filter to enrollments for this course."),
-            _query_param("course_ids", "Comma-separated list of course IDs."),
+            # ADR 0033 §2 / OEP-68: ``course_key`` and ``course_keys`` are the
+            # standardized names; ``course_id`` and ``course_ids`` are kept as
+            # deprecated aliases (BC strategy §1) and trigger a ``Deprecation``
+            # HTTP header (BC strategy §2).
+            _query_param("course_key", "Filter to enrollments for this course (per OEP-68)."),
+            _query_param("course_keys", "Comma-separated list of course keys (per OEP-68)."),
+            OpenApiParameter(
+                name="course_id",
+                description="Deprecated alias for 'course_key' (ADR 0033). Use 'course_key' instead.",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+                deprecated=True,
+            ),
+            OpenApiParameter(
+                name="course_ids",
+                description="Deprecated alias for 'course_keys' (ADR 0033). Use 'course_keys' instead.",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+                deprecated=True,
+            ),
             _query_param("username", "Comma-separated list of usernames."),
             _query_param("email", "Comma-separated list of emails."),
+            _query_param(
+                "ordering",
+                "Order results by one of: created, -created, id, -id (ADR 0033 §3).",
+            ),
             _PAGE_QUERY_PARAM,
             _PAGE_SIZE_QUERY_PARAM,
         ],
@@ -1728,9 +1812,35 @@ class CourseEnrollmentsApiListView(DeveloperErrorViewMixin, ListAPIView):
     serializer_class = CourseEnrollmentsApiListSerializer
     pagination_class = CourseEnrollmentsApiListPagination
 
+    # ADR 0033 §3: whitelist of allowed values for the standard ``ordering``
+    # query parameter.  Any other value is silently ignored (the queryset
+    # falls back to the default ordering).
+    ALLOWED_ORDERING_FIELDS = frozenset({"created", "-created", "id", "-id"})
+
+    # ADR 0033 §2 / OEP-68 alias pairs accepted by this endpoint.  Used by
+    # the response post-processor to emit the ``Deprecation`` header when a
+    # caller still sends the legacy name.
+    _LEGACY_PARAM_ALIASES = (
+        ("course_id", "course_key"),
+        ("course_ids", "course_keys"),
+    )
+
     def get_queryset(self):
         """
-        Get all the course enrollments for the given course_id and/or given list of usernames.
+        Get all the course enrollments for the given course key(s) and/or given list of usernames.
+
+        ADR 0033 compliance notes:
+        - Filter parameters accept both the OEP-68-preferred names
+          (``course_key``, ``course_keys``) and the deprecated legacy names
+          (``course_id``, ``course_ids``).  Resolution is handled by
+          :class:`CourseEnrollmentsApiListForm`.
+        - The DRF-standard ``ordering`` query parameter is honored when its
+          value is in :pyattr:`ALLOWED_ORDERING_FIELDS`.
+        - Full migration to ``django-filter``/``DjangoFilterBackend`` is
+          tracked as a follow-up: the existing ``CourseEnrollmentsApiListForm``
+          performs nuanced parsing (CSV → list, MAX 100, course-key
+          validation, username validation) that is not a free conversion to
+          a ``FilterSet``.
         """
         form = CourseEnrollmentsApiListForm(self.request.query_params)
 
@@ -1755,7 +1865,21 @@ class CourseEnrollmentsApiListView(DeveloperErrorViewMixin, ListAPIView):
             queryset = queryset.filter(user__username__in=usernames)
         if emails:
             queryset = queryset.filter(user__email__in=emails)
+
+        ordering = self.request.query_params.get("ordering")
+        if ordering in self.ALLOWED_ORDERING_FIELDS:
+            queryset = queryset.order_by(ordering)
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """
+        ADR 0033 BC §2: emit the ``Deprecation`` HTTP header when a caller
+        still uses the legacy ``course_id`` / ``course_ids`` parameter names.
+        """
+        response = super().list(request, *args, **kwargs)
+        return _maybe_set_legacy_param_deprecation_header(
+            request, response, self._LEGACY_PARAM_ALIASES,
+        )
 
 
 # DEPRECATED (ADR 0028): Use EnrollmentViewSet.allowed action instead. Will be removed after one named release.
