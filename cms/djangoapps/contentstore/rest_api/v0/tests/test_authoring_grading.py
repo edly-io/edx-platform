@@ -98,7 +98,7 @@ class TestAuthoringGradingViewSetUpdate(APITestCase):
         return_value=_MOCK_GRADING_MODEL,
     )
     @patch(
-        'openedx.core.lib.api.view_utils.CourseOverview.course_exists',
+        'cms.djangoapps.contentstore.rest_api.v0.views.authoring_grading.CourseOverview.course_exists',
         return_value=True,
     )
     def test_staff_patch_updates_grading_returns_200(
@@ -132,7 +132,7 @@ class TestAuthoringGradingViewSetUpdate(APITestCase):
         return_value=_MOCK_GRADING_MODEL,
     )
     @patch(
-        'openedx.core.lib.api.view_utils.CourseOverview.course_exists',
+        'cms.djangoapps.contentstore.rest_api.v0.views.authoring_grading.CourseOverview.course_exists',
         return_value=True,
     )
     def test_deprecated_post_alias_still_returns_200(
@@ -154,3 +154,71 @@ class TestAuthoringGradingViewSetUpdate(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_update.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# ADR 0029 – Standardize Error Responses
+# ---------------------------------------------------------------------------
+
+_REQUIRED_ERROR_FIELDS = ("type", "title", "status", "detail", "instance")
+
+class TestAuthoringGradingViewSetErrorShape(APITestCase):
+    """
+    ADR 0029 – error response shape regression tests for AuthoringGradingViewSet.
+
+    Verifies that 404 error responses conform to the standardized JSON envelope
+    after removing DeveloperErrorViewMixin and replacing @verify_course_exists()
+    with inline NotFound raises.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.staff_user = UserFactory.create(is_staff=True)
+        self.client.force_authenticate(user=self.staff_user)
+        self.url = reverse(
+            'cms.djangoapps.contentstore:v0:authoring-grading-detail',
+            kwargs={'course_id': COURSE_ID},
+        )
+
+    @patch(
+        'cms.djangoapps.contentstore.rest_api.v0.views.authoring_grading.CourseOverview.course_exists',
+        return_value=False,
+    )
+    def test_nonexistent_course_returns_not_found_envelope(self, mock_exists):
+        """PATCH for a course that does not exist must return 404 with ADR 0029 envelope."""
+        response = self.client.patch(self.url, {}, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        for field in _REQUIRED_ERROR_FIELDS:
+            self.assertIn(field, response.data, f"ADR 0029: missing error field '{field}'")
+
+    @patch(
+        'cms.djangoapps.contentstore.rest_api.v0.views.authoring_grading.CourseOverview.course_exists',
+        return_value=False,
+    )
+    def test_not_found_error_type_uri(self, mock_exists):
+        """The ``type`` field must be the ADR 0029 not-found URI."""
+        response = self.client.patch(self.url, {}, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data.get('type'), 'https://docs.openedx.org/errors/not-found')
+
+    @patch(
+        'cms.djangoapps.contentstore.rest_api.v0.views.authoring_grading.CourseOverview.course_exists',
+        return_value=False,
+    )
+    def test_instance_field_is_request_path(self, mock_exists):
+        """The ``instance`` field must equal the request path."""
+        response = self.client.patch(self.url, {}, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data.get('instance'), self.url)
+
+    @patch(
+        'cms.djangoapps.contentstore.rest_api.v0.views.authoring_grading.CourseOverview.course_exists',
+        return_value=False,
+    )
+    def test_no_developer_message_in_error_body(self, mock_exists):
+        """Response must NOT contain the old DeveloperErrorViewMixin 'developer_message' key."""
+        response = self.client.patch(self.url, {}, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn('developer_message', response.data)
+        self.assertNotIn('error_code', response.data)

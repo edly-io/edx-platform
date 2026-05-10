@@ -1,8 +1,10 @@
 """ API Views for course grading settings """
 
 import edx_api_doc_tools as apidocs
+from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from rest_framework import viewsets
+from rest_framework.exceptions import NotFound  # ADR 0029
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,13 +16,13 @@ from rest_framework.permissions import IsAuthenticated
 
 from cms.djangoapps.contentstore.views.permissions import HasStudioReadAccess
 from cms.djangoapps.models.settings.course_grading import CourseGradingModel
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview  # ADR 0029
 from openedx.core.djangoapps.credit.tasks import update_credit_course_requirements
-from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists
 from ..serializers import CourseGradingModelSerializer
 
 
 # ADR 0028 – consolidated from AuthoringGradingView
-class AuthoringGradingViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
+class AuthoringGradingViewSet(viewsets.ViewSet):
     """
     ViewSet for getting and setting the grading settings for a course.
 
@@ -56,7 +58,6 @@ class AuthoringGradingViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
             404: "The requested course does not exist.",
         },
     )
-    @verify_course_exists()
     def partial_update(self, request: Request, course_id: str):
         """
         Update a course's grading settings.
@@ -101,7 +102,12 @@ class AuthoringGradingViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
 
         If the request is successful, an HTTP 200 "OK" response is returned.
         """
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise NotFound("The provided course key cannot be parsed.")  # noqa: B904
+        if not CourseOverview.course_exists(course_key):
+            raise NotFound(f"Course {course_id} not found.")
 
         if 'minimum_grade_credit' in request.data:
             update_credit_course_requirements.delay(str(course_key))
@@ -113,7 +119,7 @@ class AuthoringGradingViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
 
 # DEPRECATED (ADR 0028): Use AuthoringGradingViewSet instead.
 # Will be removed after one named release. Use PATCH grading/{course_id}/ via the router URL.
-class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
+class AuthoringGradingView(APIView):
     """
     View for getting and setting the advanced settings for a course.
     """
@@ -137,7 +143,6 @@ class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
             404: "The requested course does not exist.",
         },
     )
-    @verify_course_exists()
     def post(self, request: Request, course_id: str):
         """
         Update a course's grading.
@@ -182,7 +187,12 @@ class AuthoringGradingView(DeveloperErrorViewMixin, APIView):
 
         If the request is successful, an HTTP 200 "OK" response is returned,
         """
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise NotFound("The provided course key cannot be parsed.")  # noqa: B904
+        if not CourseOverview.course_exists(course_key):
+            raise NotFound(f"Course {course_id} not found.")
 
         if 'minimum_grade_credit' in request.data:
             update_credit_course_requirements.delay(str(course_key))
