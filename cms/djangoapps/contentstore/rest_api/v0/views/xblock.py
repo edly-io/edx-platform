@@ -10,7 +10,6 @@ from django.views.decorators.csrf import csrf_exempt
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
-from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin
 from rest_framework.permissions import IsAuthenticated
 from common.djangoapps.util.json_request import expect_json_in_class_view
 from opaque_keys import InvalidKeyError
@@ -28,7 +27,7 @@ handle_xblock = view_handlers.handle_xblock
 
 
 # ADR 0028 – consolidated from XblockView and XblockCreateView
-class XblockViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
+class XblockViewSet(viewsets.ViewSet):
     """
     ViewSet for xblock CRUD operations.
 
@@ -136,7 +135,7 @@ class XblockViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
 
 # DEPRECATED (ADR 0028): Use XblockViewSet instead.
 # Will be removed after one named release. Use GET/PUT/PATCH/DELETE xblock/{usage_key_string}/ instead.
-class XblockView(DeveloperErrorViewMixin, RetrieveUpdateDestroyAPIView):
+class XblockView(RetrieveUpdateDestroyAPIView):
     """
     Public rest API endpoints for the CMS API.
     course_id: required argument, needed to authorize course authors.
@@ -180,7 +179,7 @@ class XblockView(DeveloperErrorViewMixin, RetrieveUpdateDestroyAPIView):
 
 # DEPRECATED (ADR 0028): Use XblockViewSet instead.
 # Will be removed after one named release. Use POST xblock/ instead.
-class XblockCreateView(DeveloperErrorViewMixin, CreateAPIView):
+class XblockCreateView(CreateAPIView):
     """
     Public rest API endpoints for the CMS API.
     course_id: required argument, needed to authorize course authors.
