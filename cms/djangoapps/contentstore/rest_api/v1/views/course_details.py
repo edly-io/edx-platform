@@ -1,9 +1,11 @@
 """ API Views for course details """
 
 import edx_api_doc_tools as apidocs
-from django.core.exceptions import ValidationError
-from common.djangoapps.util.json_request import JsonResponseBadRequest
+from django.core.exceptions import ValidationError as DjangoValidationError
+from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
+from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -11,8 +13,8 @@ from rest_framework import viewsets
 from rest_framework.views import APIView
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.models.course_details import CourseDetails
-from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists
 from xmodule.modulestore.django import modulestore
 
 from cms.djangoapps.contentstore.views.permissions import HasStudioReadAccess
@@ -21,7 +23,7 @@ from ....utils import update_course_details
 
 
 # ADR 0028 – consolidated from CourseDetailsView
-class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
+class CourseDetailsViewSet(viewsets.ViewSet):
     """
     ViewSet for course details.  Registered via DefaultRouter (basename ``course_details``).
 
@@ -31,8 +33,7 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
 
     ADR 0025 compliance notes:
     - ``serializer_class`` declared; used for both response serialization and apidocs schema.
-    - Request validation is handled by ``update_course_details()`` (service layer) and
-      the ``@verify_course_exists()`` decorator.
+    - Request validation is handled by ``update_course_details()`` (service layer).
     """
 
     authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
@@ -54,7 +55,6 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
             404: "The requested course does not exist.",
         },
     )
-    @verify_course_exists()
     def retrieve(self, request: Request, course_id: str):
         """
         Get an object containing all the course details.
@@ -70,7 +70,12 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
         The HTTP 200 response contains a single dict that contains keys that
         are the course's details.
         """
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise NotFound("The provided course key cannot be parsed.")  # noqa: B904
+        if not CourseOverview.course_exists(course_key):
+            raise NotFound(f"Course {course_id} not found.")
         course_details = CourseDetails.fetch(course_key)
         serializer = self.serializer_class(course_details)
         return Response(serializer.data)
@@ -87,7 +92,6 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
             404: "The requested course does not exist.",
         },
     )
-    @verify_course_exists()
     def update(self, request: Request, course_id: str):
         """
         Update a course's details.
@@ -108,13 +112,18 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
         If the request is successful, an HTTP 200 "OK" response is returned,
         along with all the course's details similar to a ``GET`` request.
         """
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise NotFound("The provided course key cannot be parsed.")  # noqa: B904
+        if not CourseOverview.course_exists(course_key):
+            raise NotFound(f"Course {course_id} not found.")
         course_block = modulestore().get_course(course_key)
 
         try:
             updated_data = update_course_details(request, course_key, request.data, course_block)
-        except ValidationError as err:
-            return JsonResponseBadRequest({"error": err.message})
+        except DjangoValidationError as err:
+            raise DRFValidationError(err.message) from err
 
         serializer = self.serializer_class(updated_data)
         return Response(serializer.data)
@@ -122,13 +131,14 @@ class CourseDetailsViewSet(DeveloperErrorViewMixin, viewsets.ViewSet):
 
 # DEPRECATED (ADR 0028): Use CourseDetailsViewSet instead.
 # Will be removed after one named release. Use GET/PUT course_details/{course_id}/ instead.
-class CourseDetailsView(DeveloperErrorViewMixin, APIView):
+class CourseDetailsView(APIView):
     """
     View for getting and setting the course details.
     """
     authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
     permission_classes = (IsAuthenticated, HasStudioReadAccess)
     serializer_class = CourseDetailsSerializer
+
     @apidocs.schema(
         parameters=[
             apidocs.string_parameter("course_id", apidocs.ParameterLocation.PATH, description="Course ID"),
@@ -140,7 +150,6 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
             404: "The requested course does not exist.",
         },
     )
-    @verify_course_exists()
     def get(self, request: Request, course_id: str):
         """
         Get an object containing all the course details.
@@ -205,7 +214,12 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
         }
         ```
         """
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise NotFound("The provided course key cannot be parsed.")  # noqa: B904
+        if not CourseOverview.course_exists(course_key):
+            raise NotFound(f"Course {course_id} not found.")
         course_details = CourseDetails.fetch(course_key)
         serializer = self.serializer_class(course_details)
         return Response(serializer.data)
@@ -222,7 +236,6 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
             404: "The requested course does not exist.",
         },
     )
-    @verify_course_exists()
     def put(self, request: Request, course_id: str):
         """
         Update a course's details.
@@ -245,13 +258,18 @@ class CourseDetailsView(DeveloperErrorViewMixin, APIView):
         If the request is successful, an HTTP 200 "OK" response is returned,
         along with all the course's details similar to a ``GET`` request.
         """
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            raise NotFound("The provided course key cannot be parsed.")  # noqa: B904
+        if not CourseOverview.course_exists(course_key):
+            raise NotFound(f"Course {course_id} not found.")
         course_block = modulestore().get_course(course_key)
 
         try:
             updated_data = update_course_details(request, course_key, request.data, course_block)
-        except ValidationError as err:
-            return JsonResponseBadRequest({"error": err.message})
+        except DjangoValidationError as err:
+            raise DRFValidationError(err.message) from err
 
         serializer = self.serializer_class(updated_data)
         return Response(serializer.data)
