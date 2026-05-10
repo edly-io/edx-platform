@@ -24,6 +24,10 @@ from opaque_keys import InvalidKeyError  # lint-amnesty, pylint: disable=wrong-i
 from opaque_keys.edx.keys import CourseKey  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework import permissions, status, viewsets  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.decorators import action  # lint-amnesty, pylint: disable=wrong-import-order
+from rest_framework.exceptions import APIException  # ADR 0029  # lint-amnesty, pylint: disable=wrong-import-order
+from rest_framework.exceptions import NotFound  # ADR 0029  # lint-amnesty, pylint: disable=wrong-import-order
+from rest_framework.exceptions import PermissionDenied as DRFPermissionDenied  # ADR 0029  # lint-amnesty, pylint: disable=wrong-import-order
+from rest_framework.exceptions import ValidationError as DRFValidationError  # ADR 0029  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.generics import ListAPIView  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.response import Response  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.throttling import UserRateThrottle  # lint-amnesty, pylint: disable=wrong-import-order
@@ -59,6 +63,7 @@ from openedx.core.djangoapps.user_api.accounts.permissions import CanRetireUser
 from openedx.core.djangoapps.user_api.models import UserRetirementStatus
 from openedx.core.djangoapps.user_api.preferences.api import update_email_opt_in
 from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
+from openedx.core.lib.api.exceptions import Conflict  # ADR 0029
 from openedx.core.lib.api.permissions import ApiKeyHeaderPermission, ApiKeyHeaderPermissionIsAuthenticated
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin
 from openedx.core.lib.exceptions import CourseNotFoundError
@@ -225,29 +230,21 @@ class EnrollmentView(APIView, ApiKeyPermissionMixIn):
         ):
             # Return a 404 instead of a 403 (Unauthorized). If one user is looking up
             # other users, do not let them deduce the existence of an enrollment.
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            raise NotFound()
 
         try:
             course_key = CourseKey.from_string(course_id)
         except InvalidKeyError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": f"No course '{course_id}' found for enrollment"},
-            )
+            raise DRFValidationError(f"No course '{course_id}' found for enrollment")  # noqa: B904
 
         try:
             enrollment = CourseEnrollment.objects.get(user__username=username, course_id=course_key)
         except CourseEnrollment.DoesNotExist:
             return Response(None)
         except CourseEnrollmentError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "An error occurred while retrieving enrollments for user "
-                        "'{username}' in course '{course_id}'"
-                    ).format(username=username, course_id=course_id)
-                },
+            raise DRFValidationError(  # noqa: B904
+                "An error occurred while retrieving enrollments for user "
+                f"'{username}' in course '{course_id}'"
             )
 
         serializer = self.serializer_class(enrollment)
@@ -299,13 +296,10 @@ class EnrollmentUserRolesView(APIView):
             if course_id:
                 roles_data = [role for role in roles_data if str(role.course_id) == course_id]
         except Exception:  # pylint: disable=broad-except
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": ("An error occurred while retrieving roles for user '{username}").format(
-                        username=request.user.username
-                    )
-                },
+            raise DRFValidationError(  # noqa: B904
+                "An error occurred while retrieving roles for user '{username}'".format(
+                    username=request.user.username
+                )
             )
         serializer = self.serializer_class({
             "roles": list(roles_data),
@@ -401,17 +395,11 @@ class EnrollmentCourseDetailView(APIView):
         try:
             course_key = CourseKey.from_string(course_id)
         except InvalidKeyError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": f"No course found for course ID '{course_id}'"},
-            )
+            raise DRFValidationError(f"No course found for course ID '{course_id}'")  # noqa: B904
         try:
             course_overview = CourseOverview.get_from_id(course_key)
         except CourseOverview.DoesNotExist:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": f"No course found for course ID '{course_id}'"},
-            )
+            raise NotFound(f"No course found for course ID '{course_id}'")  # noqa: B904
         include_expired = bool(request.GET.get("include_expired", ""))
         serializer = self.serializer_class(course_overview, include_expired=include_expired)
         return Response(serializer.data)
@@ -476,11 +464,12 @@ class UnenrollmentView(APIView):
                 return Response(status=status.HTTP_204_NO_CONTENT)
             return Response(api.unenroll_user_from_all_courses(username))
         except KeyError:
-            return Response("Username not specified.", status=status.HTTP_404_NOT_FOUND)
+            raise DRFValidationError("Username not specified.")  # noqa: B904
         except UserRetirementStatus.DoesNotExist:
-            return Response("No retirement request status for username.", status=status.HTTP_404_NOT_FOUND)
+            raise NotFound("No retirement request status for username.")  # noqa: B904
         except Exception as exc:  # pylint: disable=broad-except
-            return Response(str(exc), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            log.exception("Unexpected error during unenrollment for user")
+            raise APIException("An unexpected error occurred during unenrollment.")  # noqa: B904
 
 
 # ADR 0028 – consolidated from EnrollmentListView, UnenrollmentView, EnrollmentAllowedView
@@ -573,17 +562,12 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         course_id = request.data.get("course_details", {}).get("course_id")
 
         if not course_id:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": "Course ID must be specified to create a new enrollment."},
-            )
+            raise DRFValidationError("Course ID must be specified to create a new enrollment.")
 
         try:
             course_id = CourseKey.from_string(course_id)
         except InvalidKeyError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
+            raise DRFValidationError(f"No course '{course_id}' found for enrollment")  # noqa: B904
 
         mode = request.data.get("mode")
 
@@ -595,20 +579,17 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
             and not has_api_key_permissions
             and not GlobalStaff().has_user(request.user)
         ):
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            raise NotFound()
 
         if not username:
             email = request.data.get("email")
             if email:
                 if not has_api_key_permissions and not GlobalStaff().has_user(request.user):
-                    return Response(status=status.HTTP_404_NOT_FOUND)
+                    raise NotFound()
                 try:
                     username = User.objects.get(email=email).username
                 except ObjectDoesNotExist:
-                    return Response(
-                        status=status.HTTP_406_NOT_ACCEPTABLE,
-                        data={"message": f"The user with the email address {email} does not exist."},
-                    )
+                    raise NotFound(f"The user with the email address {email} does not exist.")
             else:
                 username = request.user.username
 
@@ -617,21 +598,14 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
             and not has_api_key_permissions
             and not GlobalStaff().has_user(request.user)
         ):
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": "User does not have permission to create enrollment with mode [{mode}].".format(
-                        mode=mode
-                    )
-                },
+            raise DRFPermissionDenied(
+                "User does not have permission to create enrollment with mode [{mode}].".format(mode=mode)
             )
 
         try:
             user = User.objects.get(username=username)
         except ObjectDoesNotExist:
-            return Response(
-                status=status.HTTP_406_NOT_ACCEPTABLE, data={"message": f"The user {username} does not exist."}
-            )
+            raise NotFound(f"The user {username} does not exist.")
 
         embargo_response = embargo_api.get_embargo_response(request, course_id, user)
 
@@ -641,9 +615,8 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         try:
             is_active = request.data.get("is_active")
             if is_active is not None and not isinstance(is_active, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={"message": ("'{value}' is an invalid enrollment activation status.").format(value=is_active)},
+                raise DRFValidationError(
+                    ("'{value}' is an invalid enrollment activation status.").format(value=is_active)
                 )
 
             explicit_linked_enterprise = request.data.get("linked_enterprise_customer")
@@ -670,11 +643,8 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
             enrollment_attributes = request.data.get("enrollment_attributes")
             force_enrollment = request.data.get("force_enrollment")
             if force_enrollment is not None and not isinstance(force_enrollment, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={
-                        "message": ("'{value}' is an invalid force enrollment status.").format(value=force_enrollment)
-                    },
+                raise DRFValidationError(
+                    ("'{value}' is an invalid force enrollment status.").format(value=force_enrollment)
                 )
             force_enrollment = force_enrollment and GlobalStaff().has_user(request.user)
             enrollment = api.get_enrollment(username, str(course_id))
@@ -690,14 +660,14 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
                         enrollment["mode"], mode
                     )
                     log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
+                    raise DRFValidationError(msg)
 
                 if missing_attrs:
                     msg = "Missing enrollment attributes: requested mode={} required attributes={}".format(
                         mode, REQUIRED_ATTRIBUTES.get(mode)
                     )
                     log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
+                    raise DRFValidationError(msg)
 
                 response = api.update_enrollment(
                     username,
@@ -735,35 +705,21 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
             return Response(response)
 
         except InvalidEnrollmentAttribute as error:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
-            )
+            exc = DRFValidationError(str(error))
+            exc.user_message = str(error)
+            raise exc from error
         except EnrollmentNotAllowed as error:
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
-            )
-        except CourseModeNotFoundError as error:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "The [{mode}] course mode is expired or otherwise unavailable for course run [{course_id}]."
-                    ).format(mode=mode, course_id=course_id),
-                    "course_details": error.data,
-                },
+            exc = DRFPermissionDenied(str(error))
+            exc.user_message = str(error)
+            raise exc from error
+        except CourseModeNotFoundError:
+            raise DRFValidationError(  # noqa: B904
+                "The [{mode}] course mode is expired or otherwise unavailable for course run [{course_id}].".format(
+                    mode=mode, course_id=course_id
+                )
             )
         except CourseNotFoundError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
+            raise DRFValidationError(f"No course '{course_id}' found for enrollment")  # noqa: B904
         except CourseEnrollmentExistsError as error:
             log.warning("An enrollment already exists for user [%s] in course run [%s].", username, course_id)
             return Response(data=error.enrollment)
@@ -773,21 +729,13 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
                 username,
                 course_id,
             )
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "An error occurred while creating the new course enrollment for user "
-                        "'{username}' in course '{course_id}'"
-                    ).format(username=username, course_id=course_id)
-                },
+            raise DRFValidationError(  # noqa: B904
+                "An error occurred while creating the new course enrollment for user "
+                f"'{username}' in course '{course_id}'"
             )
         except CourseUserGroup.DoesNotExist:
             log.exception("Missing cohort [%s] in course run [%s]", cohort_name, course_id)
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": "An error occured while adding to cohort [%s]" % cohort_name},
-            )
+            raise DRFValidationError("An error occured while adding to cohort [%s]" % cohort_name)  # noqa: B904
         finally:
             if has_api_key_permissions:
                 try:
@@ -831,11 +779,12 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
                 return Response(status=status.HTTP_204_NO_CONTENT)
             return Response(api.unenroll_user_from_all_courses(username))
         except KeyError:
-            return Response("Username not specified.", status=status.HTTP_404_NOT_FOUND)
+            raise DRFValidationError("Username not specified.")  # noqa: B904
         except UserRetirementStatus.DoesNotExist:
-            return Response("No retirement request status for username.", status=status.HTTP_404_NOT_FOUND)
+            raise NotFound("No retirement request status for username.")  # noqa: B904
         except Exception as exc:  # pylint: disable=broad-except
-            return Response(str(exc), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            log.exception("Unexpected error during unenrollment for user")
+            raise APIException("An unexpected error occurred during unenrollment.")  # noqa: B904
 
     @action(
         detail=False,
@@ -861,20 +810,15 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
 
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=serializer.errors)
+            raise DRFValidationError(serializer.errors)
 
         if request.method == "POST":
             try:
                 enrollment_allowed = serializer.save()
             except IntegrityError:
-                return Response(
-                    status=status.HTTP_409_CONFLICT,
-                    data={
-                        "message": (
-                            f"An enrollment allowed with email {serializer.validated_data.get('email')} "
-                            f"and course {serializer.validated_data.get('course_id')} already exists."
-                        )
-                    },
+                raise Conflict(  # noqa: B904
+                    f"An enrollment allowed with email {serializer.validated_data.get('email')} "
+                    f"and course {serializer.validated_data.get('course_id')} already exists."
                 )
             return Response(
                 status=status.HTTP_201_CREATED,
@@ -888,9 +832,8 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
             CourseEnrollmentAllowed.objects.get(email=email, course_id=course_id).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ObjectDoesNotExist:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND,
-                data={"message": f"An enrollment allowed with email {email} and course {course_id} doesn't exists."},
+            raise NotFound(  # noqa: B904
+                f"An enrollment allowed with email {email} and course {course_id} doesn't exist."
             )
 
 
@@ -1131,17 +1074,12 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
         course_id = request.data.get("course_details", {}).get("course_id")
 
         if not course_id:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": "Course ID must be specified to create a new enrollment."},
-            )
+            raise DRFValidationError("Course ID must be specified to create a new enrollment.")
 
         try:
             course_id = CourseKey.from_string(course_id)
         except InvalidKeyError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
+            raise DRFValidationError(f"No course '{course_id}' found for enrollment")  # noqa: B904
 
         mode = request.data.get("mode")
 
@@ -1156,7 +1094,7 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
         ):
             # Return a 404 instead of a 403 (Unauthorized). If one user is looking up
             # other users, do not let them deduce the existence of an enrollment.
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            raise NotFound()
 
         # A provided user has priority over a provided email.
         # Fallback on request user if neither is provided.
@@ -1165,14 +1103,11 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
             if email:
                 # Only server-to-server or staff users can use the email for the request.
                 if not has_api_key_permissions and not GlobalStaff().has_user(request.user):
-                    return Response(status=status.HTTP_404_NOT_FOUND)
+                    raise NotFound()
                 try:
                     username = User.objects.get(email=email).username
                 except ObjectDoesNotExist:
-                    return Response(
-                        status=status.HTTP_406_NOT_ACCEPTABLE,
-                        data={"message": f"The user with the email address {email} does not exist."},
-                    )
+                    raise NotFound(f"The user with the email address {email} does not exist.")
             else:
                 username = request.user.username
 
@@ -1181,22 +1116,15 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
             and not has_api_key_permissions
             and not GlobalStaff().has_user(request.user)
         ):
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": "User does not have permission to create enrollment with mode [{mode}].".format(
-                        mode=mode
-                    )
-                },
+            raise DRFPermissionDenied(
+                "User does not have permission to create enrollment with mode [{mode}].".format(mode=mode)
             )
 
         try:
             # Lookup the user, instead of using request.user, since request.user may not match the username POSTed.
             user = User.objects.get(username=username)
         except ObjectDoesNotExist:
-            return Response(
-                status=status.HTTP_406_NOT_ACCEPTABLE, data={"message": f"The user {username} does not exist."}
-            )
+            raise NotFound(f"The user {username} does not exist.")
 
         embargo_response = embargo_api.get_embargo_response(request, course_id, user)
 
@@ -1207,9 +1135,8 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
             is_active = request.data.get("is_active")
             # Check if the requested activation status is None or a Boolean
             if is_active is not None and not isinstance(is_active, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={"message": ("'{value}' is an invalid enrollment activation status.").format(value=is_active)},
+                raise DRFValidationError(
+                    ("'{value}' is an invalid enrollment activation status.").format(value=is_active)
                 )
 
             explicit_linked_enterprise = request.data.get("linked_enterprise_customer")
@@ -1237,11 +1164,8 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
             force_enrollment = request.data.get("force_enrollment")
             # Check if the force enrollment status is None or a Boolean
             if force_enrollment is not None and not isinstance(force_enrollment, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={
-                        "message": ("'{value}' is an invalid force enrollment status.").format(value=force_enrollment)
-                    },
+                raise DRFValidationError(
+                    ("'{value}' is an invalid force enrollment status.").format(value=force_enrollment)
                 )
             # Only a staff user role can enroll a user forcefully
             force_enrollment = force_enrollment and GlobalStaff().has_user(request.user)
@@ -1261,14 +1185,14 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
                         enrollment["mode"], mode
                     )
                     log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
+                    raise DRFValidationError(msg)
 
                 if missing_attrs:
                     msg = "Missing enrollment attributes: requested mode={} required attributes={}".format(
                         mode, REQUIRED_ATTRIBUTES.get(mode)
                     )
                     log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
+                    raise DRFValidationError(msg)
 
                 response = api.update_enrollment(
                     username,
@@ -1310,35 +1234,21 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
             return Response(response)
 
         except InvalidEnrollmentAttribute as error:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
-            )
+            exc = DRFValidationError(str(error))
+            exc.user_message = str(error)
+            raise exc from error
         except EnrollmentNotAllowed as error:
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
-            )
-        except CourseModeNotFoundError as error:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "The [{mode}] course mode is expired or otherwise unavailable for course run [{course_id}]."
-                    ).format(mode=mode, course_id=course_id),
-                    "course_details": error.data,
-                },
+            exc = DRFPermissionDenied(str(error))
+            exc.user_message = str(error)
+            raise exc from error
+        except CourseModeNotFoundError:
+            raise DRFValidationError(  # noqa: B904
+                "The [{mode}] course mode is expired or otherwise unavailable for course run [{course_id}].".format(
+                    mode=mode, course_id=course_id
+                )
             )
         except CourseNotFoundError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
+            raise DRFValidationError(f"No course '{course_id}' found for enrollment")  # noqa: B904
         except CourseEnrollmentExistsError as error:
             log.warning("An enrollment already exists for user [%s] in course run [%s].", username, course_id)
             return Response(data=error.enrollment)
@@ -1348,22 +1258,14 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
                 username,
                 course_id,
             )
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "An error occurred while creating the new course enrollment for user "
-                        "'{username}' in course '{course_id}'"
-                    ).format(username=username, course_id=course_id)
-                },
+            raise DRFValidationError(  # noqa: B904
+                "An error occurred while creating the new course enrollment for user "
+                f"'{username}' in course '{course_id}'"
             )
 
         except CourseUserGroup.DoesNotExist:
             log.exception("Missing cohort [%s] in course run [%s]", cohort_name, course_id)
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": "An error occured while adding to cohort [%s]" % cohort_name},
-            )
+            raise DRFValidationError("An error occured while adding to cohort [%s]" % cohort_name)  # noqa: B904
         finally:
             # Assumes that the ecommerce service uses an API key to authenticate.
             if has_api_key_permissions:
@@ -1580,19 +1482,14 @@ class EnrollmentAllowedView(APIView):
         """
         serializer = self.serializer_class(data=request.data)
         if not serializer.is_valid():
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=serializer.errors)
+            raise DRFValidationError(serializer.errors)
 
         try:
             enrollment_allowed = serializer.save()
         except IntegrityError:
-            return Response(
-                status=status.HTTP_409_CONFLICT,
-                data={
-                    "message": (
-                        f"An enrollment allowed with email {serializer.validated_data.get('email')} "
-                        f"and course {serializer.validated_data.get('course_id')} already exists."
-                    )
-                },
+            raise Conflict(  # noqa: B904
+                f"An enrollment allowed with email {serializer.validated_data.get('email')} "
+                f"and course {serializer.validated_data.get('course_id')} already exists."
             )
 
         return Response(status=status.HTTP_201_CREATED, data=self.serializer_class(enrollment_allowed).data)
@@ -1629,7 +1526,7 @@ class EnrollmentAllowedView(APIView):
         """
         serializer = self.serializer_class(data=request.data)
         if not serializer.is_valid():
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=serializer.errors)
+            raise DRFValidationError(serializer.errors)
 
         email = serializer.validated_data.get("email")
         course_id = serializer.validated_data.get("course_id")
@@ -1638,7 +1535,6 @@ class EnrollmentAllowedView(APIView):
             CourseEnrollmentAllowed.objects.get(email=email, course_id=course_id).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ObjectDoesNotExist:
-            return Response(
-                status=status.HTTP_404_NOT_FOUND,
-                data={"message": f"An enrollment allowed with email {email} and course {course_id} doesn't exists."},
+            raise NotFound(  # noqa: B904
+                f"An enrollment allowed with email {email} and course {course_id} doesn't exist."
             )

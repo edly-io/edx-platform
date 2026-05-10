@@ -2643,3 +2643,151 @@ class TestEnrollmentViewSetListPaginationEnvelope(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         expected = CourseEnrollment.objects.filter(user=self.user).count()
         assert response.data['count'] == expected
+
+
+# ---------------------------------------------------------------------------
+# ADR 0029 – Standardize Error Responses
+# ---------------------------------------------------------------------------
+
+_REQUIRED_ERROR_FIELDS = ("type", "title", "status", "detail", "instance")
+
+
+@skip_unless_lms
+class TestStandardizedErrorHandlerInstalled(APITestCase):
+    """ADR 0029 – verify the central exception handler is wired in settings."""
+
+    def test_exception_handler_is_standardized(self):
+        from django.conf import settings as django_settings
+        handler = django_settings.REST_FRAMEWORK.get("EXCEPTION_HANDLER", "")
+        assert "standardized_error_exception_handler" in handler, (
+            "ADR 0029: EXCEPTION_HANDLER must point to standardized_error_exception_handler"
+        )
+
+
+@skip_unless_lms
+class TestEnrollmentViewErrorShape(APITestCase):
+    """
+    ADR 0029 – error response shape regression tests for EnrollmentView.
+
+    Verifies that error responses conform to the standardized JSON envelope
+    after migrating from inline Response({"message": ...}) returns.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create()
+        self.client.force_authenticate(user=self.user)
+
+    def test_invalid_course_key_via_post_returns_validation_error_shape(self):
+        """POST with an invalid course key in the body must return 400 with the ADR 0029 envelope."""
+        url = reverse("courseenrollments")  # EnrollmentListView POST
+        response = self.client.post(
+            url,
+            data={"course_details": {"course_id": "not-a-valid-key"}},
+            content_type="application/json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        for field in _REQUIRED_ERROR_FIELDS:
+            assert field in response.data, f"ADR 0029: missing error field '{field}'"
+
+    def test_validation_error_type_uri(self):
+        """The ``type`` field must be the ADR 0029 validation URI for a 400 response."""
+        url = reverse("courseenrollments")
+        response = self.client.post(
+            url,
+            data={"course_details": {"course_id": "not-a-valid-key"}},
+            content_type="application/json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data.get("type") == "https://docs.openedx.org/errors/validation"
+
+    def test_instance_field_is_request_path(self):
+        """The ``instance`` field must equal the request path."""
+        url = reverse("courseenrollments")
+        response = self.client.post(
+            url,
+            data={"course_details": {"course_id": "not-a-valid-key"}},
+            content_type="application/json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data.get("instance") == url
+
+    def test_unauthorized_user_lookup_returns_404_shape(self):
+        """A user looking up another user's enrollment gets 404 with ADR 0029 envelope."""
+        other = UserFactory.create()
+        url = reverse(
+            "courseenrollment",
+            kwargs={"username": other.username, "course_id": "course-v1:edX+DemoX+Demo_Course"},
+        )
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        for field in _REQUIRED_ERROR_FIELDS:
+            assert field in response.data, f"ADR 0029: missing error field '{field}'"
+        assert response.data.get("type") == "https://docs.openedx.org/errors/not-found"
+
+
+@skip_unless_lms
+class TestEnrollmentViewSetCreateErrorShape(APITestCase):
+    """
+    ADR 0029 – error response shape regression tests for EnrollmentViewSet.create.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = UserFactory.create()
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("enrollment-list")
+
+    def test_missing_course_id_returns_validation_envelope(self):
+        """POST without course_details.course_id must return 400 ADR 0029 envelope."""
+        response = self.client.post(self.url, data={}, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        for field in _REQUIRED_ERROR_FIELDS:
+            assert field in response.data, f"ADR 0029: missing error field '{field}'"
+        assert response.data.get("type") == "https://docs.openedx.org/errors/validation"
+
+    def test_invalid_course_key_returns_validation_envelope(self):
+        """POST with an invalid course key must return 400 ADR 0029 envelope."""
+        response = self.client.post(
+            self.url,
+            data={"course_details": {"course_id": "not-a-valid-key"}},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        for field in _REQUIRED_ERROR_FIELDS:
+            assert field in response.data, f"ADR 0029: missing error field '{field}'"
+
+
+@skip_unless_lms
+class TestEnrollmentViewSetAllowedErrorShape(APITestCase):
+    """
+    ADR 0029 – error response shape for EnrollmentViewSet.allowed (admin action).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.admin = UserFactory.create(is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=self.admin)
+        self.url = reverse("enrollment-allowed")
+
+    def test_missing_fields_returns_validation_envelope(self):
+        """POST without required fields must return 400 ADR 0029 envelope."""
+        response = self.client.post(self.url, data={}, format="json")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        for field in _REQUIRED_ERROR_FIELDS:
+            assert field in response.data, f"ADR 0029: missing error field '{field}'"
+        assert response.data.get("type") == "https://docs.openedx.org/errors/validation"
+        assert "errors" in response.data, "ADR 0029: validation response must include 'errors'"
+        assert isinstance(response.data["errors"], dict)
+
+    def test_delete_nonexistent_returns_not_found_envelope(self):
+        """DELETE for a non-existent enrollment_allowed must return 404 ADR 0029 envelope."""
+        response = self.client.delete(
+            self.url,
+            data={"email": "nobody@example.com", "course_id": "course-v1:edX+Demo+2099"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        for field in _REQUIRED_ERROR_FIELDS:
+            assert field in response.data, f"ADR 0029: missing error field '{field}'"
+        assert response.data.get("type") == "https://docs.openedx.org/errors/not-found"
