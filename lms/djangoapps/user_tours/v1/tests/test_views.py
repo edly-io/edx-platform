@@ -139,7 +139,7 @@ class TestUserTourView(TestCase):
         data = {'course_home_tour_status': 'blah'}
         response = self.send_request(self.user, self.user, 'PATCH', data=data)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert response.data['course_home_tour_status'][0] == '"blah" is not a valid choice.'
+        assert response.data['errors']['course_home_tour_status'][0] == '"blah" is not a valid choice.'
 
         # Invalid param, dropped from validated data so no update happens
         data = {'user': 7}

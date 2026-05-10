@@ -207,7 +207,7 @@ class CourseRetrieveUpdateViewTests(CourseApiViewTestMixin, ModuleStoreTestCase)
         expected = {
             'non_field_errors': ['Verification deadline must be after the course mode upgrade deadlines.']
         }
-        assert actual == expected
+        assert actual['errors'] == expected
 
     def test_update_verification_deadline_without_expiring_modes(self):
         """ Verify verification deadline can be set if no course modes expire.
@@ -442,7 +442,7 @@ class CourseRetrieveUpdateViewTests(CourseApiViewTestMixin, ModuleStoreTestCase)
                 )
             ]
         }
-        self.assertDictEqual(expected_dict, json.loads(response.content.decode('utf-8')))  # noqa: PT009
+        self.assertDictEqual(expected_dict, json.loads(response.content.decode('utf-8'))['errors'])  # noqa: PT009
 
 
 class OrderViewTests(UserMixin, TestCase):

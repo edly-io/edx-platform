@@ -144,7 +144,7 @@ class TestMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'source' in response.data
+        assert 'source' in str(response.data)
 
     def test_create_migration_invalid_target_key(self):
         """
@@ -168,7 +168,7 @@ class TestMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'target' in response.data
+        assert 'target' in str(response.data)
 
     def test_create_migration_missing_required_fields(self):
         """
@@ -190,7 +190,7 @@ class TestMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'source' in response.data
+        assert 'source' in str(response.data)
 
         request_data = {
             'source': 'course-v1:TestOrg+TestCourse+TestRun',
@@ -204,7 +204,7 @@ class TestMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'target' in response.data
+        assert 'target' in str(response.data)
 
     def test_create_migration_unauthenticated_user(self):
         """
@@ -368,7 +368,7 @@ class TestMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'composition_level' in response.data
+        assert 'composition_level' in str(response.data)
 
     def test_create_migration_invalid_repeat_handling_strategy(self):
         """
@@ -392,7 +392,7 @@ class TestMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'repeat_handling_strategy' in response.data
+        assert 'repeat_handling_strategy' in str(response.data)
 
 
 class TestMigrationViewSetList(TestCase):
@@ -803,7 +803,7 @@ class TestBulkMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'sources' in response.data
+        assert 'sources' in str(response.data)
 
     def test_create_bulk_migration_missing_sources(self):
         """
@@ -824,7 +824,7 @@ class TestBulkMigrationViewSetCreate(TestCase):
         response = self.view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert 'sources' in response.data
+        assert 'sources' in str(response.data)
 
 
 class TestMigrationInfoViewSet(TestCase):

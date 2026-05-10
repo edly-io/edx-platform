@@ -38,9 +38,9 @@ class ProctoringExamSettingsTestcase(AuthorizeStaffTestCase):
         self.client.login(username=self.global_staff, password=self.password)
         response = self.make_request(course_id=course_id)
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert response.data == {
-            "detail": f"Course with course_id {course_id} does not exist."
-        }
+        assert response.data["detail"] == (
+            f"Course with course_id {course_id} does not exist."
+        )
 
 
 class ProctoringExamSettingsGetTests(

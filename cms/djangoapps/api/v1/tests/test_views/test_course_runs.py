@@ -164,7 +164,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.put(url, data, format='json')
         assert response.status_code == 400
-        assert response.data == {'team': ['Course team user does not exist']}
+        assert response.data['errors'] == {'team': ['Course team user does not exist']}
 
     def test_update_with_pacing_type(self):
         """
@@ -291,7 +291,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         data['team'] = [{'user': 'invalid-username'}]
         response = self.client.post(self.list_url, data, format='json')
         self.assertEqual(response.status_code, 400)  # noqa: PT009
-        self.assertEqual(response.data.get('team'), ['Course team user does not exist'])  # noqa: PT009
+        self.assertEqual(response.data['errors'].get('team'), ['Course team user does not exist'])  # noqa: PT009
 
     def test_images_upload(self):
         # http://www.django-rest-framework.org/api-guide/parsers/#fileuploadparser
@@ -393,7 +393,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == 400
-        assert response.data == {'run': [f'Course run {course_run.id} already exists']}
+        assert response.data['errors'] == {'run': [f'Course run {course_run.id} already exists']}
 
     def test_rerun_invalid_number(self):
         course_run = ToyCourseFactory()
@@ -404,7 +404,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == 400
-        assert response.data == {'non_field_errors': [
+        assert response.data['errors'] == {'non_field_errors': [
             'Invalid key supplied. Ensure there are no special characters in the Course Number.'
         ]}
 
@@ -426,7 +426,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == 400
-        self.assertEqual(response.data, {'source_course_id': ['This field is required.']})  # noqa: PT009
+        self.assertEqual(response.data['errors'], {'source_course_id': ['This field is required.']})  # noqa: PT009
 
     def test_clone_course_with_missing_dest_id(self):
         url = reverse('api:v1:course_run-clone')
@@ -435,7 +435,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == 400
-        self.assertEqual(response.data, {'destination_course_id': ['This field is required.']})  # noqa: PT009
+        self.assertEqual(response.data['errors'], {'destination_course_id': ['This field is required.']})  # noqa: PT009
 
     def test_clone_course_with_nonexistent_source_course(self):
         url = reverse('api:v1:course_run-clone')
@@ -445,7 +445,7 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == 400
-        assert str(response.data.get('non_field_errors')[0]) == 'Source course does not exist.'
+        assert str(response.data['errors'].get('non_field_errors')[0]) == 'Source course does not exist.'
 
     def test_clone_course_with_existing_dest_course(self):
         url = reverse('api:v1:course_run-clone')
@@ -457,4 +457,4 @@ class CourseRunViewSetTests(ModuleStoreTestCase):
         }
         response = self.client.post(url, data, format='json')
         assert response.status_code == 400
-        assert str(response.data.get('non_field_errors')[0]) == 'Destination course already exists.'
+        assert str(response.data['errors'].get('non_field_errors')[0]) == 'Destination course already exists.'

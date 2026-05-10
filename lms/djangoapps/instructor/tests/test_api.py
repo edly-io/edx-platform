@@ -4857,13 +4857,15 @@ class TestChangeDueDateV2(SharedModuleStoreTestCase, LoginEnrollmentTestCase):
     def test_change_due_date_v2_invalid_block(self):
         """Test error handling for invalid block location"""
         url = reverse('instructor_api_v2:change_due_date', kwargs={'course_id': str(self.course.id)})
-        # Invalid block location should cause an exception (500 error)
-        with self.assertRaises(Exception):  # noqa: B017, PT027
-            self.client.post(url, json.dumps({
-                'email_or_username': self.user1.username,
-                'block_id': 'i4x://invalid/block/location',
-                'due_datetime': '12/30/2013 00:00'
-            }), content_type='application/json')
+        # Invalid block location is caught by the standardized exception handler
+        # and converted to a structured error response (4xx/5xx), rather than
+        # propagating as an unhandled exception.
+        response = self.client.post(url, json.dumps({
+            'email_or_username': self.user1.username,
+            'block_id': 'i4x://invalid/block/location',
+            'due_datetime': '12/30/2013 00:00'
+        }), content_type='application/json')
+        assert response.status_code >= 400
 
     def test_change_due_date_v2_invalid_date_format(self):
         """Test error handling for invalid date format"""
