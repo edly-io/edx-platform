@@ -5,6 +5,7 @@ import logging
 from datetime import timedelta
 from django.contrib.auth.views import redirect_to_login
 from django.contrib import messages
+from django.db import models, IntegrityError
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.http import HttpResponseRedirect
@@ -65,6 +66,15 @@ def handle_otp_flow(possibly_authenticated_user, request, redirect_url=None):
         _setup_2fa_session(request, possibly_authenticated_user, otp_session)
         return HttpResponseRedirect(reverse('edly_app_urls:verify_otp'))
 
+    except IntegrityError:
+        log.warning(
+            "2FA session conflict for user %s — session_key already claimed",
+            getattr(possibly_authenticated_user, 'id', 'Unknown'),
+        )
+        messages.error(
+            request,
+            _("Another login is in progress on this browser. Please wait 10 minutes or clear your browser session.")
+        )
     except Exception as e:
         log.error(
             "Error initiating 2FA for user %s: %s",
@@ -73,23 +83,40 @@ def handle_otp_flow(possibly_authenticated_user, request, redirect_url=None):
         )
         messages.error(
             request,
-            "Error setting up two-factor authentication. Please try again."
+            _("Error setting up two-factor authentication. Please try again.")
         )
         return redirect_to_login('/')
 
 
 def _create_or_get_otp_session(user, session_key, request):
-    """Create or get OTP session and generate new OTP code."""
-    otp_session, created = OTPSession.objects.get_or_create(
+    """Get or create OTP session and send email if needed."""
+    otp_session, _ = _get_or_create_session(user, session_key)
+    if not otp_session.otp_code:
+        _send_otp(otp_session, user, request)
+    else:
+        log.info("2FA OTP active for user %s, skipping resend (expires_at=%s)", user.id, otp_session.expires_at)
+    return otp_session
+
+
+def _get_or_create_session(user, session_key):
+    """Delete expired sessions, then get existing or create new OTP session."""
+    OTPSession.objects.filter(expires_at__lt=timezone.now()).filter(
+        models.Q(user=user) | models.Q(session_key=session_key)
+    ).delete()
+    return OTPSession.objects.get_or_create(
         user=user,
         session_key=session_key,
         defaults={'otp_code': '', 'expires_at': timezone.now()}
     )
-    
-    if created:
-        otp_code = otp_session.generate_otp()
-        send_otp_email(otp_session.user, request.site, otp_code)
-    return otp_session
+
+
+def _send_otp(otp_session, user, request):
+    """Generate OTP and send email."""
+    log.info("2FA OTP sending email for user %s", user.id)
+    otp_code = otp_session.generate_otp()
+    otp_session.attempts = 0
+    otp_session.save()
+    send_otp_email(otp_session.user, request.site, otp_code)
 
 
 def _setup_2fa_session(request, user, otp_session):
@@ -146,16 +173,9 @@ def resend_otp_view(request):
         return redirect('/')
 
     try:
-        otp_session_id = request.session.get('2fa_session_id')
-        user_id = request.session.get('2fa_user_id')
-        if not otp_session_id or not user_id:
-            return JsonResponse({'success': False, 'message': 'Invalid session'})
-
-        otp_session = OTPSession.objects.get(
-            id=otp_session_id,
-            user__id=user_id,
-            is_verified=False
-        )
+        otp_session = _get_otp_session(request)
+        if not otp_session:
+            return JsonResponse({'success': False, 'message': _('Invalid OTP session. Please login again.')})
 
         resend_cooldown = _get_resend_cooldown_remaining(otp_session)
         if resend_cooldown:
@@ -176,13 +196,8 @@ def resend_otp_view(request):
             'message': _('Verification code sent successfully!')
         })
 
-    except OTPSession.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'message': _('Invalid OTP session. Please login again.')
-        })
     except Exception as e:
-        log.error(f"Error resending OTP for user {user_id}: {str(e)}")
+        log.error("Error resending OTP: %s", str(e))
         return JsonResponse({
             'success': False,
             'message': _('An error occurred. Please try again.')
@@ -247,7 +262,7 @@ def _handle_form_otp_verification(request):
             return response
         else:
             max_attempts = getattr(settings, 'TWO_FA_ATTEMPTS_MAX_LIMIT', 3)
-            if max_attempts == otp_session.attempts:
+            if otp_session.attempts >= max_attempts:
                 msg = _('Too many failed attempts. Please request a new OTP.')
             else:
                 msg = _(f'Invalid OTP. {max_attempts - otp_session.attempts} attempts remaining.')
@@ -286,7 +301,7 @@ def _validate_otp_session(otp_session):
         return _('OTP has expired. Please request a new one.')
     
     max_attempts = getattr(settings, 'TWO_FA_ATTEMPTS_MAX_LIMIT', 3)
-    if otp_session.attempts > max_attempts:
+    if otp_session.attempts >= max_attempts:
         return _('Too many failed attempts. Please request a new OTP.')
     
     return None
@@ -327,7 +342,7 @@ def _flush_2fa_session_variables(request):
         '2fa_required',
         '2fa_session_id',
         '2fa_initiated',
-        '2fa_redirect_uri'
+        '2fa_redirect_url'
     ]
     
     for key in session_keys_to_remove:
