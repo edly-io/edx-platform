@@ -1083,19 +1083,21 @@ def send_otp_email_with_ace(message_context, user, site, preferred_email=None):
     """
     Use edx_ace send() to deliver OTP email based on user and site
     """
+    target_email = preferred_email or user.email
+    LOGGER.info('2FA OTP dispatching email to user %s at %s via site %s', user.id, target_email, site)
     try:
         with emulate_http_request(site=site, user=user):
             msg = OTPMessage().personalize(
-                recipient=Recipient(user.username, preferred_email or user.email),
+                recipient=Recipient(user.username, target_email),
                 language=preferences_api.get_user_preference(user, LANGUAGE_KEY),
                 user_context=message_context,
             )
             ace.send(msg)
+        LOGGER.info('2FA OTP email sent successfully to user %s at %s', user.id, target_email)
     except Exception:  # pylint: disable=broad-except
         LOGGER.exception(
-            'Unable to send OTP email to user from to "{}"'.format(
-                user.email,
-            )
+            '2FA OTP email failed for user %s at "%s"',
+            user.id, target_email,
         )
 
 
