@@ -1785,6 +1785,8 @@ OPTIONAL_APPS = (
 
     # Xblocks Apps
     ('kwl.kwl_djangoapp', None),
+    ('needs_analyst', None),
+    ('portfolio_coach', None),
 )
 
 
