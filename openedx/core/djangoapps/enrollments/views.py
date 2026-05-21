@@ -36,23 +36,12 @@ from rest_framework.response import Response  # lint-amnesty, pylint: disable=wr
 from rest_framework.throttling import UserRateThrottle  # lint-amnesty, pylint: disable=wrong-import-order
 from rest_framework.views import APIView  # lint-amnesty, pylint: disable=wrong-import-order
 
-from common.djangoapps.course_modes.models import CourseMode
-from common.djangoapps.student.auth import user_has_role
-from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed, EnrollmentNotAllowed, User
-from common.djangoapps.student.roles import CourseStaffRole, GlobalStaff
+from common.djangoapps.student.models import CourseEnrollment
 from common.djangoapps.util.disable_rate_limit import can_disable_rate_limit
 from openedx.core.djangoapps.cors_csrf.authentication import SessionAuthenticationCrossDomainCsrf
 from openedx.core.djangoapps.cors_csrf.decorators import ensure_csrf_cookie_cross_domain
-from openedx.core.djangoapps.course_groups.cohorts import CourseUserGroup, add_user_to_cohort, get_cohort_by_name
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview  # lint-amnesty, pylint: disable=wrong-import-order
-from openedx.core.djangoapps.embargo import api as embargo_api  # lint-amnesty, pylint: disable=wrong-import-order
-from openedx.core.djangoapps.enrollments import api  # lint-amnesty, pylint: disable=wrong-import-order
-from openedx.core.djangoapps.enrollments.errors import (  # lint-amnesty, pylint: disable=wrong-import-order
-    CourseEnrollmentError,
-    CourseEnrollmentExistsError,
-    CourseModeNotFoundError,
-    InvalidEnrollmentAttribute,
-)
+from openedx.core.djangoapps.enrollments.errors import CourseEnrollmentError  # lint-amnesty, pylint: disable=wrong-import-order
 from openedx.core.djangoapps.enrollments.forms import CourseEnrollmentsApiListForm  # lint-amnesty, pylint: disable=wrong-import-order
 from openedx.core.djangoapps.enrollments.paginators import CourseEnrollmentsApiListPagination  # lint-amnesty, pylint: disable=wrong-import-order
 from openedx.core.djangoapps.enrollments.serializers import (  # lint-amnesty, pylint: disable=wrong-import-order
@@ -62,25 +51,19 @@ from openedx.core.djangoapps.enrollments.serializers import (  # lint-amnesty, p
     CourseSerializer,
     UserRolesResponseSerializer,
 )
+from openedx.core.djangoapps.enrollments.view_services import EnrollmentOperationsService
+from openedx.core.djangoapps.enrollments import api  # lint-amnesty, pylint: disable=wrong-import-order
 from openedx.core.djangoapps.user_api.accounts.permissions import CanRetireUser
-from openedx.core.djangoapps.user_api.models import UserRetirementStatus
-from openedx.core.djangoapps.user_api.preferences.api import update_email_opt_in
 from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 from openedx.core.lib.api.permissions import ApiKeyHeaderPermission, ApiKeyHeaderPermissionIsAuthenticated
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin
-from openedx.core.lib.exceptions import CourseNotFoundError
-from openedx.core.lib.log_utils import audit_log
-from openedx.features.enterprise_support.api import (
-    ConsentApiServiceClient,
-    EnterpriseApiException,
-    EnterpriseApiServiceClient,
-    enterprise_enabled,
-)
 
 log = logging.getLogger(__name__)
-REQUIRED_ATTRIBUTES = {
-    "credit": ["credit:provider_id"],
-}
+
+# ADR 0031 – single, shared service object for the enrollment operations
+# implemented across the canonical EnrollmentViewSet and its deprecated
+# APIView aliases (EnrollmentListView, UnenrollmentView, EnrollmentAllowedView).
+_OPS = EnrollmentOperationsService()
 
 
 # ADR 0027 — shared OpenAPI parameter and response building blocks
@@ -628,34 +611,30 @@ class UnenrollmentView(APIView):
     def post(self, request):
         """
         Unenrolls the specified user from all courses.
+
+        ADR 0031: shares ``EnrollmentOperationsService.unenroll_user_for_retirement``
+        with ``EnrollmentViewSet.unenroll``.
         """
-        try:
-            # Get the username from the request.
-            username = request.data["username"]
-            # Ensure that a retirement request status row exists for this username.
-            UserRetirementStatus.get_retirement_for_retirement_action(username)
-            active_enrollments = CourseEnrollment.objects.filter(
-                user__username=username, is_active=True
-            )
-            if not active_enrollments.exists():
-                return Response(status=status.HTTP_204_NO_CONTENT)
-            return Response(api.unenroll_user_from_all_courses(username))
-        except KeyError:
-            return Response("Username not specified.", status=status.HTTP_404_NOT_FOUND)
-        except UserRetirementStatus.DoesNotExist:
-            return Response("No retirement request status for username.", status=status.HTTP_404_NOT_FOUND)
-        except Exception as exc:  # pylint: disable=broad-except
-            return Response(str(exc), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return _OPS.unenroll_user_for_retirement(request.data.get("username"))
 
 
-# ADR 0028 – consolidated from EnrollmentListView, UnenrollmentView, EnrollmentAllowedView
+# ADR 0028 – consolidated URL surface from EnrollmentListView, UnenrollmentView, EnrollmentAllowedView.
+# ADR 0031 – business logic for every action below is delegated to ``EnrollmentOperationsService``
+# (``_OPS``) so the canonical ViewSet and its deprecated APIView aliases cannot drift over time.
+# Authorization is enforced in two layers per ADR 0031:
+#   1. The view declares a coarse permission class (``permission_classes`` /
+#      per-action ``permission_classes=`` override on ``@action``).
+#   2. The service method enforces the per-operation permission (e.g. only
+#      api-key/global-staff callers may deactivate or downgrade enrollments).
 @can_disable_rate_limit
 class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
     """
     DRF ViewSet for the Enrollment API.
 
     Consolidates EnrollmentListView, UnenrollmentView, and EnrollmentAllowedView into a single
-    ViewSet registered via DefaultRouter per ADR 0028.
+    ViewSet registered via DefaultRouter per ADR 0028.  Per ADR 0031 the business logic for each
+    action lives in ``EnrollmentOperationsService`` and is shared with the deprecated APIView
+    aliases so the two implementations stay in lock-step.
 
     Actions:
         list        GET  /enrollment/              List enrollments for the current user.
@@ -708,6 +687,10 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         'user' GET parameter. If the username does not match that of the currently logged-in user,
         only courses for which the currently logged-in user has the Staff or Admin role are listed.
 
+        ADR 0031: the per-operation permission filter (self/global-staff/api-key vs. course-staff
+        filtering) lives in ``EnrollmentOperationsService.list_enrollments_for_user`` so the
+        canonical viewset and the deprecated ``EnrollmentListView.get`` apply the same rules.
+
         **Pagination Parameters**
 
             - ``page`` (int): Page number to retrieve. Default is 1.
@@ -724,22 +707,13 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
             - ``results`` (list): The list of enrollments for this page.
         """
         username = request.GET.get("user", request.user.username)
-        enrollments = CourseEnrollment.objects.filter(
-            user__username=username
-        ).select_related("user", "course")  # "course" is the FK field; "course_overview" is a property
+        enrollments = _OPS.list_enrollments_for_user(
+            request_user=request.user,
+            target_username=username,
+            has_api_key=self.has_api_key_permissions(request),
+        )
         paginator = self.pagination_class()
-        if (
-            username == request.user.username
-            or GlobalStaff().has_user(request.user)
-            or self.has_api_key_permissions(request)
-        ):
-            page = paginator.paginate_queryset(enrollments, request, view=self)
-            return paginator.get_paginated_response(self.get_serializer(page, many=True).data)
-        filtered_enrollments = [
-            enrollment for enrollment in enrollments
-            if user_has_role(request.user, CourseStaffRole(enrollment.course_id))
-        ]
-        page = paginator.paginate_queryset(filtered_enrollments, request, view=self)
+        page = paginator.paginate_queryset(enrollments, request, view=self)
         return paginator.get_paginated_response(self.get_serializer(page, many=True).data)
 
     @extend_schema(
@@ -763,251 +737,36 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
     )
     @method_decorator(ensure_csrf_cookie_cross_domain)
     def create(self, request):
-        # pylint: disable=too-many-statements
         """Enrolls the currently logged-in user in a course.
 
         Server-to-server calls may deactivate or modify the mode of existing enrollments. All other
         requests go through add_enrollment(), which allows creation and reactivation of enrollments.
-        """
-        username = request.data.get("user")
-        course_id = request.data.get("course_details", {}).get("course_id")
 
+        ADR 0031: the full create/update body — embargo, enterprise consent, mode/activation
+        changes, cohort assignment, email opt-in, audit logging — lives in
+        ``EnrollmentOperationsService.create_or_update_enrollment``.  This view is responsible only
+        for parsing the ``course_details.course_id`` field and the up-front 400 mapping; the
+        per-operation authorization checks (deactivation, mode-change, force-enroll) live next to
+        the business logic in the service.
+        """
+        course_id = request.data.get("course_details", {}).get("course_id")
         if not course_id:
             return Response(
                 status=status.HTTP_400_BAD_REQUEST,
                 data={"message": "Course ID must be specified to create a new enrollment."},
             )
-
         try:
-            course_id = CourseKey.from_string(course_id)
+            course_key = CourseKey.from_string(course_id)
         except InvalidKeyError:
             return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
-
-        mode = request.data.get("mode")
-
-        has_api_key_permissions = self.has_api_key_permissions(request)
-
-        if (
-            username
-            and username != request.user.username
-            and not has_api_key_permissions
-            and not GlobalStaff().has_user(request.user)
-        ):
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        if not username:
-            email = request.data.get("email")
-            if email:
-                if not has_api_key_permissions and not GlobalStaff().has_user(request.user):
-                    return Response(status=status.HTTP_404_NOT_FOUND)
-                try:
-                    username = User.objects.get(email=email).username
-                except ObjectDoesNotExist:
-                    return Response(
-                        status=status.HTTP_406_NOT_ACCEPTABLE,
-                        data={"message": f"The user with the email address {email} does not exist."},
-                    )
-            else:
-                username = request.user.username
-
-        if (
-            mode not in (CourseMode.AUDIT, CourseMode.HONOR, None)
-            and not has_api_key_permissions
-            and not GlobalStaff().has_user(request.user)
-        ):
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": "User does not have permission to create enrollment with mode [{mode}].".format(
-                        mode=mode
-                    )
-                },
-            )
-
-        try:
-            user = User.objects.get(username=username)
-        except ObjectDoesNotExist:
-            return Response(
-                status=status.HTTP_406_NOT_ACCEPTABLE, data={"message": f"The user {username} does not exist."}
-            )
-
-        embargo_response = embargo_api.get_embargo_response(request, course_id, user)
-
-        if embargo_response:
-            return embargo_response
-
-        try:
-            is_active = request.data.get("is_active")
-            if is_active is not None and not isinstance(is_active, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={"message": ("'{value}' is an invalid enrollment activation status.").format(value=is_active)},
-                )
-
-            explicit_linked_enterprise = request.data.get("linked_enterprise_customer")
-            if explicit_linked_enterprise and has_api_key_permissions and enterprise_enabled():
-                enterprise_api_client = EnterpriseApiServiceClient()
-                consent_client = ConsentApiServiceClient()
-                try:
-                    enterprise_api_client.post_enterprise_course_enrollment(username, str(course_id))
-                except EnterpriseApiException as error:
-                    log.exception(
-                        "An unexpected error occurred while creating the new EnterpriseCourseEnrollment "
-                        "for user [%s] in course run [%s]",
-                        username,
-                        course_id,
-                    )
-                    raise CourseEnrollmentError(str(error))  # lint-amnesty, pylint: disable=raise-missing-from
-                kwargs = {
-                    "username": username,
-                    "course_id": str(course_id),
-                    "enterprise_customer_uuid": explicit_linked_enterprise,
-                }
-                consent_client.provide_consent(**kwargs)
-
-            enrollment_attributes = request.data.get("enrollment_attributes")
-            force_enrollment = request.data.get("force_enrollment")
-            if force_enrollment is not None and not isinstance(force_enrollment, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={
-                        "message": ("'{value}' is an invalid force enrollment status.").format(value=force_enrollment)
-                    },
-                )
-            force_enrollment = force_enrollment and GlobalStaff().has_user(request.user)
-            enrollment = api.get_enrollment(username, str(course_id))
-            mode_changed = enrollment and mode is not None and enrollment["mode"] != mode
-            active_changed = enrollment and is_active is not None and enrollment["is_active"] != is_active
-            missing_attrs = []
-            if enrollment_attributes:
-                actual_attrs = ["{namespace}:{name}".format(**attr) for attr in enrollment_attributes]
-                missing_attrs = set(REQUIRED_ATTRIBUTES.get(mode, [])) - set(actual_attrs)
-            if (GlobalStaff().has_user(request.user) or has_api_key_permissions) and (mode_changed or active_changed):
-                if mode_changed and active_changed and not is_active:
-                    msg = "Enrollment mode mismatch: active mode={}, requested mode={}. Won't deactivate.".format(
-                        enrollment["mode"], mode
-                    )
-                    log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
-
-                if missing_attrs:
-                    msg = "Missing enrollment attributes: requested mode={} required attributes={}".format(
-                        mode, REQUIRED_ATTRIBUTES.get(mode)
-                    )
-                    log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
-
-                response = api.update_enrollment(
-                    username,
-                    str(course_id),
-                    mode=mode,
-                    is_active=is_active,
-                    enrollment_attributes=enrollment_attributes,
-                    include_expired=has_api_key_permissions,
-                )
-            else:
-                response = api.add_enrollment(
-                    username,
-                    str(course_id),
-                    mode=mode,
-                    is_active=is_active,
-                    enrollment_attributes=enrollment_attributes,
-                    enterprise_uuid=request.data.get("enterprise_uuid"),
-                    force_enrollment=force_enrollment,
-                    include_expired=force_enrollment,
-                )
-
-            cohort_name = request.data.get("cohort")
-            if cohort_name is not None:
-                cohort = get_cohort_by_name(course_id, cohort_name)
-                try:
-                    add_user_to_cohort(cohort, user)
-                except ValueError:
-                    log.exception("Cohort re-addition")
-            email_opt_in = request.data.get("email_opt_in", None)
-            if email_opt_in is not None:
-                org = course_id.org
-                update_email_opt_in(request.user, org, email_opt_in)
-
-            log.info("The user [%s] has already been enrolled in course run [%s].", username, course_id)
-            return Response(response)
-
-        except InvalidEnrollmentAttribute as error:
-            return Response(
                 status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
+                data={"message": f"No course '{course_id}' found for enrollment"},
             )
-        except EnrollmentNotAllowed as error:
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
-            )
-        except CourseModeNotFoundError as error:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "The [{mode}] course mode is expired or otherwise unavailable for course run [{course_id}]."
-                    ).format(mode=mode, course_id=course_id),
-                    "course_details": error.data,
-                },
-            )
-        except CourseNotFoundError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
-        except CourseEnrollmentExistsError as error:
-            log.warning("An enrollment already exists for user [%s] in course run [%s].", username, course_id)
-            return Response(data=error.enrollment)
-        except CourseEnrollmentError:
-            log.exception(
-                "An error occurred while creating the new course enrollment for user [%s] in course run [%s]",
-                username,
-                course_id,
-            )
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "An error occurred while creating the new course enrollment for user "
-                        "'{username}' in course '{course_id}'"
-                    ).format(username=username, course_id=course_id)
-                },
-            )
-        except CourseUserGroup.DoesNotExist:
-            log.exception("Missing cohort [%s] in course run [%s]", cohort_name, course_id)
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": "An error occured while adding to cohort [%s]" % cohort_name},
-            )
-        finally:
-            if has_api_key_permissions:
-                try:
-                    current_enrollment_obj = CourseEnrollment.objects.get(
-                        user__username=username, course_id=course_id
-                    )
-                    actual_mode = current_enrollment_obj.mode
-                    actual_activation = current_enrollment_obj.is_active
-                except CourseEnrollment.DoesNotExist:
-                    actual_mode = None
-                    actual_activation = None
-                audit_log(
-                    "enrollment_change_requested",
-                    course_id=str(course_id),
-                    requested_mode=mode,
-                    actual_mode=actual_mode,
-                    requested_activation=is_active,
-                    actual_activation=actual_activation,
-                    user_id=user.id,
-                )
+        return _OPS.create_or_update_enrollment(
+            request=request,
+            has_api_key=self.has_api_key_permissions(request),
+            course_id=course_key,
+        )
 
     @extend_schema(
         summary="Unenroll a user from all courses (retirement)",
@@ -1040,23 +799,11 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         """Unenrolls the specified user from all courses.
 
         Privileged retirement-pipeline use only. The request must be made by a service user
-        with CanRetireUser permission, not the user being unenrolled.
+        with CanRetireUser permission (enforced as ADR 0031 layer-1 by the @action decorator),
+        not the user being unenrolled.  The retirement-status / no-active-enrollments / 500
+        mapping lives in ``EnrollmentOperationsService.unenroll_user_for_retirement``.
         """
-        try:
-            username = request.data["username"]
-            UserRetirementStatus.get_retirement_for_retirement_action(username)
-            active_enrollments = CourseEnrollment.objects.filter(
-                user__username=username, is_active=True
-            )
-            if not active_enrollments.exists():
-                return Response(status=status.HTTP_204_NO_CONTENT)
-            return Response(api.unenroll_user_from_all_courses(username))
-        except KeyError:
-            return Response("Username not specified.", status=status.HTTP_404_NOT_FOUND)
-        except UserRetirementStatus.DoesNotExist:
-            return Response("No retirement request status for username.", status=status.HTTP_404_NOT_FOUND)
-        except Exception as exc:  # pylint: disable=broad-except
-            return Response(str(exc), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return _OPS.unenroll_user_for_retirement(request.data.get("username"))
 
     @extend_schema(
         summary="Manage CourseEnrollmentAllowed records (admin-only)",
@@ -1091,13 +838,18 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
     def allowed(self, request):
         """Retrieve, create, or delete CourseEnrollmentAllowed records. Admin-only.
 
+        ADR 0031: the GET / POST / DELETE handlers all dispatch through
+        ``EnrollmentOperationsService`` so the canonical viewset and the deprecated
+        ``EnrollmentAllowedView`` cannot drift.  Coarse admin authorization is enforced
+        by the ``permission_classes`` declared on the ``@action`` decorator above.
+
         GET    /enrollment/enrollment_allowed/?email=<email>   List allowed enrollments for an email.
         POST   /enrollment/enrollment_allowed/                  Create a new allowed enrollment.
         DELETE /enrollment/enrollment_allowed/                  Delete an existing allowed enrollment.
         """
         if request.method == "GET":
             user_email = request.query_params.get("email") or request.user.email
-            enrollments_allowed = CourseEnrollmentAllowed.objects.filter(email=user_email)
+            enrollments_allowed = _OPS.list_allowed_for_email(user_email)
             return Response(
                 status=status.HTTP_200_OK,
                 data=self.get_serializer(enrollments_allowed, many=True).data,
@@ -1109,7 +861,7 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
 
         if request.method == "POST":
             try:
-                enrollment_allowed = serializer.save()
+                enrollment_allowed = _OPS.create_allowed_enrollment(serializer)
             except IntegrityError:
                 return Response(
                     status=status.HTTP_409_CONFLICT,
@@ -1129,7 +881,7 @@ class EnrollmentViewSet(viewsets.ViewSet, ApiKeyPermissionMixIn):
         email = serializer.validated_data.get("email")
         course_id = serializer.validated_data.get("course_id")
         try:
-            CourseEnrollmentAllowed.objects.get(email=email, course_id=course_id).delete()
+            _OPS.delete_allowed_enrollment(email, course_id)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ObjectDoesNotExist:
             return Response(
@@ -1350,33 +1102,18 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
         Returns a list for the currently logged in user, or for the user named by the 'user' GET
         parameter. If the username does not match that of the currently logged in user, only
         courses for which the currently logged in user has the Staff or Admin role are listed.
-        As a result, a course team member can find out which of their own courses a particular
-        learner is enrolled in.
 
-        Only the Staff or Admin role (granted on the Django administrative console as the staff
-        or instructor permission) in individual courses gives the requesting user access to
-        enrollment data. Permissions granted at the organizational level do not give a user
-        access to enrollment data for all of that organization's courses.
-
-        Users who have the global staff permission can access all enrollment data for all
-        courses.
+        ADR 0031: the per-user permission filter is shared with
+        ``EnrollmentViewSet.list`` via ``EnrollmentOperationsService.list_enrollments_for_user``.
+        Only the paginated wrapper differs.
         """
         username = request.GET.get("user", request.user.username)
-        enrollments = CourseEnrollment.objects.filter(
-            user__username=username
-        ).select_related("user", "course_overview")
-        if (
-            username == request.user.username
-            or GlobalStaff().has_user(request.user)
-            or self.has_api_key_permissions(request)
-        ):
-            serializer = self.serializer_class(enrollments, many=True)
-            return Response(serializer.data)
-        filtered_enrollments = [
-            enrollment for enrollment in enrollments
-            if user_has_role(request.user, CourseStaffRole(enrollment.course_id))
-        ]
-        serializer = self.serializer_class(filtered_enrollments, many=True)
+        enrollments = _OPS.list_enrollments_for_user(
+            request_user=request.user,
+            target_username=username,
+            has_api_key=self.has_api_key_permissions(request),
+        )
+        serializer = self.serializer_class(enrollments, many=True)
         return Response(serializer.data)
 
     @extend_schema(
@@ -1399,272 +1136,33 @@ class EnrollmentListView(APIView, ApiKeyPermissionMixIn):
         deprecated=True,
     )
     def post(self, request):
-        # pylint: disable=too-many-statements
         """Enrolls the currently logged-in user in a course.
 
-        Server-to-server calls may deactivate or modify the mode of existing enrollments. All other requests
-        go through `add_enrollment()`, which allows creation of new and reactivation of old enrollments.
+        ADR 0031: shares the full create/update flow with ``EnrollmentViewSet.create`` via
+        ``EnrollmentOperationsService.create_or_update_enrollment``.  This deprecated view is
+        responsible only for the up-front ``course_details.course_id`` parsing and the 400
+        mapping for an invalid key; everything else (embargo, enterprise consent, mode/active
+        changes, cohort, email opt-in, audit log, per-operation permission checks) lives in
+        the service.
         """
-        # Get the User, Course ID, and Mode from the request.
-
-        username = request.data.get("user")
         course_id = request.data.get("course_details", {}).get("course_id")
-
         if not course_id:
             return Response(
                 status=status.HTTP_400_BAD_REQUEST,
                 data={"message": "Course ID must be specified to create a new enrollment."},
             )
-
         try:
-            course_id = CourseKey.from_string(course_id)
+            course_key = CourseKey.from_string(course_id)
         except InvalidKeyError:
             return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
-
-        mode = request.data.get("mode")
-
-        has_api_key_permissions = self.has_api_key_permissions(request)
-
-        # Check that the user specified is either the same user, or this is a server-to-server request.
-        if (
-            username
-            and username != request.user.username
-            and not has_api_key_permissions
-            and not GlobalStaff().has_user(request.user)
-        ):
-            # Return a 404 instead of a 403 (Unauthorized). If one user is looking up
-            # other users, do not let them deduce the existence of an enrollment.
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        # A provided user has priority over a provided email.
-        # Fallback on request user if neither is provided.
-        if not username:
-            email = request.data.get("email")
-            if email:
-                # Only server-to-server or staff users can use the email for the request.
-                if not has_api_key_permissions and not GlobalStaff().has_user(request.user):
-                    return Response(status=status.HTTP_404_NOT_FOUND)
-                try:
-                    username = User.objects.get(email=email).username
-                except ObjectDoesNotExist:
-                    return Response(
-                        status=status.HTTP_406_NOT_ACCEPTABLE,
-                        data={"message": f"The user with the email address {email} does not exist."},
-                    )
-            else:
-                username = request.user.username
-
-        if (
-            mode not in (CourseMode.AUDIT, CourseMode.HONOR, None)
-            and not has_api_key_permissions
-            and not GlobalStaff().has_user(request.user)
-        ):
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": "User does not have permission to create enrollment with mode [{mode}].".format(
-                        mode=mode
-                    )
-                },
-            )
-
-        try:
-            # Lookup the user, instead of using request.user, since request.user may not match the username POSTed.
-            user = User.objects.get(username=username)
-        except ObjectDoesNotExist:
-            return Response(
-                status=status.HTTP_406_NOT_ACCEPTABLE, data={"message": f"The user {username} does not exist."}
-            )
-
-        embargo_response = embargo_api.get_embargo_response(request, course_id, user)
-
-        if embargo_response:
-            return embargo_response
-
-        try:
-            is_active = request.data.get("is_active")
-            # Check if the requested activation status is None or a Boolean
-            if is_active is not None and not isinstance(is_active, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={"message": ("'{value}' is an invalid enrollment activation status.").format(value=is_active)},
-                )
-
-            explicit_linked_enterprise = request.data.get("linked_enterprise_customer")
-            if explicit_linked_enterprise and has_api_key_permissions and enterprise_enabled():
-                enterprise_api_client = EnterpriseApiServiceClient()
-                consent_client = ConsentApiServiceClient()
-                try:
-                    enterprise_api_client.post_enterprise_course_enrollment(username, str(course_id))
-                except EnterpriseApiException as error:
-                    log.exception(
-                        "An unexpected error occurred while creating the new EnterpriseCourseEnrollment "
-                        "for user [%s] in course run [%s]",
-                        username,
-                        course_id,
-                    )
-                    raise CourseEnrollmentError(str(error))  # lint-amnesty, pylint: disable=raise-missing-from
-                kwargs = {
-                    "username": username,
-                    "course_id": str(course_id),
-                    "enterprise_customer_uuid": explicit_linked_enterprise,
-                }
-                consent_client.provide_consent(**kwargs)
-
-            enrollment_attributes = request.data.get("enrollment_attributes")
-            force_enrollment = request.data.get("force_enrollment")
-            # Check if the force enrollment status is None or a Boolean
-            if force_enrollment is not None and not isinstance(force_enrollment, bool):
-                return Response(
-                    status=status.HTTP_400_BAD_REQUEST,
-                    data={
-                        "message": ("'{value}' is an invalid force enrollment status.").format(value=force_enrollment)
-                    },
-                )
-            # Only a staff user role can enroll a user forcefully
-            force_enrollment = force_enrollment and GlobalStaff().has_user(request.user)
-            enrollment = api.get_enrollment(username, str(course_id))
-            mode_changed = enrollment and mode is not None and enrollment["mode"] != mode
-            active_changed = enrollment and is_active is not None and enrollment["is_active"] != is_active
-            missing_attrs = []
-            if enrollment_attributes:
-                actual_attrs = ["{namespace}:{name}".format(**attr) for attr in enrollment_attributes]
-                missing_attrs = set(REQUIRED_ATTRIBUTES.get(mode, [])) - set(actual_attrs)
-            if (GlobalStaff().has_user(request.user) or has_api_key_permissions) and (mode_changed or active_changed):
-                if mode_changed and active_changed and not is_active:
-                    # if the requester wanted to deactivate but specified the wrong mode, fail
-                    # the request (on the assumption that the requester had outdated information
-                    # about the currently active enrollment).
-                    msg = "Enrollment mode mismatch: active mode={}, requested mode={}. Won't deactivate.".format(
-                        enrollment["mode"], mode
-                    )
-                    log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
-
-                if missing_attrs:
-                    msg = "Missing enrollment attributes: requested mode={} required attributes={}".format(
-                        mode, REQUIRED_ATTRIBUTES.get(mode)
-                    )
-                    log.warning(msg)
-                    return Response(status=status.HTTP_400_BAD_REQUEST, data={"message": msg})
-
-                response = api.update_enrollment(
-                    username,
-                    str(course_id),
-                    mode=mode,
-                    is_active=is_active,
-                    enrollment_attributes=enrollment_attributes,
-                    # If we are updating enrollment by authorized api caller, we should allow expired modes
-                    include_expired=has_api_key_permissions,
-                )
-            else:
-                # Will reactivate inactive enrollments.
-                response = api.add_enrollment(
-                    username,
-                    str(course_id),
-                    mode=mode,
-                    is_active=is_active,
-                    enrollment_attributes=enrollment_attributes,
-                    enterprise_uuid=request.data.get("enterprise_uuid"),
-                    force_enrollment=force_enrollment,
-                    # If we are creating enrollment by staff user with force_enrollment, we should allow expired modes
-                    include_expired=force_enrollment,
-                )
-
-            cohort_name = request.data.get("cohort")
-            if cohort_name is not None:
-                cohort = get_cohort_by_name(course_id, cohort_name)
-                try:
-                    add_user_to_cohort(cohort, user)
-                except ValueError:
-                    # user already in cohort, probably because they were un-enrolled and re-enrolled
-                    log.exception("Cohort re-addition")
-            email_opt_in = request.data.get("email_opt_in", None)
-            if email_opt_in is not None:
-                org = course_id.org
-                update_email_opt_in(request.user, org, email_opt_in)
-
-            log.info("The user [%s] has already been enrolled in course run [%s].", username, course_id)
-            return Response(response)
-
-        except InvalidEnrollmentAttribute as error:
-            return Response(
                 status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
+                data={"message": f"No course '{course_id}' found for enrollment"},
             )
-        except EnrollmentNotAllowed as error:
-            return Response(
-                status=status.HTTP_403_FORBIDDEN,
-                data={
-                    "message": str(error),
-                    "localizedMessage": str(error),
-                }
-            )
-        except CourseModeNotFoundError as error:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "The [{mode}] course mode is expired or otherwise unavailable for course run [{course_id}]."
-                    ).format(mode=mode, course_id=course_id),
-                    "course_details": error.data,
-                },
-            )
-        except CourseNotFoundError:
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data={"message": f"No course '{course_id}' found for enrollment"}
-            )
-        except CourseEnrollmentExistsError as error:
-            log.warning("An enrollment already exists for user [%s] in course run [%s].", username, course_id)
-            return Response(data=error.enrollment)
-        except CourseEnrollmentError:
-            log.exception(
-                "An error occurred while creating the new course enrollment for user [%s] in course run [%s]",
-                username,
-                course_id,
-            )
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={
-                    "message": (
-                        "An error occurred while creating the new course enrollment for user "
-                        "'{username}' in course '{course_id}'"
-                    ).format(username=username, course_id=course_id)
-                },
-            )
-
-        except CourseUserGroup.DoesNotExist:
-            log.exception("Missing cohort [%s] in course run [%s]", cohort_name, course_id)
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST,
-                data={"message": "An error occured while adding to cohort [%s]" % cohort_name},
-            )
-        finally:
-            # Assumes that the ecommerce service uses an API key to authenticate.
-            if has_api_key_permissions:
-                try:
-                    current_enrollment_obj = CourseEnrollment.objects.get(
-                        user__username=username, course_id=course_id
-                    )
-                    actual_mode = current_enrollment_obj.mode
-                    actual_activation = current_enrollment_obj.is_active
-                except CourseEnrollment.DoesNotExist:
-                    actual_mode = None
-                    actual_activation = None
-                audit_log(
-                    "enrollment_change_requested",
-                    course_id=str(course_id),
-                    requested_mode=mode,
-                    actual_mode=actual_mode,
-                    requested_activation=is_active,
-                    actual_activation=actual_activation,
-                    user_id=user.id,
-                )
+        return _OPS.create_or_update_enrollment(
+            request=request,
+            has_api_key=self.has_api_key_permissions(request),
+            course_id=course_key,
+        )
 
 
 @extend_schema_view(
@@ -1913,6 +1411,9 @@ class EnrollmentAllowedView(APIView):
         """
         Returns the enrollments allowed for a given user email.
 
+        ADR 0031: shares ``EnrollmentOperationsService.list_allowed_for_email`` with
+        ``EnrollmentViewSet.allowed`` (GET mode).
+
         **Example Requests**
 
         GET /api/enrollment/v1/enrollment_allowed?email=user@example.com
@@ -1925,11 +1426,8 @@ class EnrollmentAllowedView(APIView):
         - 200: Success.
         - 403: Forbidden, you need to be staff.
         """
-        user_email = request.query_params.get("email")
-        if not user_email:
-            user_email = request.user.email
-
-        enrollments_allowed = CourseEnrollmentAllowed.objects.filter(email=user_email)
+        user_email = request.query_params.get("email") or request.user.email
+        enrollments_allowed = _OPS.list_allowed_for_email(user_email)
         serializer = self.serializer_class(enrollments_allowed, many=True)
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
@@ -1989,7 +1487,7 @@ class EnrollmentAllowedView(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST, data=serializer.errors)
 
         try:
-            enrollment_allowed = serializer.save()
+            enrollment_allowed = _OPS.create_allowed_enrollment(serializer)
         except IntegrityError:
             return Response(
                 status=status.HTTP_409_CONFLICT,
@@ -2057,7 +1555,7 @@ class EnrollmentAllowedView(APIView):
         course_id = serializer.validated_data.get("course_id")
 
         try:
-            CourseEnrollmentAllowed.objects.get(email=email, course_id=course_id).delete()
+            _OPS.delete_allowed_enrollment(email, course_id)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ObjectDoesNotExist:
             return Response(

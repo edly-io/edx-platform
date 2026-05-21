@@ -108,7 +108,10 @@ class EnrollmentTestMixin:
 
         # Verify that the modulestore is queried as expected.
         with check_mongo_calls_range(min_finds=min_mongo_calls, max_finds=max_mongo_calls):
-            with patch('openedx.core.djangoapps.enrollments.views.audit_log') as mock_audit_log:
+            # ADR 0031: audit_log is invoked from the shared EnrollmentOperationsService,
+            # not the view module. Patch the service-layer binding so the mock is observed
+            # for both the canonical viewset and the deprecated EnrollmentListView path.
+            with patch('openedx.core.djangoapps.enrollments.view_services.audit_log') as mock_audit_log:
                 url = reverse('courseenrollments')
                 response = self.client.post(url, json.dumps(data), content_type='application/json', **extra)
                 assert response.status_code == expected_status
