@@ -3598,6 +3598,8 @@ OPTIONAL_APPS = [
 
     # Xblocks Apps
     ('kwl.kwl_djangoapp', None),
+    ('needs_analyst', None),
+    ('portfolio_coach', None),
 ]
 
 for app_name, insert_before in OPTIONAL_APPS:
