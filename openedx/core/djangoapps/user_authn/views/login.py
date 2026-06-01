@@ -650,7 +650,7 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
             running_pipeline = pipeline.get(request)
             finish_auth_url = pipeline.get_complete_url(backend_name=running_pipeline["backend"])
 
-        if is_2fa_enabled_for_user():
+        if is_2fa_enabled_for_user(request):
             generate_and_send_otp(possibly_authenticated_user)
             request.session.flush()
             request.session[SESSION_KEY_USER_ID] = possibly_authenticated_user.id
