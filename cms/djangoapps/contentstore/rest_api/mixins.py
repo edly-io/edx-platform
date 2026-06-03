@@ -1,5 +1,5 @@
 """
-v3-scoped mixins for the contentstore REST API.
+Shared mixins for the contentstore REST API (used across versions).
 
 Currently provides :class:`StandardizedErrorMixin`, which opts a single
 view/viewset into the ADR 0029 error envelope without changing the
@@ -15,8 +15,8 @@ class StandardizedErrorMixin:
     ``openedx.core.lib.api.exceptions.standardized_error_exception_handler``).
 
     DRF's :class:`rest_framework.views.APIView` calls ``self.get_exception_handler``
-    inside ``handle_exception``; overriding that method here lets v3 endpoints
-    return the standardized envelope while v0/v1/v2 endpoints continue to use
+    inside ``handle_exception``; overriding that method here lets the view
+    return the standardized envelope while other endpoints continue to use
     whichever handler the project-wide ``EXCEPTION_HANDLER`` setting points at.
 
     Usage::
