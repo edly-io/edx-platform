@@ -1,41 +1,22 @@
 """
 ADR 0029 – Standardized error-response regression tests for HomeViewSet (v3).
 
-The ADR 0029 envelope requires the global DRF ``EXCEPTION_HANDLER`` to be
+The ADR 0029 envelope is wired into the v3 viewset via
+:class:`cms.djangoapps.contentstore.rest_api.v3.mixins.StandardizedErrorMixin`,
+which overrides DRF's per-view ``get_exception_handler`` to point at
 ``openedx.core.lib.api.exceptions.standardized_error_exception_handler``.
-That global swap is *not* part of this v3 port (see PR scoping decision),
-so these tests are skipped at module load time when the handler is not
-wired up. Once the platform-wide handler lands, removing the ``skipUnless``
-guard will activate the assertions automatically.
-"""
-import unittest
 
-import pytest
+This is intentionally *scoped to v3* — the project-wide DRF
+``EXCEPTION_HANDLER`` setting is unchanged, so v0/v1/v2 endpoints continue
+to return the legacy error shape.
+"""
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.settings import api_settings
 from rest_framework.test import APIClient, APITestCase
 
 _REQUIRED_ERROR_FIELDS = ("type", "title", "status", "detail", "instance")
-_EXPECTED_HANDLER = "openedx.core.lib.api.exceptions.standardized_error_exception_handler"
 
 
-def _envelope_handler_active() -> bool:
-    """Return True iff the project-wide DRF EXCEPTION_HANDLER is the ADR 0029 one."""
-    handler = api_settings.EXCEPTION_HANDLER
-    return getattr(handler, "__module__", "") + "." + getattr(handler, "__name__", "") == _EXPECTED_HANDLER
-
-
-pytestmark = pytest.mark.skipif(
-    not _envelope_handler_active(),
-    reason=(
-        "ADR 0029 standardized exception handler not wired into DRF settings. "
-        f"Expected EXCEPTION_HANDLER = '{_EXPECTED_HANDLER}'."
-    ),
-)
-
-
-@unittest.skipUnless(_envelope_handler_active(), "ADR 0029 handler not installed")
 class TestHomeViewSetErrorShape(APITestCase):
     """
     ADR 0029 – error response shape regression tests for HomeViewSet (v3).
@@ -90,3 +71,16 @@ class TestHomeViewSetErrorShape(APITestCase):
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.data.get("instance") == self.list_url
+
+    def test_v1_endpoint_unaffected_by_v3_envelope(self):
+        """
+        The ADR 0029 envelope must be scoped to v3 — hitting the legacy v1
+        ``home/courses`` endpoint unauthenticated must NOT return the v3 envelope
+        (it has no ``type`` / ``instance`` keys).
+        """
+        v1_url = reverse("cms.djangoapps.contentstore:v1:courses")
+        response = self.client.get(v1_url)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        # v1 still uses the project-default handler → ADR 0029 fields absent.
+        assert "type" not in response.data
+        assert "instance" not in response.data

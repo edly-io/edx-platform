@@ -9,6 +9,9 @@ to apply the FC-0118 ADRs:
   * ADR 0028 – consolidated into a single DRF ``ViewSet`` registered via
     ``DefaultRouter`` (replaces the three legacy ``APIView`` classes
     ``HomePageView`` / ``HomePageCoursesView`` / ``HomePageLibrariesView``)
+  * ADR 0029 – standardized error envelope, opted in via
+    :class:`StandardizedErrorMixin` (v3-scoped — does not change the
+    project-wide DRF ``EXCEPTION_HANDLER`` setting)
 """
 
 import edx_api_doc_tools as apidocs
@@ -27,10 +30,11 @@ from cms.djangoapps.contentstore.rest_api.v1.serializers import (
     LibraryTabSerializer,
     StudioHomeSerializer,
 )
+from cms.djangoapps.contentstore.rest_api.v3.mixins import StandardizedErrorMixin
 from cms.djangoapps.contentstore.utils import get_course_context, get_home_context, get_library_context
 
 
-class HomeViewSet(viewsets.ViewSet):
+class HomeViewSet(StandardizedErrorMixin, viewsets.ViewSet):
     """
     ViewSet for the Studio home page. Registered via DefaultRouter (basename ``home``).
 
