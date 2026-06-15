@@ -679,11 +679,7 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
         if is_user_third_party_authenticated:
             redirect_url = finish_auth_url
         elif should_redirect_to_authn_microfrontend():
-            next_url, root_url = get_next_url_for_login_page(
-                request,
-                include_host=True,
-                user=possibly_authenticated_user,
-            )
+            next_url, root_url = get_next_url_for_login_page(request, include_host=True)
             redirect_url = get_redirect_url_with_host(
                 root_url, enterprise_selection_page(request, possibly_authenticated_user, finish_auth_url or next_url)
             )

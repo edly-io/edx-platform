@@ -12,11 +12,10 @@ from datetime import datetime
 
 from completion.exceptions import UnavailableCompletionData
 from completion.utilities import get_key_to_last_completed_block
-from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import load_backend
 from django.contrib.auth.models import User  # lint-amnesty, pylint: disable=imported-auth-user
-from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist, PermissionDenied
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.core.validators import ValidationError
 from django.db import IntegrityError, ProgrammingError, transaction
 from django.urls import NoReverseMatch, reverse
@@ -256,74 +255,7 @@ def get_redirect_url_with_host(root_url, redirect_to):
     return redirect_to
 
 
-def _has_submitted_biodata_declaration(user):
-    """
-    Return whether the biodata declaration has been completed for the user.
-
-    The biodata app is provided by the FBR plugin, so keep this lookup dynamic to
-    preserve the default Open edX behavior when that plugin is not installed.
-    """
-    try:
-        declaration_model = apps.get_model('biodata', 'Declaration')
-    except LookupError:
-        return True
-
-    try:
-        declaration_model._meta.get_field('is_submitted')
-        has_is_submitted_field = True
-    except FieldDoesNotExist:
-        has_is_submitted_field = False
-
-    declaration_fields = ['confirmed']
-    if has_is_submitted_field:
-        declaration_fields.append('is_submitted')
-
-    try:
-        declaration = declaration_model.objects.only(*declaration_fields).get(user=user)
-    except ObjectDoesNotExist:
-        return False
-
-    if has_is_submitted_field:
-        return declaration.is_submitted and declaration.confirmed
-
-    return declaration.confirmed
-
-
-def get_biodata_profile_redirect_url(user):
-    """
-    Return the learner profile URL when biodata is incomplete, otherwise None.
-    """
-    if not getattr(user, 'username', None):
-        return None
-
-    if _has_submitted_biodata_declaration(user):
-        return None
-
-    profile_base_url = configuration_helpers.get_value(
-        'INDIGO_BIODATA_PROFILE_URL',
-        getattr(settings, 'PROFILE_MICROFRONTEND_URL', None),
-    ) or '/profile'
-    profile_base_url = profile_base_url.rstrip('/')
-    profile_base_url_parts = urllib.parse.urlsplit(profile_base_url)
-    profile_base_url_path = profile_base_url_parts.path.rstrip('/')
-
-    if profile_base_url_path.endswith('/u'):
-        profile_base_url_path = profile_base_url_path[:-2]
-        profile_base_url = urllib.parse.urlunsplit((
-            profile_base_url_parts.scheme,
-            profile_base_url_parts.netloc,
-            profile_base_url_path,
-            '',
-            '',
-        )).rstrip('/')
-
-    return '{profile_base_url}/u/{username}'.format(
-        profile_base_url=profile_base_url,
-        username=urllib.parse.quote(user.username),
-    )
-
-
-def get_next_url_for_login_page(request, include_host=False, user=None):
+def get_next_url_for_login_page(request, include_host=False):
     """
     Determine the URL to redirect to following login/registration/third_party_auth
 
@@ -336,10 +268,6 @@ def get_next_url_for_login_page(request, include_host=False, user=None):
     redirection url (the default behaviour is to go to /dashboard).
 
     If THIRD_PARTY_AUTH_HINT is set, then `tpa_hint=<hint>` is added as a query parameter.
-
-    If the FBR biodata app is installed and the authenticated user has not
-    submitted and confirmed their biodata declaration, the user is sent to the
-    learner profile page before other destinations.
 
     This works with both GET and POST requests.
     """
@@ -374,11 +302,6 @@ def get_next_url_for_login_page(request, include_host=False, user=None):
             redirect_to = reverse('home')
             scheme = "https" if settings.HTTPS == "on" else "http"
             root_url = f'{scheme}://{settings.CMS_BASE}'
-
-    if settings.ROOT_URLCONF == 'lms.urls':
-        biodata_profile_redirect_url = get_biodata_profile_redirect_url(user or getattr(request, 'user', None))
-        if biodata_profile_redirect_url:
-            redirect_to = biodata_profile_redirect_url
 
     if any(param in request_params for param in POST_AUTH_PARAMS):
         # Before we redirect to next/dashboard, we need to handle auto-enrollment:
