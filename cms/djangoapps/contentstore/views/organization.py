@@ -7,6 +7,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import View
 from organizations.api import get_organizations
 
+from edly_features_app.filters import OrganizationsRequested
 from openedx.core.djangolib.js_utils import dump_js_escaped_json
 
 
@@ -22,4 +23,7 @@ class OrganizationListView(View):
         """Returns organization list as json."""
         organizations = get_organizations()
         org_names_list = [(org["short_name"]) for org in organizations]
+        #EDLYCUSTOM: filter the org list down to the current tenant's organizations
+        # (same OrganizationsRequested filter used for the course-creation org dropdown).
+        org_names_list = OrganizationsRequested.run_filter(organizations=org_names_list)
         return HttpResponse(dump_js_escaped_json(org_names_list), content_type='application/json; charset=utf-8')  # lint-amnesty, pylint: disable=http-response-with-content-type-json
