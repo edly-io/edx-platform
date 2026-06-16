@@ -221,8 +221,11 @@ def _write_chunk(request, courselike_key):  # lint-amnesty, pylint: disable=too-
         with open(temp_filepath, 'rb') as local_file:
             django_file = File(local_file)
             storage_path = course_import_export_storage.save('olx_import/' + filename, django_file)
+        import_as_draft = request.POST.get('enable_draft_state', 'false').lower() == 'true'
         import_olx.delay(
-            request.user.id, str(courselike_key), storage_path, filename, request.LANGUAGE_CODE)
+            request.user.id, str(courselike_key), storage_path, filename, request.LANGUAGE_CODE,
+            import_as_draft=import_as_draft,
+        )
 
     # Send errors to client with stage at which error occurred.
     except Exception as exception:  # pylint: disable=broad-except

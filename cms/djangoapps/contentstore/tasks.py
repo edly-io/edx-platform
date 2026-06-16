@@ -534,9 +534,12 @@ def sync_discussion_settings(course_key, user):
 # Note: The decorator @set_code_owner_attribute cannot be used here because the UserTaskMixin
 #   does stack inspection and can't handle additional decorators.
 # lint-amnesty, pylint: disable=too-many-statements
-def import_olx(self, user_id, course_key_string, archive_path, archive_name, language):
+def import_olx(self, user_id, course_key_string, archive_path, archive_name, language, import_as_draft=False):
     """
     Import a course or library from a provided OLX .tar.gz or .zip archive.
+
+    When import_as_draft is True, all content is imported exclusively to the draft
+    branch so nothing is visible to learners until manually published from Studio.
     """
     set_code_owner_attribute_from_module(__name__)
     current_step = 'Unpacking'
@@ -738,6 +741,7 @@ def import_olx(self, user_id, course_key_string, archive_path, archive_name, lan
             static_content_store=contentstore(),
             target_id=courselike_key,
             verbose=True,
+            import_as_draft=import_as_draft,
         )
 
         new_location = courselike_items[0].location

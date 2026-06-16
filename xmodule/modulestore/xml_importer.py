@@ -271,6 +271,7 @@ class ImportManager:
             create_if_not_present=False, raise_on_failure=False,
             static_content_subdir=DEFAULT_STATIC_CONTENT_SUBDIR,
             python_lib_filename='python_lib.zip',
+            import_as_draft=False,
     ):
         self.store = store
         self.user_id = user_id
@@ -286,6 +287,7 @@ class ImportManager:
         self.do_import_python_lib = do_import_python_lib
         self.create_if_not_present = create_if_not_present
         self.raise_on_failure = raise_on_failure
+        self.import_as_draft = import_as_draft
         self.xml_module_store = self.store_class(
             data_dir,
             default_class=default_class,
@@ -693,10 +695,17 @@ class CourseImportManager(ImportManager):
         """
         Imports all children into the desired store.
         """
-        # The branch setting of published_only forces an overwrite of all draft modules
-        # during the course import.
-        with self.store.branch_setting(ModuleStoreEnum.Branch.published_only, dest_id):
-            self.recursive_build(source_courselike, courselike, courselike_key, dest_id)
+        if self.import_as_draft:
+            # When import_as_draft is set, write everything to draft_preferred so
+            # no content reaches the published branch during import. Authors must
+            # manually publish from Studio before learners see anything.
+            with self.store.branch_setting(ModuleStoreEnum.Branch.draft_preferred, dest_id):
+                self.recursive_build(source_courselike, courselike, courselike_key, dest_id)
+        else:
+            # The branch setting of published_only forces an overwrite of all draft modules
+            # during the course import.
+            with self.store.branch_setting(ModuleStoreEnum.Branch.published_only, dest_id):
+                self.recursive_build(source_courselike, courselike, courselike_key, dest_id)
 
     def import_drafts(self, courselike, courselike_key, data_path, dest_id):
         """
@@ -730,6 +739,18 @@ class CourseImportManager(ImportManager):
         """
         Trigger celery task to create upstream links for newly imported blocks.
         """
+        if self.import_as_draft:
+            # Unpublish all verticals so nothing is visible to learners.
+            # Sections/subsections are DIRECT_ONLY_CATEGORIES and cannot be unpublished,
+            # but they will show "Draft (Unpublished changes)" once their children are unpublished.
+            verticals = self.store.get_items(dest_id, qualifiers={'category': 'vertical'})
+            with self.store.bulk_operations(dest_id):
+                for vertical in verticals:
+                    try:
+                        self.store.unpublish(vertical.location, self.user_id)
+                    except Exception:  # pylint: disable=broad-except
+                        log.warning('Course import %s: could not unpublish vertical %s', dest_id, vertical.location)
+
         # .. event_implemented_name: COURSE_IMPORT_COMPLETED
         # .. event_type: org.openedx.content_authoring.course.import.completed.v1
         COURSE_IMPORT_COMPLETED.send_event(

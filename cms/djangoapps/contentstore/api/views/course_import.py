@@ -148,8 +148,11 @@ class CourseImportView(CourseImportExportViewMixin, GenericAPIView):
                 django_file = File(local_file)
                 storage_path = course_import_export_storage.save('olx_import/' + filename, django_file)
 
+            import_as_draft = request.data.get('enable_draft_state', 'false').lower() == 'true'
             async_result = import_olx.delay(
-                request.user.id, str(course_key), storage_path, filename, request.LANGUAGE_CODE)
+                request.user.id, str(course_key), storage_path, filename, request.LANGUAGE_CODE,
+                import_as_draft=import_as_draft,
+            )
             return Response({
                 'task_id': async_result.task_id
             })
