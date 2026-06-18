@@ -73,6 +73,7 @@ FEATURES = FeaturesProxy(globals())
 
 ################################### FEATURES ###################################
 
+ALLOW_PUBLIC_ACCOUNT_CREATION = False
 CC_MERCHANT_NAME = Derived(lambda settings: settings.PLATFORM_NAME)
 
 # .. toggle_name: settings.DISPLAY_DEBUG_INFO_TO_STAFF
