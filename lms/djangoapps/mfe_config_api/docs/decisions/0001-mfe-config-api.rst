@@ -4,7 +4,14 @@
 Status
 ******
 
-Accepted
+Accepted — Superseded (partially) by `ADR 0040 — Canonical MFE Configuration
+Endpoint <../../../../../docs/decisions/0040-canonical-mfe-configuration-endpoint.rst>`_
+for the role of "the configuration endpoint of record". The
+runtime-vs-build-time rationale, no-authentication posture, and response-cache
+behaviour from this ADR still apply to the canonical endpoint
+(``/api/frontend_site_config/v1/``). Only ``/api/mfe_config/v1`` itself
+(the endpoint URL / payload shape established here) is deprecated, tracked
+under OEP-21 DEPR #37255 (Verawood 2026-04).
 
 Context
 *******
