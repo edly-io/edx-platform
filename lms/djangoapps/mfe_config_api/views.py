@@ -402,7 +402,8 @@ def translate_legacy_mfe_config() -> dict:
 
 class FrontendSiteConfigView(APIView):
     """
-    Provides the frontend site configuration endpoint.
+    Canonical MFE / front-end runtime configuration endpoint
+    (``GET /api/frontend_site_config/v1/``).
 
     Returns the contents of ``FRONTEND_SITE_CONFIG`` merged on top of a
     compatibility translation of the legacy ``MFE_CONFIG`` /
@@ -412,6 +413,25 @@ class FrontendSiteConfigView(APIView):
 
     See `frontend-base SiteConfig
     <https://github.com/openedx/frontend-base/blob/main/types.ts>`_.
+
+    ADR 0040 (Canonical MFE Configuration Endpoint):
+        * This is **the** canonical endpoint for MFE / front-end runtime
+          configuration, aligned with frontend-base's ``SiteConfig`` format
+          under OEP-65. New consumers MUST target it. The sibling
+          :class:`MFEConfigView` (``/api/mfe_config/v1``) is legacy and on
+          the OEP-21 DEPR path (#37255, targeting Verawood 2026-04).
+        * **User-contextual data MUST NOT be served from this endpoint.**
+          User roles, enrollments, and course-specific permissions are
+          first-class resources, not configuration. This view is
+          ``AllowAny`` + ``cache_page``-decorated — i.e. unauthenticated and
+          shared-cached — so per-user data on this surface would be both
+          unsafe (leaks across users) and semantically wrong. Per-user data
+          belongs at resource-oriented endpoints.
+        * **No new configuration endpoints.** If configuration needs grow,
+          extend this endpoint via URL-path versioning (e.g. ``/v2/``)
+          rather than adding parallel surfaces.
+
+    See ``docs/decisions/0040-canonical-mfe-configuration-endpoint.rst``.
     """
 
     authentication_classes = []
