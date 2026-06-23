@@ -245,7 +245,35 @@ def get_frontend_site_config() -> dict:
 
 class MFEConfigView(APIView):
     """
-    Provides an API endpoint to get the MFE configuration from settings (or site configuration).
+    Legacy MFE configuration endpoint (``GET /api/mfe_config/v1``).
+
+    Returns the legacy ``SCREAMING_SNAKE_CASE`` ``MFE_CONFIG`` shape from
+    settings (or site configuration).
+
+    .. deprecated::
+        Use :class:`FrontendSiteConfigView` (``/api/frontend_site_config/v1/``)
+        instead — that endpoint is canonical per ADR 0040 and returns
+        ``FRONTEND_SITE_CONFIG`` in frontend-base's camelCase ``SiteConfig``
+        format (OEP-65).
+
+        ADR 0040 (Canonical MFE Configuration Endpoint) **partially supersedes
+        ADR 0001** specifically for the role of "the configuration endpoint
+        of record" — the runtime-vs-build rationale, no-auth posture, and
+        cache behaviour from ADR 0001 still apply to the canonical endpoint.
+
+        Removal is tracked under OEP-21 DEPR in
+        `#37255 <https://github.com/openedx/edx-platform/issues/37255>`_
+        (primary) and
+        `#37210 <https://github.com/openedx/edx-platform/issues/37210>`_
+        (referenced), targeting the **Verawood (2026-04)** named release.
+
+    Per ADR 0040, user-contextual data (roles, enrollments, permissions)
+    MUST NOT be served from this endpoint either: this view is ``AllowAny`` +
+    ``cache_page``-decorated, so any per-user field on the payload would leak
+    across users via the shared cache. Such data belongs at resource-oriented
+    endpoints.
+
+    See ``docs/decisions/0040-canonical-mfe-configuration-endpoint.rst``.
     """
 
     @method_decorator(cache_page(settings.MFE_CONFIG_API_CACHE_TIMEOUT))
