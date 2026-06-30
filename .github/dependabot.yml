@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Keep GitHub Actions up to date
+  # Adding new check for github-actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
