@@ -69,7 +69,7 @@ def on_user_updated(sender, instance, **kwargs):
 @receiver(pre_save, sender=get_user_model())
 def grant_staff_access_to_superusers(sender, instance, **kwargs):
     """
-    Keep Django's ``is_staff`` flag in sync with ``is_superuser``.
+    Grant Django's ``is_staff`` flag to any superuser being saved.
 
     A superuser bypasses Django's permission checks and can grant itself the
     ``is_staff`` flag at any time, so the state where a user is a superuser but
@@ -77,6 +77,10 @@ def grant_staff_access_to_superusers(sender, instance, **kwargs):
     Django admin and various staff-only Studio/LMS views from that account for
     no good reason. To avoid that surprise, ensure every superuser is also
     marked as staff.
+
+    This is intentionally one-directional (grant-only): it only ever adds
+    ``is_staff`` to superusers and never removes it, so demoting a superuser
+    leaves ``is_staff`` untouched.
 
     See:
     https://discuss.openedx.org/t/shouldnt-superuser-automatically-inherit-staff-access-in-open-edx/18657

@@ -1,10 +1,10 @@
 """
 Backfill ``is_staff`` for existing superusers.
 
-A new ``pre_save`` signal keeps ``is_staff`` in sync with ``is_superuser`` for
-any user saved from now on, but that does not touch superusers that already
-exist in the database. This one-time data migration grants staff access to
-those accounts so the behaviour is consistent for old and new superusers alike.
+A new ``pre_save`` signal grants ``is_staff`` to any superuser saved from now
+on, but that does not touch superusers that already exist in the database. This
+one-time data migration grants staff access to those accounts so the behaviour
+is consistent for old and new superusers alike.
 """
 
 from django.conf import settings

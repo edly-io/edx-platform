@@ -99,7 +99,8 @@ class ReceiversTest(SharedModuleStoreTestCase):
 class GrantStaffToSuperusersTest(TestCase):
     """
     Tests for the ``grant_staff_access_to_superusers`` pre_save receiver, which
-    keeps ``is_staff`` in sync with ``is_superuser``.
+    grants ``is_staff`` to any superuser. The behaviour is grant-only: it never
+    removes ``is_staff`` when a user stops being a superuser.
     """
 
     def test_new_superuser_is_marked_staff(self):
@@ -123,8 +124,12 @@ class GrantStaffToSuperusersTest(TestCase):
         assert user.is_staff is True
 
     def test_non_superuser_is_not_forced_to_staff(self):
-        """ A regular, non-superuser user keeps its (non-)staff status untouched. """
+        """ Saving a regular, non-superuser user leaves its non-staff status untouched. """
         user = UserFactory(is_superuser=False, is_staff=False)
+
+        # Explicitly re-save to exercise the pre_save receiver on an update.
+        user.save()
+
         user.refresh_from_db()
         assert user.is_staff is False
 
@@ -133,4 +138,15 @@ class GrantStaffToSuperusersTest(TestCase):
         user = UserFactory(is_superuser=True, is_staff=True)
         user.save()
         user.refresh_from_db()
+        assert user.is_staff is True
+
+    def test_demotion_does_not_remove_staff(self):
+        """ Dropping ``is_superuser`` is grant-only, so ``is_staff`` is left in place. """
+        user = UserFactory(is_superuser=True, is_staff=True)
+
+        user.is_superuser = False
+        user.save()
+
+        user.refresh_from_db()
+        assert user.is_superuser is False
         assert user.is_staff is True
