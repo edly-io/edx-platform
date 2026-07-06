@@ -273,17 +273,6 @@ class EnrollmentViewSet(StandardizedErrorMixin, viewsets.ViewSet, ApiKeyPermissi
         ``course_details`` sub-object is collapsed to a single ``course_id``
         string; ``course_modes`` and the other heavy course-detail fields are
         dropped. Default response shape is unchanged for backwards compatibility.
-
-        OEP-66 (queryset-scoping pattern) — this list's record-visibility layer
-        is enforced in the service layer rather than a ``get_queryset()``:
-        ``_OPS.list_enrollments_for_user`` returns only the requester's own
-        enrollments unless the requester is staff/admin or presents an API key
-        (``target_username`` other than themselves is rejected otherwise). The
-        ``user`` query parameter is the user-driven filter. Because visibility
-        is resolved by the operations service (not a raw ORM queryset on this
-        ViewSet action), the shared ``ScopedQuerysetMixin`` is not attached here;
-        the sibling admin list (:class:`EnrollmentsAdminListView`) uses it
-        directly.
         """
         username = request.GET.get("user", request.user.username)
         enrollments = _OPS.list_enrollments_for_user(
@@ -517,14 +506,7 @@ class EnrollmentRetrieveView(StandardizedErrorMixin, ApiKeyPermissionMixIn, APIV
 # ===========================================================================
 @extend_schema(tags=["openedx-platform-sdk"])
 class UserRolesView(StandardizedErrorMixin, APIView):
-    """
-    List the current user's course-level roles.
-
-    OEP-66: this collection is inherently **self-scoped** — it returns only
-    ``request.user``'s own roles (``api.get_user_roles(request.user.username)``),
-    so record visibility is fixed to the requester and needs no ScopingPolicy.
-    ``course_key`` is only a user-driven filter over that self-scoped set.
-    """
+    """List the current user's course-level roles."""
 
     # ADR 0034 — JWT + cross-domain session (BearerAuthenticationAllowInactiveUser
     # removed per OEP-0042). EnrollmentCrossDomainSessionAuth retained because the
