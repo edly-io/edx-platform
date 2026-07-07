@@ -296,6 +296,10 @@ class CertificateSerializer(serializers.Serializer):
     isEarned = serializers.SerializerMethodField()
     isDownloadable = serializers.SerializerMethodField()
     certPreviewUrl = serializers.SerializerMethodField()
+    hasActiveCertificate = serializers.SerializerMethodField()
+
+    def get_hasActiveCertificate(self, enrollment):
+        return bool(enrollment.course_overview.has_any_active_web_certificate)
 
     def get_cert_info(self, enrollment):
         """Utility to grab certificate info for this enrollment or empty object"""

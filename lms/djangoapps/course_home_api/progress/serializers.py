@@ -163,3 +163,4 @@ class ProgressTabSerializer(VerifiedModeSerializer):
     disable_progress_graph = serializers.BooleanField()
     assignment_type_grade_summary = AssignmentTypeScoresSerializer(many=True)
     final_grades = serializers.FloatField()
+    has_active_certificate = serializers.BooleanField()
