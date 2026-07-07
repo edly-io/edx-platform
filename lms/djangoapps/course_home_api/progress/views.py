@@ -289,6 +289,7 @@ class ProgressTabView(RetrieveAPIView):
             'disable_progress_graph': disable_progress_graph,
             'assignment_type_grade_summary': assignment_type_grade_summary["results"],
             'final_grades': assignment_type_grade_summary["final_grades"],
+            'has_active_certificate': course_overview.has_any_active_web_certificate,
         }
         context = self.get_serializer_context()
         context['staff_access'] = is_staff
