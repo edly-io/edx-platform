@@ -104,7 +104,11 @@ def get_subscription_limit(edly_sub_org, current_plan=None):
     plan_features = settings.PLAN_FEATURES.get(current_plan)
     registration_limit = plan_features.get(NUMBER_OF_REGISTERED_USERS)
 
-    user_records_count = EdlyMultiSiteAccess.objects.filter(sub_org=edly_sub_org).count()
+    user_records_count = EdlyMultiSiteAccess.objects.filter(
+        sub_org=edly_sub_org
+    ).exclude(
+        groups__name=settings.ADMIN_CONFIGURATION_USERS_GROUP
+    ).count()
 
     return registration_limit - user_records_count
 
