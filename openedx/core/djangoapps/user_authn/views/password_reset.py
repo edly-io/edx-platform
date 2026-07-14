@@ -55,6 +55,14 @@ REAL_IP_KEY = 'openedx.core.djangoapps.util.ratelimit.real_ip'
 SETTING_CHANGE_INITIATED = 'edx.user.settings.change_initiated'
 PASSWORD_RESET_INITIATED = 'edx.user.passwordreset.initiated'
 
+# EDLYCUSTOM: query param/value edly-panel-edx-app appends to a first-time password-set invite
+# link (see `send_password_set_email_for_user` in edly-panel-edx-app's helpers.py). Cross-referenced
+# by name from `TRACK_PARAM`/`PANEL_TRACK_VALUE` in frontend-app-authn's src/data/constants.js, and
+# from the equivalent constants in edly-panel-edx-app's api/v1/constants.py. This is a client-supplied,
+# unauthenticated value -- see PasswordResetConfirmWrapper.post() for why it's never trusted alone.
+EDLY_PANEL_TRACK_PARAM = 'track'
+EDLY_PANEL_TRACK_VALUE = 'edly_panel'
+
 # Maintaining this naming for backwards compatibility.
 log = logging.getLogger("edx.student")
 AUDIT_LOG = logging.getLogger("audit")
@@ -501,6 +509,13 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
         request.POST['new_password2'] = normalize_password(request.POST['new_password2'])
         is_account_recovery = 'is_account_recovery' in request.GET
 
+        # EDLYCUSTOM: capture whether this account had a real, usable password *before* this
+        # request, while `self.user` (set in `_set_user` during `dispatch()`) still reflects
+        # pre-reset state -- `_process_password_reset_success` below is what actually sets the
+        # new password. Combined with `EDLY_PANEL_TRACK_PARAM`/`_VALUE` below to decide whether
+        # to skip the "your password was reset" notification email.
+        had_no_usable_password = not self.user.password or not self.user.has_usable_password()
+
         password = request.POST['new_password1']
         response = self._validate_password(password, request)
         if response:
@@ -531,8 +546,15 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
         update_session_auth_hash(request, updated_user)
         # EDLYCUSTOM: a new user setting their password for the first time (edly panel invite,
         # tracked via ?track=edly_panel) already gets a "welcome, set up your account" email;
-        # skip the generic "your password was reset" notification in that case.
-        if request.GET.get('track') != 'edly_panel':
+        # skip the generic "your password was reset" notification in that case. `track` alone is
+        # a client-supplied, unauthenticated query param, so it is only honored when combined
+        # with `had_no_usable_password` (the server-verified pre-reset account state) -- an
+        # attacker replaying a stolen reset link for an account that already has a real password
+        # can never satisfy the second condition, so the notification always fires for them.
+        is_panel_first_time_password_set = (
+            request.GET.get(EDLY_PANEL_TRACK_PARAM) == EDLY_PANEL_TRACK_VALUE and had_no_usable_password
+        )
+        if not is_panel_first_time_password_set:
             send_password_reset_success_email(updated_user, request)
         return response
 
