@@ -529,7 +529,11 @@ class PasswordResetConfirmWrapper(PasswordResetConfirmView):
             LoginFailures.clear_lockout_counter(updated_user)
 
         update_session_auth_hash(request, updated_user)
-        send_password_reset_success_email(updated_user, request)
+        # EDLYCUSTOM: a new user setting their password for the first time (edly panel invite,
+        # tracked via ?track=edly_panel) already gets a "welcome, set up your account" email;
+        # skip the generic "your password was reset" notification in that case.
+        if request.GET.get('track') != 'edly_panel':
+            send_password_reset_success_email(updated_user, request)
         return response
 
     def dispatch(self, *args, **kwargs):
