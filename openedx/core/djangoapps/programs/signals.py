@@ -4,6 +4,7 @@ This module contains signals / handlers related to programs.
 
 import logging
 
+from django.db import transaction
 from django.dispatch import receiver
 
 from openedx.core.djangoapps.content.course_overviews.signals import COURSE_PACING_CHANGED
@@ -42,7 +43,9 @@ def handle_course_cert_awarded(sender, user, course_key, mode, status, **kwargs)
     # import here, because signal is registered at startup, but items in tasks are not yet able to be loaded
     from openedx.core.djangoapps.programs.tasks import award_program_certificates
 
-    award_program_certificates.delay(user.username)
+    # Use on_commit to avoid a race condition where the Celery task runs before the DB transaction
+    # that saved the GeneratedCertificate has committed, causing the task to see no cert.
+    transaction.on_commit(lambda: award_program_certificates.delay(user.username))
 
 
 @receiver(COURSE_CERT_CHANGED)
@@ -86,7 +89,9 @@ def handle_course_cert_changed(sender, user, course_key, mode, status, **kwargs)
     # import here, because signal is registered at startup, but items in tasks are not yet able to be loaded
     from openedx.core.djangoapps.programs.tasks import award_course_certificate
 
-    award_course_certificate.delay(user.username, str(course_key))
+    # Use on_commit to avoid a race condition where the Celery task runs before the DB transaction
+    # that saved the GeneratedCertificate has committed, causing the task to see no cert.
+    transaction.on_commit(lambda: award_course_certificate.delay(user.username, str(course_key)))
 
 
 @receiver(COURSE_CERT_REVOKED)
@@ -112,7 +117,7 @@ def handle_course_cert_revoked(sender, user, course_key, mode, status, **kwargs)
     # import here, because signal is registered at startup, but items in tasks are not yet able to be loaded
     from openedx.core.djangoapps.programs.tasks import revoke_program_certificates
 
-    revoke_program_certificates.delay(user.username, str(course_key))
+    transaction.on_commit(lambda: revoke_program_certificates.delay(user.username, str(course_key)))
 
 
 @receiver(COURSE_CERT_DATE_CHANGE, dispatch_uid="course_certificate_date_change_handler")
@@ -137,7 +142,7 @@ def handle_course_cert_date_change(sender, course_key, **kwargs):  # pylint: dis
     # import here, because signal is registered at startup, but items in tasks are not yet loaded
     from openedx.core.djangoapps.programs.tasks import update_certificate_available_date_on_course_update
 
-    update_certificate_available_date_on_course_update.delay(str(course_key))
+    transaction.on_commit(lambda: update_certificate_available_date_on_course_update.delay(str(course_key)))
 
 
 @receiver(COURSE_PACING_CHANGED, dispatch_uid="update_credentials_on_pacing_change")
@@ -162,4 +167,4 @@ def handle_course_pacing_change(sender, updated_course_overview, **kwargs):  # p
     # import here, because signal is registered at startup, but items in tasks are not yet loaded
     from openedx.core.djangoapps.programs.tasks import update_certificate_available_date_on_course_update
 
-    update_certificate_available_date_on_course_update.delay(course_id)
+    transaction.on_commit(lambda: update_certificate_available_date_on_course_update.delay(course_id))
