@@ -58,11 +58,7 @@ def get_user_course_duration(user, course):
         return None
 
     enrollment = CourseEnrollment.get_enrollment(user, course.id)
-    if enrollment is None or enrollment.mode != CourseMode.AUDIT:
-        return None
-
-    verified_mode = CourseMode.verified_mode_for_course(course=course, include_expired=True)
-    if not verified_mode:
+    if enrollment is None or enrollment.mode not in [CourseMode.AUDIT, CourseMode.HONOR]:
         return None
 
     return get_expected_duration(course.id)
@@ -82,7 +78,7 @@ def get_user_course_expiration_date(user, course, enrollment=None):
         return None
 
     enrollment = enrollment or CourseEnrollment.get_enrollment(user, course.id)
-    if enrollment is None or enrollment.mode != CourseMode.AUDIT:
+    if enrollment is None or enrollment.mode not in [CourseMode.AUDIT, CourseMode.HONOR]:
         return None
 
     # We reset schedule.start in order to change a user's computed deadlines.

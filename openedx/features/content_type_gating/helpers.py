@@ -42,8 +42,10 @@ def correct_modes_for_fbe(course_key=None, enrollment=None, user=None, course=No
     modes_dict = {mode.slug: mode for mode in modes}
     course_key = course_key or course.id
 
-    # If there is no audit mode or no verified mode, FBE will not be enabled
-    if (CourseMode.AUDIT not in modes_dict) or (CourseMode.VERIFIED not in modes_dict):
+    # FBE requires either (audit + verified) for the upgrade model, or honor for subscription model
+    has_audit_and_verified = (CourseMode.AUDIT in modes_dict) and (CourseMode.VERIFIED in modes_dict)
+    has_honor = CourseMode.HONOR in modes_dict
+    if not has_audit_and_verified and not has_honor:
         return False
 
     if enrollment and user:
@@ -64,7 +66,7 @@ def correct_modes_for_fbe(course_key=None, enrollment=None, user=None, course=No
                 )
                 return False
 
-            if mode_slug != CourseMode.AUDIT:
+            if mode_slug not in [CourseMode.AUDIT, CourseMode.HONOR]:
                 return False
     return True
 
