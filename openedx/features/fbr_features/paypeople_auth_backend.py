@@ -47,6 +47,7 @@ class PayPeopleClient:
         response = self.session.request(method, url, **kwargs)
 
         log.info("PayPeople RESPONSE status: %s", response.status_code)
+        log.info("PayPeople RESPONSE reason: %s", response.reason)
 
         if response.status_code == 401:
             if retried:
