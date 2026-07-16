@@ -46,7 +46,6 @@ from openedx.core.djangoapps.ace_common.template_context import get_base_templat
 from openedx.core.djangoapps.lang_pref import LANGUAGE_KEY
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.user_api.models import UserPreference
-from openedx.core.djangolib.markup import Text
 from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed, anonymous_id_for_user, is_email_retired
 from common.djangoapps.track.event_transaction_utils import (
     create_new_event_transaction_id,
@@ -411,7 +410,7 @@ def get_email_params(course, auto_enroll, secure=True, course_key=None, display_
 
     protocol = 'https' if secure else 'http'
     course_key = course_key or text_type(course.id)
-    display_name = display_name or Text(course.display_name_with_default)
+    display_name = display_name or course.display_name_with_default
 
     if not site_name:
         site_name = configuration_helpers.get_value(
@@ -486,7 +485,7 @@ def send_mail_to_student(student, param_dict, language=None, context_vars=None, 
     if 'display_name' in param_dict:
         param_dict['course_name'] = param_dict['display_name']
     elif 'course' in param_dict:
-        param_dict['course_name'] = Text(param_dict['course'].display_name_with_default)
+        param_dict['course_name'] = param_dict['course'].display_name_with_default
 
     if not context_vars:
         param_dict['site_name'] = configuration_helpers.get_value(
