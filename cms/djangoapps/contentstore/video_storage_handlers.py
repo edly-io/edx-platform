@@ -917,6 +917,16 @@ def storage_service_bucket():
             'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY
         }
 
+    # boto2's S3Connection defaults to the global endpoint (s3.amazonaws.com)
+    # and SigV2. Buckets outside us-east-1 only accept SigV4 on their regional
+    # endpoint, so presigned PUTs fail with HTTP 400 ("Please use
+    # AWS4-HMAC-SHA256"). When a regional HOST is configured for the pipeline,
+    # target it and enable SigV4. Left unset, behaviour is unchanged.
+    host = settings.VIDEO_UPLOAD_PIPELINE.get('HOST')
+    if host:
+        os.environ['S3_USE_SIGV4'] = 'True'
+        params['host'] = host
+
     conn = S3Connection(**params)
 
     # We don't need to validate our bucket, it requires a very permissive IAM permission
