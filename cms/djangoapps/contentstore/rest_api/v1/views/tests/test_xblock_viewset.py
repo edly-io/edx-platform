@@ -59,6 +59,24 @@ class XblockViewSetRoutingTest(ModuleStoreTestCase, APITestCase):
         mock_fn.assert_called_once()
         assert mock_fn.call_args[0][0].method == "POST"
 
+    @patch(f"{_VIEW_MODULE}.create_xblock_response", return_value=_MOCK_RESPONSE)
+    def test_create_accepts_library_content_key(self, mock_fn):
+        """
+        Creating a course block by importing a component from a v2 library sends
+        ``library_content_key`` on the create body (consumed by
+        ``create_xblock_response`` to set the upstream reference). The strict
+        XblockSerializer must accept it so the request reaches the handler rather
+        than returning a 400.
+        """
+        data = {
+            "parent_locator": PARENT_LOCATOR,
+            "category": "library_content",
+            "library_content_key": "lct:edX:testlib:unit:u1",
+        }
+        response = self.client.post(_list_url(), data=data, format="json")
+        assert response.status_code == status.HTTP_200_OK
+        mock_fn.assert_called_once()
+
     @patch(f"{_VIEW_MODULE}.retrieve_xblock_response", return_value=_MOCK_RESPONSE)
     def test_get_calls_retrieve_xblock_response(self, mock_fn):
         response = self.client.get(_detail_url())

@@ -78,4 +78,9 @@ class XblockSerializer(StrictSerializer):
     target_index = serializers.IntegerField(required=False, allow_null=True)
     boilerplate = serializers.JSONField(required=False, allow_null=True)
     staged_content = serializers.CharField(required=False, allow_null=True)
+    # Present when a course block is created by importing a component from a v2
+    # library. Consumed by the create handler (``create_xblock_response`` reads
+    # ``library_content_key`` to set the block's upstream reference). Declared
+    # here so the strict serializer does not 400 the real Studio create payload.
+    library_content_key = serializers.CharField(required=False, allow_null=True)
     hide_from_toc = serializers.BooleanField(required=False, allow_null=True)
