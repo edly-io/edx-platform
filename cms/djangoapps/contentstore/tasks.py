@@ -174,6 +174,11 @@ def rerun_course(source_course_key_string, destination_course_key_string, user_i
 
     source_course_key = CourseKey.from_string(source_course_key_string)
     destination_course_key = CourseKey.from_string(destination_course_key_string)
+    # Tracks whether the rerun has already been marked succeeded, i.e. the destination course is a
+    # complete, usable course. Once this is True, the catch-all handler below must never delete the
+    # course out from under the user again -- any failure past this point is in auxiliary,
+    # non-essential post-processing (see the individually-guarded steps further down).
+    rerun_succeeded = False
     try:
         # deserialize the payload
         fields = deserialize_fields(fields) if fields else None
@@ -191,6 +196,7 @@ def rerun_course(source_course_key_string, destination_course_key_string, user_i
 
         # update state: Succeeded
         CourseRerunState.objects.succeeded(course_key=destination_course_key)
+        rerun_succeeded = True
 
         COURSE_RERUN_COMPLETED.send_event(
             time=datetime.now(timezone.utc),
@@ -198,20 +204,47 @@ def rerun_course(source_course_key_string, destination_course_key_string, user_i
                 course_key=destination_course_key
             )
         )
+
+        # The steps below are auxiliary/best-effort: the rerun has already succeeded and the course
+        # is live and usable at this point, so a failure here must not flip the state back to failed
+        # or delete the course. Each is wrapped and logged independently so a failure in one doesn't
+        # prevent the others from running.
+
         # call edxval to attach videos to the rerun
-        copy_course_videos(source_course_key, destination_course_key)
+        try:
+            copy_course_videos(source_course_key, destination_course_key)
+        except Exception:  # pylint: disable=broad-except
+            LOGGER.exception(
+                'Course Rerun: failed to copy videos from %s to %s. The rerun course itself is unaffected.',
+                source_course_key, destination_course_key,
+            )
 
         # Copy RestrictedCourse
-        restricted_course = RestrictedCourse.objects.filter(course_key=source_course_key).first()
+        try:
+            restricted_course = RestrictedCourse.objects.filter(course_key=source_course_key).first()
 
-        if restricted_course:
-            country_access_rules = CountryAccessRule.objects.filter(restricted_course=restricted_course)
-            new_restricted_course = clone_instance(restricted_course, {'course_key': destination_course_key})
-            for country_access_rule in country_access_rules:
-                clone_instance(country_access_rule, {'restricted_course': new_restricted_course})
+            if restricted_course:
+                country_access_rules = CountryAccessRule.objects.filter(restricted_course=restricted_course)
+                new_restricted_course = clone_instance(restricted_course, {'course_key': destination_course_key})
+                for country_access_rule in country_access_rules:
+                    clone_instance(country_access_rule, {'restricted_course': new_restricted_course})
+        except Exception:  # pylint: disable=broad-except
+            LOGGER.exception(
+                'Course Rerun: failed to clone RestrictedCourse/CountryAccessRule from %s to %s. '
+                'The rerun course itself is unaffected.',
+                source_course_key, destination_course_key,
+            )
 
-        org_data = ensure_organization(destination_course_key.org)
-        add_organization_course(org_data, destination_course_key)
+        try:
+            org_data = ensure_organization(destination_course_key.org)
+            add_organization_course(org_data, destination_course_key)
+        except Exception:  # pylint: disable=broad-except
+            LOGGER.exception(
+                'Course Rerun: failed to link destination course %s to organization %s. The course exists '
+                'but may not be linked to its organization -- needs investigation.',
+                destination_course_key, destination_course_key.org,
+            )
+
         return "succeeded"
 
     except DuplicateCourseError:
@@ -226,12 +259,21 @@ def rerun_course(source_course_key_string, destination_course_key_string, user_i
         CourseRerunState.objects.failed(course_key=destination_course_key)
         LOGGER.exception('Course Rerun Error')
 
-        try:
-            # cleanup any remnants of the course
-            modulestore().delete_course(destination_course_key, user_id)
-        except ItemNotFoundError:
-            # it's possible there was an error even before the course block was created
-            pass
+        if not rerun_succeeded:
+            try:
+                # cleanup any remnants of the course
+                modulestore().delete_course(destination_course_key, user_id)
+            except ItemNotFoundError:
+                # it's possible there was an error even before the course block was created
+                pass
+        else:
+            # The course was already fully cloned and marked succeeded before this exception was
+            # raised -- it's a valid, usable course. Do not delete it; just log for investigation.
+            LOGGER.exception(
+                'Course Rerun: destination course %s already succeeded before this error was raised; '
+                'preserving the course instead of deleting it.',
+                destination_course_key,
+            )
 
         return "exception: " + str(exc)
 
