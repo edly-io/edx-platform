@@ -64,6 +64,7 @@
                 this.hideAuthWarnings = data.hideAuthWarnings;
                 this.autoRegisterWelcomeMessage = data.thirdPartyAuth.autoRegisterWelcomeMessage || '';
                 this.registerFormSubmitButtonText = data.thirdPartyAuth.registerFormSubmitButtonText || _('Create Account');
+                this.skipRegistrationOptionalCheckboxes = data.thirdPartyAuth.skipRegistrationOptionalCheckboxes || false;
                 this.is_require_third_party_auth_enabled = data.is_require_third_party_auth_enabled;
                 this.enableCoppaCompliance = data.enableCoppaCompliance;
 
@@ -161,6 +162,7 @@
                             platformName: this.platformName,
                             autoRegisterWelcomeMessage: this.autoRegisterWelcomeMessage,
                             registerFormSubmitButtonText: this.registerFormSubmitButtonText,
+                            skipRegistrationOptionalCheckboxes: this.skipRegistrationOptionalCheckboxes,
                             is_require_third_party_auth_enabled: this.is_require_third_party_auth_enabled
                         }
                     });
