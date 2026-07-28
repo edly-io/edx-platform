@@ -7,9 +7,18 @@ throughout openedx/features/edly/tests/). The raw-SQL table dump/dry-run/
 bundle-writing paths are exercised with `connection.cursor()` mocked out,
 since `information_schema`/`DATABASE()` introspection queries this command
 relies on are MySQL-specific and don't behave the same way against sqlite.
+
+Known gap: because of that, none of the mocked-cursor tests below run the
+raw-SQL path against a real MySQL instance end-to-end -- the backticked
+identifiers, `information_schema` introspection, and the keyset
+`ORDER BY ... LIMIT` pagination SQL built in `_paginate` are never executed
+for real. A MySQL-gated integration test would need a MySQL-backed test
+settings module, which this suite doesn't have.
 """
 import datetime
 import json
+import os
+import stat
 import tempfile
 from decimal import Decimal
 from io import StringIO
@@ -52,6 +61,7 @@ def _make_command():
     command.style = MagicMock()
     for attr in ('SUCCESS', 'ERROR', 'WARNING'):
         setattr(command.style, attr, lambda value: value)
+    command.batch_size = 1000
     return command
 
 
@@ -171,18 +181,25 @@ class GetUserIdsTests(TestCase):
 class FetchTableTests(TestCase):
     """
     Tests for Command._fetch_table's WHERE-clause construction.
+
+    `_fetch_table` now returns a lazy generator (see `_paginate`) instead of
+    a materialized list, so these tests must consume it (`list(rows)`)
+    *inside* the `with patch(...)` block -- the generator's body (and thus
+    its `connection.cursor()` calls) doesn't run until iterated.
     """
 
     def test_user_only_where_clause(self):
         command = _make_command()
         cursor = MagicMock()
-        cursor.fetchall.return_value = [(1, 'alice')]
+        # One batch of rows, then an empty batch to end the keyset pagination loop.
+        cursor.fetchall.side_effect = [[(1, 'alice')], []]
         conn = MagicMock()
         conn.cursor.side_effect = lambda: _cursor_ctx(cursor)
 
         with patch.object(mod, 'connection', conn), \
                 patch.object(command, '_columns', return_value=['id', 'username']):
             columns, rows = command._fetch_table('auth_user', 'id', {1, 2}, None)
+            rows = list(rows)
 
         assert columns == ['id', 'username']
         assert rows == [[1, 'alice']]
@@ -199,7 +216,8 @@ class FetchTableTests(TestCase):
         with patch.object(mod, 'connection', conn), \
                 patch.object(command, '_columns', return_value=['id', 'user_id', 'course_id']), \
                 patch.object(command, '_course_col', return_value='course_id'):
-            command._fetch_table('student_courseenrollment', 'user_id', {1}, ['course-v1:acme+C1+2026'])
+            _, rows = command._fetch_table('student_courseenrollment', 'user_id', {1}, ['course-v1:acme+C1+2026'])
+            list(rows)
 
         sql = cursor.execute.call_args[0][0]
         assert 'course_id' in sql
@@ -208,7 +226,7 @@ class FetchTableTests(TestCase):
         command = _make_command()
         with patch.object(command, '_columns', return_value=['id', 'user_id', 'course_id']):
             columns, rows = command._fetch_table('student_courseenrollment', 'user_id', {1}, [])
-        assert rows == []
+        assert list(rows) == []
 
 
 class FetchMembershipTableTests(TestCase):
@@ -219,13 +237,14 @@ class FetchMembershipTableTests(TestCase):
     def test_renames_sub_org_id_to_tenant_id(self):
         command = _make_command()
         cursor = MagicMock()
-        cursor.fetchall.return_value = [(1, 5, 42)]
+        cursor.fetchall.side_effect = [[(1, 5, 42)], []]
         conn = MagicMock()
         conn.cursor.side_effect = lambda: _cursor_ctx(cursor)
 
         with patch.object(mod, 'connection', conn), \
                 patch.object(command, '_columns', return_value=['id', 'user_id', 'sub_org_id']):
             columns, rows = command._fetch_membership_table({1})
+            rows = list(rows)
 
         assert columns == ['id', 'user_id', 'tenant_id']
         # Only the column name changes -- the raw value (Koa's sub_org PK) passes through untouched.
@@ -235,7 +254,7 @@ class FetchMembershipTableTests(TestCase):
         command = _make_command()
         columns, rows = command._fetch_membership_table(set())
         assert columns == []
-        assert rows == []
+        assert list(rows) == []
 
 
 class DryRunTests(TestCase):
@@ -269,18 +288,23 @@ class HandleWritesBundleTests(TestCase):
 
         def fake_fetch_table(table, user_col, user_ids, course_ids):
             if table == 'student_courseenrollment':
-                return ['id', 'user_id', 'course_id'], [[101, 1, 'course-v1:acme+C1+2026']]
-            return ['id', 'user_id'], [[1, 1]]
+                return ['id', 'user_id', 'course_id'], iter([[101, 1, 'course-v1:acme+C1+2026']])
+            if table == 'auth_userprofile':
+                # allow_certificate must be stripped by handle()'s B2 special-case before writing.
+                return ['id', 'user_id', 'allow_certificate'], iter([[1, 1, True]])
+            return ['id', 'user_id'], iter([[1, 1]])
 
         with patch.object(command, '_get_sub_org', return_value=MagicMock()), \
                 patch.object(command, '_resolve_orgs', return_value=['acme']), \
                 patch.object(command, '_get_course_ids', return_value=['course-v1:acme+C1+2026']), \
                 patch.object(command, '_get_user_ids', return_value={1}), \
                 patch.object(command, '_fetch_table', side_effect=fake_fetch_table), \
-                patch.object(command, '_fetch_by_enrollment_ids', return_value=(['id', 'enrollment_id'], [])), \
-                patch.object(command, '_fetch_membership_table', return_value=(['id', 'user_id', 'tenant_id'], [])), \
+                patch.object(command, '_fetch_by_enrollment_ids', return_value=(['id', 'enrollment_id'], iter(()))), \
+                patch.object(
+                    command, '_fetch_membership_table', return_value=(['id', 'user_id', 'tenant_id'], iter(()))
+                ), \
                 patch.object(command, '_schema_state', return_value={}):
-            command.handle(slug='acme', dry_run=False, output_dir=bundle_dir)
+            command.handle(slug='acme', dry_run=False, output_dir=bundle_dir, batch_size=1000)
 
         learners_dir = bundle_dir + '/learners'
         with open(learners_dir + '/auth_user.json') as f:
@@ -291,11 +315,22 @@ class HandleWritesBundleTests(TestCase):
             payload = json.load(f)
         assert payload['rows'] == [[101, 1, 'course-v1:acme+C1+2026']]
 
+        # B2: allow_certificate is stripped from both columns and row values end-to-end.
+        with open(learners_dir + '/auth_userprofile.json') as f:
+            payload = json.load(f)
+        assert payload == {'columns': ['id', 'user_id'], 'rows': [[1, 1]]}
+
         with open(bundle_dir + '/MANIFEST.json') as f:
             manifest = json.load(f)
         assert manifest['slug'] == 'acme'
         assert manifest['release_line'] == 'koa'
         assert manifest['components']['learners']['student_courseenrollment'] == 1
+
+        # S1: bundle directories are 0700, bundle files are 0600.
+        assert stat.S_IMODE(os.stat(bundle_dir).st_mode) == 0o700
+        assert stat.S_IMODE(os.stat(learners_dir).st_mode) == 0o700
+        assert stat.S_IMODE(os.stat(learners_dir + '/auth_user.json').st_mode) == 0o600
+        assert stat.S_IMODE(os.stat(bundle_dir + '/MANIFEST.json').st_mode) == 0o600
 
 
 class JsonDefaultTests(TestCase):
@@ -322,3 +357,198 @@ class JsonDefaultTests(TestCase):
         command = _make_command()
         with self.assertRaises(TypeError):
             command._json_default(object())
+
+
+class PaginateTests(TestCase):
+    """
+    Tests for Command._paginate's batched/keyset-pagination behavior (B1).
+    """
+
+    def test_keyset_pagination_fetches_multiple_batches_until_empty(self):
+        command = _make_command()
+        command.batch_size = 2
+        cursor = MagicMock()
+        cursor.fetchall.side_effect = [
+            [(1, 'a'), (2, 'b')],
+            [(3, 'c')],
+            [],
+        ]
+        conn = MagicMock()
+        conn.cursor.side_effect = lambda: _cursor_ctx(cursor)
+
+        with patch.object(mod, 'connection', conn):
+            rows = list(command._paginate('auth_user', ['id', 'username'], '1=1', []))
+
+        assert rows == [[1, 'a'], [2, 'b'], [3, 'c']]
+        assert cursor.execute.call_count == 3
+        # The second batch's WHERE clause must key off the first batch's last id (2).
+        second_call_sql, second_call_args = cursor.execute.call_args_list[1][0]
+        assert 'id' in second_call_sql.lower()
+        assert 2 in second_call_args
+
+    def test_offset_fallback_when_no_id_column(self):
+        command = _make_command()
+        command.batch_size = 2
+        cursor = MagicMock()
+        cursor.fetchall.side_effect = [
+            [('a',), ('b',)],
+            [],
+        ]
+        conn = MagicMock()
+        conn.cursor.side_effect = lambda: _cursor_ctx(cursor)
+
+        with patch.object(mod, 'connection', conn):
+            rows = list(command._paginate('some_table', ['username'], '1=1', []))
+
+        assert rows == [['a'], ['b']]
+        first_call_sql = cursor.execute.call_args_list[0][0][0]
+        assert 'OFFSET' in first_call_sql
+
+    def test_no_rows_yields_nothing(self):
+        command = _make_command()
+        cursor = MagicMock()
+        cursor.fetchall.return_value = []
+        conn = MagicMock()
+        conn.cursor.side_effect = lambda: _cursor_ctx(cursor)
+
+        with patch.object(mod, 'connection', conn):
+            rows = list(command._paginate('auth_user', ['id', 'username'], '1=1', []))
+
+        assert rows == []
+        assert cursor.execute.call_count == 1
+
+
+class WriteTableJsonTests(TestCase):
+    """
+    Tests for Command._write_table_json's streaming JSON writer (B1/S1/C3).
+    """
+
+    def test_round_trips_multiple_batches(self):
+        command = _make_command()
+        path = os.path.join(tempfile.mkdtemp(), 'table.json')
+
+        def row_generator():
+            yield [1, 'alice']
+            yield [2, 'bob']
+            yield [3, 'carol']
+
+        row_count = command._write_table_json(path, ['id', 'name'], row_generator())
+
+        assert row_count == 3
+        with open(path, encoding='utf-8') as f:
+            payload = json.load(f)
+        assert payload == {
+            'columns': ['id', 'name'],
+            'rows': [[1, 'alice'], [2, 'bob'], [3, 'carol']],
+        }
+
+    def test_empty_rows_produce_valid_json(self):
+        command = _make_command()
+        path = os.path.join(tempfile.mkdtemp(), 'empty.json')
+
+        row_count = command._write_table_json(path, ['id'], iter(()))
+
+        assert row_count == 0
+        with open(path, encoding='utf-8') as f:
+            payload = json.load(f)
+        assert payload == {'columns': ['id'], 'rows': []}
+
+    def test_writes_file_with_0600_permissions(self):
+        command = _make_command()
+        path = os.path.join(tempfile.mkdtemp(), 'perm.json')
+
+        command._write_table_json(path, ['id'], iter(()))
+
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+
+class MakePrivateDirTests(TestCase):
+    """
+    Tests for Command._make_private_dir's 0700 enforcement (S1).
+    """
+
+    def test_creates_new_dir_with_0700(self):
+        command = _make_command()
+        parent = tempfile.mkdtemp()
+        target = os.path.join(parent, 'bundle')
+
+        command._make_private_dir(target)
+
+        assert os.path.isdir(target)
+        assert stat.S_IMODE(os.stat(target).st_mode) == 0o700
+
+    def test_forces_0700_on_pre_existing_dir(self):
+        command = _make_command()
+        target = tempfile.mkdtemp()
+        os.chmod(target, 0o755)
+
+        command._make_private_dir(target)
+
+        assert stat.S_IMODE(os.stat(target).st_mode) == 0o700
+
+
+class StripColumnsTests(TestCase):
+    """
+    Tests for Command._strip_columns, used to drop auth_userprofile.allow_certificate (B2).
+    """
+
+    def test_drops_named_column_from_columns_and_rows(self):
+        command = _make_command()
+        columns = ['id', 'user_id', 'allow_certificate']
+        rows = iter([[1, 10, True], [2, 20, False]])
+
+        new_columns, new_rows = command._strip_columns(columns, rows, ('allow_certificate',))
+
+        assert new_columns == ['id', 'user_id']
+        assert list(new_rows) == [[1, 10], [2, 20]]
+
+    def test_noop_when_column_absent(self):
+        command = _make_command()
+        columns = ['id', 'user_id']
+        rows = iter([[1, 10]])
+
+        new_columns, new_rows = command._strip_columns(columns, rows, ('allow_certificate',))
+
+        assert new_columns == ['id', 'user_id']
+        assert list(new_rows) == [[1, 10]]
+
+
+class CaptureColumnTests(TestCase):
+    """
+    Tests for Command._capture_column, used to grab student_courseenrollment ids while streaming.
+    """
+
+    def test_records_column_values_while_passing_rows_through(self):
+        command = _make_command()
+        sink = []
+        rows = iter([[101, 1], [102, 1]])
+
+        result = list(command._capture_column(rows, 0, sink))
+
+        assert result == [[101, 1], [102, 1]]
+        assert sink == [101, 102]
+
+
+class NoCoursesWarningTests(TestCase):
+    """
+    Tests for the C1 warning: course_ids resolves empty but the tenant still has members.
+    """
+
+    def test_warns_when_no_courses_resolved_but_users_exist(self):
+        command = _make_command()
+        bundle_dir = tempfile.mkdtemp()
+
+        with patch.object(command, '_get_sub_org', return_value=MagicMock()), \
+                patch.object(command, '_resolve_orgs', return_value=['acme']), \
+                patch.object(command, '_get_course_ids', return_value=[]), \
+                patch.object(command, '_get_user_ids', return_value={1}), \
+                patch.object(command, '_fetch_table', return_value=(['id', 'user_id'], iter([[1, 1]]))), \
+                patch.object(command, '_fetch_by_enrollment_ids', return_value=(['id', 'enrollment_id'], iter(()))), \
+                patch.object(
+                    command, '_fetch_membership_table', return_value=(['id', 'user_id', 'tenant_id'], iter(()))
+                ), \
+                patch.object(command, '_schema_state', return_value={}):
+            command.handle(slug='acme', dry_run=False, output_dir=bundle_dir, batch_size=1000)
+
+        output = command.stdout.getvalue()
+        assert 'No courses resolved' in output

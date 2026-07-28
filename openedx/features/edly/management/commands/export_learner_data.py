@@ -28,6 +28,16 @@ since Koa's sub_org primary key lives in a different id-space than any Ulmo
 tenant id. Reconciling that value is a documented follow-up on the Ulmo
 import side, not something this export command attempts to solve.
 
+`auth_user_groups.group_id` has the identical problem and is flagged here for
+the same reason: Koa's Django auth group ids live in their own id-space, so a
+restored `group_id` value won't necessarily point at the matching group on
+the Ulmo side either. As with `tenant_id` above, this command does not
+attempt to remap it -- only the target Ulmo instance knows its own id-space
+-- it is called out here as the same class of known follow-up for the Ulmo
+import side to reconcile. (Contrast with `auth_userprofile.allow_certificate`
+below, which is a column Ulmo's schema drops entirely rather than an
+id-space mismatch, and so is stripped from this export instead of deferred.)
+
 Usage (in the LMS):
     python manage.py export_learner_data <slug> --dry-run
     python manage.py export_learner_data <slug>
@@ -88,6 +98,18 @@ MEMBERSHIP_TABLE = 'edly_edlymultisiteaccess'
 MEMBERSHIP_TARGET_NAME = 'edly_features_app_edlymultisiteaccess'
 MEMBERSHIP_COLUMN_RENAME = {'sub_org_id': 'tenant_id'}
 
+# `auth_userprofile.allow_certificate` exists on Koa but Ulmo's schema drops
+# it entirely (see edlysaas-data-migrations/CLAUDE.md's column-transform
+# notes). The Ulmo-side importer inserts every bundle column verbatim, so
+# leaving this column in would crash that INSERT. Stripped the same way the
+# membership table's sub_org_id -> tenant_id rename is applied above -- from
+# both the emitted `columns` list and every row's values (see
+# `_strip_columns`) -- rather than deferred as a follow-up, since unlike
+# `tenant_id`/`group_id` this isn't an id-space problem the import side is
+# better positioned to solve.
+USERPROFILE_TABLE = 'auth_userprofile'
+USERPROFILE_DROPPED_COLUMNS = ('allow_certificate',)
+
 MANIFEST_FILENAME = 'MANIFEST.json'
 
 
@@ -124,6 +146,13 @@ class Command(BaseCommand):
             default=None,
             help='Bundle directory to write into (default: /tmp/edm_exports/<slug>_<timestamp>/).',
         )
+        parser.add_argument(
+            '--batch-size',
+            type=int,
+            default=1000,
+            help='Rows fetched per SELECT batch (default: 1000). Keeps large tables '
+                 '(e.g. courseware_studentmodule) from being loaded into memory all at once.',
+        )
 
     def handle(self, *args, **options):
         """
@@ -131,6 +160,7 @@ class Command(BaseCommand):
         """
         slug = options['slug']
         dry_run = options['dry_run']
+        self.batch_size = options['batch_size']
 
         self._print_header(slug, dry_run)
 
@@ -146,6 +176,13 @@ class Command(BaseCommand):
         self.stdout.write(u"Courses resolved: {0}".format(len(course_ids)))
         self.stdout.write(u"Users resolved: {0}".format(len(user_ids)))
 
+        if not course_ids and user_ids:
+            self.stdout.write(self.style.WARNING(
+                u"No courses resolved for this tenant's orgs (check course_org_filter) -- "
+                u"course-scoped tables (enrollments, grades, certificates, progress) will "
+                u"export 0 rows even though {0} user(s) were found.".format(len(user_ids))
+            ))
+
         if not user_ids:
             self.stdout.write(self.style.WARNING("No users found for this tenant -- nothing to export."))
             return
@@ -156,32 +193,35 @@ class Command(BaseCommand):
 
         timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
         bundle_dir = self._resolve_bundle_dir(slug, options.get('output_dir'), timestamp)
+        self._make_private_dir(bundle_dir)
         learners_dir = os.path.join(bundle_dir, 'learners')
-        if not os.path.exists(learners_dir):
-            os.makedirs(learners_dir)
+        self._make_private_dir(learners_dir)
 
         counts = {}
         enrollment_ids = []
 
         for table, user_col, needs_course_filter in TABLE_SCOPE:
             columns, rows = self._fetch_table(table, user_col, user_ids, course_ids if needs_course_filter else None)
-            self._write_table_json(os.path.join(learners_dir, u"{0}.json".format(table)), columns, rows)
-            counts[table] = len(rows)
-            self.stdout.write(u"  {0}: {1} rows".format(table, len(rows)))
+            if table == USERPROFILE_TABLE:
+                columns, rows = self._strip_columns(columns, rows, USERPROFILE_DROPPED_COLUMNS)
             if table == 'student_courseenrollment' and 'id' in columns:
-                id_idx = columns.index('id')
-                enrollment_ids = [row[id_idx] for row in rows]
+                rows = self._capture_column(rows, columns.index('id'), enrollment_ids)
+            row_count = self._write_table_json(os.path.join(learners_dir, u"{0}.json".format(table)), columns, rows)
+            counts[table] = row_count
+            self.stdout.write(u"  {0}: {1} rows".format(table, row_count))
 
         for table in ENROLLMENT_LINKED_TABLES:
             columns, rows = self._fetch_by_enrollment_ids(table, enrollment_ids)
-            self._write_table_json(os.path.join(learners_dir, u"{0}.json".format(table)), columns, rows)
-            counts[table] = len(rows)
-            self.stdout.write(u"  {0}: {1} rows".format(table, len(rows)))
+            row_count = self._write_table_json(os.path.join(learners_dir, u"{0}.json".format(table)), columns, rows)
+            counts[table] = row_count
+            self.stdout.write(u"  {0}: {1} rows".format(table, row_count))
 
         columns, rows = self._fetch_membership_table(user_ids)
-        self._write_table_json(os.path.join(learners_dir, u"{0}.json".format(MEMBERSHIP_TARGET_NAME)), columns, rows)
-        counts[MEMBERSHIP_TARGET_NAME] = len(rows)
-        self.stdout.write(u"  {0}: {1} rows".format(MEMBERSHIP_TARGET_NAME, len(rows)))
+        row_count = self._write_table_json(
+            os.path.join(learners_dir, u"{0}.json".format(MEMBERSHIP_TARGET_NAME)), columns, rows
+        )
+        counts[MEMBERSHIP_TARGET_NAME] = row_count
+        self.stdout.write(u"  {0}: {1} rows".format(MEMBERSHIP_TARGET_NAME, row_count))
 
         self._write_manifest(bundle_dir, slug, counts)
 
@@ -280,6 +320,10 @@ class Command(BaseCommand):
     def _fetch_table(self, table, user_col, user_ids, course_ids):
         """
         Fetch a table's rows scoped by user_ids and, when requested, course_ids.
+
+        Returns (columns, rows) where `rows` is a lazy generator (see
+        `_paginate`) -- callers should stream it (e.g. via `_write_table_json`)
+        rather than materializing it with list()/len().
         """
         columns = self._columns(table)
         user_placeholders = ', '.join(['%s'] * len(user_ids))
@@ -293,9 +337,9 @@ class Command(BaseCommand):
             where_args += list(course_ids)
         elif course_ids == []:
             # needs_course_filter=True but tenant has zero resolved courses -- match nothing.
-            return columns, []
+            return columns, iter(())
 
-        return columns, self._select(table, columns, where_sql, where_args)
+        return columns, self._paginate(table, columns, where_sql, where_args)
 
     def _fetch_by_enrollment_ids(self, table, enrollment_ids):
         """
@@ -303,10 +347,10 @@ class Command(BaseCommand):
         """
         columns = self._columns(table)
         if not enrollment_ids:
-            return columns, []
+            return columns, iter(())
         placeholders = ', '.join(['%s'] * len(enrollment_ids))
         where_sql = u"{0} IN ({1})".format(bt('enrollment_id'), placeholders)
-        return columns, self._select(table, columns, where_sql, list(enrollment_ids))
+        return columns, self._paginate(table, columns, where_sql, list(enrollment_ids))
 
     def _fetch_membership_table(self, user_ids):
         """
@@ -317,25 +361,108 @@ class Command(BaseCommand):
         VALUE is left untouched, only the column name is renamed.
         """
         if not user_ids:
-            return [], []
+            return [], iter(())
         real_columns = self._columns(MEMBERSHIP_TABLE)
         placeholders = ', '.join(['%s'] * len(user_ids))
         where_sql = u"{0} IN ({1})".format(bt('user_id'), placeholders)
-        rows = self._select(MEMBERSHIP_TABLE, real_columns, where_sql, list(user_ids))
+        rows = self._paginate(MEMBERSHIP_TABLE, real_columns, where_sql, list(user_ids))
         output_columns = [MEMBERSHIP_COLUMN_RENAME.get(col, col) for col in real_columns]
         return output_columns, rows
 
-    def _select(self, table, columns, where_sql, where_args):
+    def _paginate(self, table, columns, where_sql, where_args):
         """
-        Run a plain `SELECT <columns> FROM <table> WHERE <where_sql>` and return the rows.
+        Yield a table's matching rows one at a time, fetching `self.batch_size`
+        rows per SELECT instead of a single `fetchall()` -- tables like
+        `courseware_studentmodule` can be millions of rows with KB-sized
+        `state` blobs, a real OOM risk for a one-shot fetch.
+
+        Keyset-paginates by `id` (`id > last_id`) when the table has one,
+        falling back to OFFSET otherwise. OFFSET pagination is non-atomic
+        against concurrent writes: rows inserted/deleted ahead of the
+        current offset while the export runs shift every later page,
+        silently skipping or duplicating rows -- keyset has no such window.
+
+        Unlike the companion Ulmo-side `_paginate` (edlysaas-data-migrations),
+        which accumulates every batch into one Python list before a single
+        `json.dumps`, this yields lazily so `_write_table_json` can stream
+        each row straight to disk as it's fetched -- accumulating the whole
+        table would still risk OOM at Koa's real tenant scale even with the
+        SELECTs themselves batched.
         """
         columns_sql = ', '.join(bt(col) for col in columns)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                u"SELECT {0} FROM {1} WHERE {2}".format(columns_sql, bt(table), where_sql),
-                where_args,
-            )
-            return [list(row) for row in cursor.fetchall()]
+
+        if 'id' in columns:
+            id_idx = columns.index('id')
+            last_id = None
+            while True:
+                batch_sql, batch_args = where_sql, list(where_args)
+                if last_id is not None:
+                    batch_sql += u" AND {0} > %s".format(bt('id'))
+                    batch_args.append(last_id)
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        u"SELECT {0} FROM {1} WHERE {2} ORDER BY {3} LIMIT %s".format(
+                            columns_sql, bt(table), batch_sql, bt('id')
+                        ),
+                        batch_args + [self.batch_size],
+                    )
+                    batch = cursor.fetchall()
+                if not batch:
+                    return
+                for row in batch:
+                    yield list(row)
+                last_id = batch[-1][id_idx]
+        else:
+            order_sql = ', '.join(bt(col) for col in columns)
+            offset = 0
+            while True:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        u"SELECT {0} FROM {1} WHERE {2} ORDER BY {3} LIMIT %s OFFSET %s".format(
+                            columns_sql, bt(table), where_sql, order_sql
+                        ),
+                        list(where_args) + [self.batch_size, offset],
+                    )
+                    batch = cursor.fetchall()
+                if not batch:
+                    return
+                for row in batch:
+                    yield list(row)
+                offset += self.batch_size
+
+    def _strip_columns(self, columns, rows, drop):
+        """
+        Drop one or more columns (by name) from a table's emitted `columns`
+        list and every row's values -- e.g. `auth_userprofile.allow_certificate`
+        (see USERPROFILE_DROPPED_COLUMNS), a column Ulmo's schema removes
+        entirely, so the Ulmo-side importer's verbatim-column INSERT doesn't
+        choke on a column that no longer exists there. Same technique already
+        used for the membership table's sub_org_id -> tenant_id rename above,
+        just dropping instead of renaming.
+        """
+        drop_idxs = {columns.index(col) for col in drop if col in columns}
+        if not drop_idxs:
+            return columns, rows
+        keep_idxs = [i for i in range(len(columns)) if i not in drop_idxs]
+        new_columns = [columns[i] for i in keep_idxs]
+
+        def _stripped():
+            for row in rows:
+                yield [row[i] for i in keep_idxs]
+
+        return new_columns, _stripped()
+
+    def _capture_column(self, rows, col_idx, sink):
+        """
+        Pass rows through unchanged while recording one column's values into
+        `sink` as they stream past -- used to capture
+        student_courseenrollment's ids for the ENROLLMENT_LINKED_TABLES
+        lookup without materializing the whole table just to grab that one
+        column.
+        """
+        for row in rows:
+            sink.append(row[col_idx])
+            yield row
 
     # ------------------------------------------------------------------ bundle output
 
@@ -347,6 +474,38 @@ class Command(BaseCommand):
             return output_dir
         base = getattr(settings, 'EDM_EXPORT_DIR', '/tmp/edm_exports')
         return os.path.join(base, u"{0}_{1}".format(slug, timestamp))
+
+    def _make_private_dir(self, path):
+        """
+        Create `path` (and any missing parents), then force 0700 perms on it.
+
+        `os.makedirs`'s `mode` argument only applies to the leaf directory it
+        creates -- any parent directories created along the way get the
+        process umask's default (commonly 0755) -- and the leaf's own mode
+        can itself still be loosened by the umask. So this creates with
+        mode=0o700 as a first pass and then `chmod`s explicitly afterwards to
+        guarantee the final bits regardless of umask. These directories hold
+        the same PII as the files written into them (see
+        `_open_bundle_file`): auth_user password hashes, auth_registration
+        activation keys, full auth_userprofile PII -- they must never be
+        briefly group/other-readable or world-traversable.
+        """
+        if not os.path.exists(path):
+            os.makedirs(path, mode=0o700)
+        os.chmod(path, 0o700)
+
+    def _open_bundle_file(self, path):
+        """
+        Open a bundle output file for writing with 0600 perms from creation.
+
+        Bundle files can contain auth_user password hashes, auth_registration
+        activation keys, and full auth_userprofile PII -- creating via
+        `os.open` with an explicit mode avoids the brief window a plain
+        `open()` followed by a later `os.chmod()` would leave the file at
+        the process umask's default (typically 0644).
+        """
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        return os.fdopen(fd, 'w', encoding='utf-8')
 
     def _json_default(self, value):
         """
@@ -362,11 +521,28 @@ class Command(BaseCommand):
 
     def _write_table_json(self, path, columns, rows):
         """
-        Write one table's scoped rows to {"columns": [...], "rows": [[...], ...]}.
+        Stream one table's scoped rows to {"columns": [...], "rows": [[...], ...]}.
+
+        Written by hand -- one row's `json.dumps` at a time -- rather than
+        building the whole payload and calling `json.dumps(payload)` once,
+        since `rows` may be a lazy generator (see `_paginate`) over a table
+        with millions of rows; materializing it into one Python list first
+        would defeat the point of batching the SELECTs. Returns the total
+        row count written, since callers no longer have a materialized list
+        to `len()` themselves.
         """
-        payload = {'columns': columns, 'rows': [list(row) for row in rows]}
-        with open(path, 'w') as output_file:
-            output_file.write(json.dumps(payload, default=self._json_default))
+        row_count = 0
+        with self._open_bundle_file(path) as output_file:
+            output_file.write(u'{"columns": ')
+            output_file.write(json.dumps(columns))
+            output_file.write(u', "rows": [')
+            for row in rows:
+                if row_count:
+                    output_file.write(u', ')
+                output_file.write(json.dumps(row, default=self._json_default))
+                row_count += 1
+            output_file.write(u']}')
+        return row_count
 
     def _schema_state(self):
         """
@@ -400,7 +576,7 @@ class Command(BaseCommand):
             'components': {'learners': counts},
         }
         manifest_path = os.path.join(bundle_dir, MANIFEST_FILENAME)
-        with open(manifest_path, 'w') as manifest_file:
+        with self._open_bundle_file(manifest_path) as manifest_file:
             manifest_file.write(json.dumps(manifest, indent=2, default=self._json_default))
 
     # ------------------------------------------------------------------ dry run / reporting
@@ -448,4 +624,5 @@ class Command(BaseCommand):
         """
         self.stdout.write("\n" + "=" * 72)
         self.stdout.write(u"Export learner data: {0}".format(slug) + ("  [DRY RUN]" if dry_run else ""))
+        self.stdout.write(u"Batch size: {0}".format(self.batch_size))
         self.stdout.write("=" * 72)
