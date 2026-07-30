@@ -1150,16 +1150,33 @@ class HandleTests(TestCase):
         return vars(parser.parse_args(list(cli_args)))
 
     def test_parser_defaults(self):
-        options = self._parse('some-slug')
+        # --output-dir is required (item 2's PII-exposure fix -- no safe default to fall back to),
+        # so it must be passed here for parse_args() to succeed at all; every other option below is
+        # still exercised for its own default.
+        output_dir = tempfile.mkdtemp()
+        options = self._parse('some-slug', '--output-dir', output_dir)
         assert options['reports'] == ','.join(DEFAULT_REPORTS)
         assert options['as_user'] is None
         assert options['dry_run'] is False
-        assert options['output_dir'] is None
+        assert options['output_dir'] == output_dir
         assert options['include_fields'] is None
         assert options['allow_meta_field'] is False
         assert options['skip_course'] == []
         assert options['ora2_identity_column'] is None
         assert options['max_problem_responses'] is None
+
+    def test_missing_output_dir_raises(self):
+        """
+        Item 2's PII-exposure fix: --output-dir is now required, with no MEDIA_ROOT/EDM_EXPORT_DIR
+        fallback left to silently catch the omission. Omitting it must fail loudly and immediately,
+        before handle() ever runs. Django's CommandParser routes argparse's own missing-required-
+        argument error through parser.error(), which raises CommandError (rather than exiting the
+        process via SystemExit) whenever the command isn't invoked from the real command line -- as
+        is the case here, through call_command().
+        """
+        sub_org = EdlySubOrganizationFactory()
+        with self.assertRaises(CommandError):
+            call_command('export_tenant_reports_csv', sub_org.slug)
 
     def test_dry_run_writes_nothing(self):
         sub_org = EdlySubOrganizationFactory()
@@ -1170,13 +1187,13 @@ class HandleTests(TestCase):
 
         out = StringIO()
         output_dir = os.path.join(tempfile.mkdtemp(), 'would-be-output')
-        # --reports grades (NOT the default reports list): the --as-user/is_staff
-        # requirement for problem_responses (item 7) is checked BEFORE the dry_run
-        # branch, and DEFAULT_REPORTS includes problem_responses -- without this,
-        # --dry-run with no --as-user would raise CommandError before ever reaching
-        # the dry-run branch (caught by this suite's own stub-harness proof run).
+        # Default --reports (includes problem_responses) and no --as-user -- the command's own
+        # documented default invocation. handle() now checks dry_run BEFORE the --as-user/is_staff
+        # gate for problem_responses, so a dry run never hits that gate at all: it doesn't call any
+        # report generator or need an operator identity. Previously this exact invocation raised
+        # CommandError and the test had to work around it with an explicit --reports grades.
         call_command(
-            'export_tenant_reports_csv', sub_org.slug, '--dry-run', '--reports', 'grades',
+            'export_tenant_reports_csv', sub_org.slug, '--dry-run',
             '--output-dir', output_dir, stdout=out,
         )
         assert 'DRY RUN' in out.getvalue()
@@ -1185,7 +1202,7 @@ class HandleTests(TestCase):
     def test_no_members_early_return(self):
         sub_org = EdlySubOrganizationFactory()
         out = StringIO()
-        call_command('export_tenant_reports_csv', sub_org.slug, stdout=out)
+        call_command('export_tenant_reports_csv', sub_org.slug, '--output-dir', tempfile.mkdtemp(), stdout=out)
         assert 'nothing to export' in out.getvalue()
 
     def test_problem_responses_without_as_user_raises(self):
@@ -1193,7 +1210,10 @@ class HandleTests(TestCase):
         member = UserFactory()
         EdlyMultiSiteAccessFactory(user=member, sub_org=sub_org)
         with self.assertRaises(CommandError):
-            call_command('export_tenant_reports_csv', sub_org.slug, '--reports', 'problem_responses')
+            call_command(
+                'export_tenant_reports_csv', sub_org.slug, '--reports', 'problem_responses',
+                '--output-dir', tempfile.mkdtemp(),
+            )
 
     def test_problem_responses_as_user_non_staff_raises(self):
         sub_org = EdlySubOrganizationFactory()
@@ -1203,7 +1223,7 @@ class HandleTests(TestCase):
         with self.assertRaises(CommandError):
             call_command(
                 'export_tenant_reports_csv', sub_org.slug, '--reports', 'problem_responses',
-                '--as-user', operator.username,
+                '--as-user', operator.username, '--output-dir', tempfile.mkdtemp(),
             )
 
     def test_problem_responses_as_user_staff_passes_through(self):

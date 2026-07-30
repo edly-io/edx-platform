@@ -353,11 +353,12 @@ single unreplicated anon id, skipping that course's ora2 output entirely
 (recorded as 'identity column unverified'). For an off-boarding export,
 either run against a quiesced tenant or accept this window.
 
-Usage:
-    python manage.py export_tenant_reports_csv <slug> --dry-run
-    python manage.py export_tenant_reports_csv <slug>
-    python manage.py export_tenant_reports_csv <slug> --reports grades,profiles
-    python manage.py export_tenant_reports_csv <slug> --as-user staff_user --reports problem_responses
+Usage (--output-dir is required -- see add_arguments; there is no safe default):
+    python manage.py export_tenant_reports_csv <slug> --dry-run --output-dir /path/to/dir
+    python manage.py export_tenant_reports_csv <slug> --output-dir /path/to/dir
+    python manage.py export_tenant_reports_csv <slug> --output-dir /path/to/dir --reports grades,profiles
+    python manage.py export_tenant_reports_csv <slug> --output-dir /path/to/dir --as-user staff_user \
+        --reports problem_responses
 """
 
 import csv
@@ -646,9 +647,11 @@ class Command(BaseCommand):
         parser.add_argument('slug', help='EdlySubOrganization slug identifying the tenant to export.')
         parser.add_argument(
             '--output-dir',
-            default=None,
-            help='Directory to write into (default: EDM_EXPORT_DIR or '
-                 '<MEDIA_ROOT>/edm_exports/<slug>_<timestamp>_csv/).',
+            required=True,
+            help='Directory to write into. Required -- there is no safe default: MEDIA_ROOT is '
+                 'served publicly by nginx in this deployment, so a tenant\'s learner-PII export '
+                 'must never land there by default. The operator must consciously choose a private '
+                 'destination every run.',
         )
         parser.add_argument(
             '--reports',
@@ -731,6 +734,20 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("No users found for this tenant -- nothing to export."))
             return
 
+        if 'may_enroll' in reports:
+            self.stdout.write(self.style.WARNING(
+                "may_enroll requested -- these rows cannot be tenant-membership-filtered "
+                "(CourseEnrollmentAllowed rows are pre-registration invites with no user account); "
+                "the output will include every pending invite for these courses, not just this tenant's."
+            ))
+
+        # Dry-run never calls a report generator and never needs an operator identity, so it must
+        # return before the --as-user/problem_responses staff-check gate below -- that gate exists to
+        # protect the real problem_responses generator run, not to block a preview of what would happen.
+        if dry_run:
+            self._dry_run(course_ids, reports)
+            return
+
         operator_user = None
         if options.get('as_user'):
             operator_user = self._resolve_operator(options['as_user'])
@@ -745,19 +762,7 @@ class Command(BaseCommand):
                     u"account via --as-user.".format(operator_user.username)
                 )
 
-        if 'may_enroll' in reports:
-            self.stdout.write(self.style.WARNING(
-                "may_enroll requested -- these rows cannot be tenant-membership-filtered "
-                "(CourseEnrollmentAllowed rows are pre-registration invites with no user account); "
-                "the output will include every pending invite for these courses, not just this tenant's."
-            ))
-
-        if dry_run:
-            self._dry_run(course_ids, reports)
-            return
-
-        timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-        output_dir = self._resolve_output_dir(slug, options.get('output_dir'), timestamp)
+        output_dir = self._resolve_output_dir(options['output_dir'])
         per_course_dir = os.path.join(output_dir, 'per_course')
         self._make_private_dir(output_dir)
         self._make_private_dir(per_course_dir)
@@ -1168,17 +1173,17 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------ output plumbing
 
-    def _resolve_output_dir(self, slug, output_dir, timestamp):
+    def _resolve_output_dir(self, output_dir):
         """
-        `--output-dir` wins verbatim; otherwise EDM_EXPORT_DIR/<slug>_<timestamp>_csv/,
-        falling back to a directory under MEDIA_ROOT. The '_csv' suffix (vs.
-        export_learner_data.py's bare <slug>_<timestamp>) avoids a MANIFEST.json
-        collision if both commands are ever run for the same tenant in the same second.
+        Return `--output-dir` verbatim -- it's a required argument (see add_arguments) precisely
+        because there's no safe default to fall back to here. This used to fall back to
+        EDM_EXPORT_DIR (never defined anywhere in this codebase's settings) or, failing that, a
+        directory under MEDIA_ROOT when --output-dir was omitted -- but MEDIA_ROOT is served
+        publicly by nginx at /media/ in this Koa deployment, so that fallback silently put a
+        tenant's full learner-PII export under the public web root by default. Making --output-dir
+        required removes the unsafe default outright instead of trying to guess a safer one.
         """
-        if output_dir:
-            return output_dir
-        base = getattr(settings, 'EDM_EXPORT_DIR', os.path.join(settings.MEDIA_ROOT, 'edm_exports'))
-        return os.path.join(base, u"{0}_{1}_csv".format(slug, timestamp))
+        return output_dir
 
     def _make_private_dir(self, path):
         """
