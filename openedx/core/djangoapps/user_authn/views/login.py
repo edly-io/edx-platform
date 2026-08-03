@@ -30,6 +30,8 @@ from eventtracking import tracker
 from openedx_events.learning.data import UserData, UserPersonalData
 from openedx_events.learning.signals import SESSION_LOGIN_COMPLETED
 from openedx_filters.learning.filters import StudentLoginRequested
+
+from edly_features_app.filters import PasswordExpiryWarningRequested, TwoFactorAuthRequested  # EDLYCUSTOM
 from rest_framework import status
 from rest_framework.views import APIView
 
@@ -635,6 +637,13 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
         ):
             raise VulnerablePasswordError(accounts.AUTHN_LOGIN_BLOCK_HIBP_POLICY_MSG, "require-password-change")
 
+        # EDLYCUSTOM: gate login completion behind an optional two-factor OTP challenge.
+        # .. filter_implemented_name: TwoFactorAuthRequested
+        # .. filter_type: io.edly.user.login.two_factor.requested.v1
+        possibly_authenticated_user = TwoFactorAuthRequested.run_filter(
+            user=possibly_authenticated_user, request=request,
+        )
+
         _handle_successful_authentication_and_login(possibly_authenticated_user, request)
 
         # The AJAX method calling should know the default destination upon success
@@ -651,6 +660,14 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
             redirect_url = get_redirect_url_with_host(
                 root_url, enterprise_selection_page(request, possibly_authenticated_user, finish_auth_url or next_url)
             )
+
+        # EDLYCUSTOM: warn (without blocking) when the password is nearing expiry.
+        # Runs post-session, like the HIBP nudge below, so the user can dismiss and proceed.
+        # .. filter_implemented_name: PasswordExpiryWarningRequested
+        # .. filter_type: io.edly.user.login.password_expiry.warning.requested.v1
+        PasswordExpiryWarningRequested.run_filter(
+            user=possibly_authenticated_user, request=request, redirect_url=redirect_url,
+        )
 
         if (
             settings.ENABLE_AUTHN_LOGIN_NUDGE_HIBP_POLICY
