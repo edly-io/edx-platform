@@ -625,6 +625,9 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
         if possibly_authenticated_user is None or not (
             possibly_authenticated_user.is_active or settings.MARKETING_EMAILS_OPT_IN
         ):
+            fbr_error = getattr(request, "_fbr_login_error", None)
+            if fbr_error:
+                raise AuthFailedError(fbr_error, error_code="fbr-no-profile")
             _handle_failed_authentication(user, possibly_authenticated_user)
 
         pwned_properties = (
