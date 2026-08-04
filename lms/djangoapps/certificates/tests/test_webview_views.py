@@ -211,6 +211,33 @@ class CommonCertificatesTestCase(ModuleStoreTestCase):
         )
         template.save()
 
+    def _create_custom_template_with_qr_code(self, org_id=None, mode=None, course_key=None, language=None):
+        """
+        Creates a custom certificate template entry in DB that renders a verification QR code,
+        mirroring how client templates (e.g. Oryx) embed it.
+        """
+        template_html = u"""
+            <%namespace name='static' file='static_content.html'/>
+            <html>
+            <body>
+                % if certificate_qr_code:
+                <img class="cert-qr" src="${certificate_qr_code | h}" alt="verify" />
+                % endif
+                <p>verify at <a href="${share_url | h}">${share_url | h}</a></p>
+            </body>
+            </html>
+        """
+        template = CertificateTemplate(
+            name='custom template with qr code',
+            template=template_html,
+            organization_id=org_id,
+            course_key=course_key,
+            mode=mode,
+            is_active=True,
+            language=language
+        )
+        template.save()
+
     def _create_custom_template_with_hours_of_effort(self, org_id=None, mode=None, course_key=None, language=None):
         """
         Creates a custom certificate template entry in DB that includes hours of effort.
@@ -1125,6 +1152,71 @@ class CertificatesViewsTests(CommonCertificatesTestCase, CacheIsolationTestCase)
             self.assertEqual(response.status_code, 200)
             self.assertContains(response, u'mode: {}'.format(mode))
             self.assertContains(response, 'course name: test_template_1_course')
+
+    @override_settings(FEATURES=FEATURES_WITH_CUSTOM_CERTS_ENABLED)
+    @patch('lms.djangoapps.certificates.views.webview.get_course_run_details')
+    def test_certificate_custom_template_with_qr_code(self, mock_get_course_run_details):
+        """
+        Tests that a custom template can render a verification QR code and that the QR code
+        encodes the same certificate URL that is printed next to it.
+        """
+        mock_get_course_run_details.return_value = self.mock_course_run_details
+        self._add_course_certificates(count=1, signatory_count=2)
+        self._create_custom_template_with_qr_code(org_id=None, mode='honor')
+        test_url = get_certificate_url(
+            user_id=self.user.id,
+            course_id=six.text_type(self.course.id),
+            uuid=self.cert.verify_uuid
+        )
+
+        with patch('lms.djangoapps.certificates.api.get_course_organization_id') as mock_get_org_id:
+            mock_get_org_id.return_value = None
+            response = self.client.get(test_url)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+
+        # The QR code renders as an inline SVG data URI, so the certificate stays self-contained
+        # in print and PDF output (no external request, no JavaScript).
+        self.assertIn('class="cert-qr" src="data:image/svg+xml', content)
+        # The printed verification link points at this certificate's own page.
+        self.assertIn(self.cert.verify_uuid, content)
+        # A data URI carrying raw markup characters would break out of the src attribute.
+        qr_data_uri = content.split('class="cert-qr" src="')[1].split('"')[0]
+        for unsafe_character in ['<', '>', '&']:
+            self.assertNotIn(unsafe_character, qr_data_uri)
+
+    @override_settings(FEATURES=FEATURES_WITH_CUSTOM_CERTS_ENABLED)
+    @patch('lms.djangoapps.certificates.views.webview.get_course_run_details')
+    def test_certificate_qr_code_differs_per_certificate(self, mock_get_course_run_details):
+        """
+        Tests that the QR code is generated per certificate rather than being a shared image.
+
+        This is the defect the feature replaces: the previous template hardcoded a single
+        static QR asset for every learner.
+        """
+        mock_get_course_run_details.return_value = self.mock_course_run_details
+        self._add_course_certificates(count=1, signatory_count=2)
+        self._create_custom_template_with_qr_code(org_id=None, mode='honor')
+
+        qr_data_uris = []
+        for verify_uuid in [uuid4().hex, uuid4().hex]:
+            self.cert.verify_uuid = verify_uuid
+            self.cert.save()
+            test_url = get_certificate_url(
+                user_id=self.user.id,
+                course_id=six.text_type(self.course.id),
+                uuid=verify_uuid
+            )
+            with patch('lms.djangoapps.certificates.api.get_course_organization_id') as mock_get_org_id:
+                mock_get_org_id.return_value = None
+                response = self.client.get(test_url)
+
+            self.assertEqual(response.status_code, 200)
+            content = response.content.decode('utf-8')
+            qr_data_uris.append(content.split('class="cert-qr" src="')[1].split('"')[0])
+
+        self.assertNotEqual(qr_data_uris[0], qr_data_uris[1])
 
     ## Templates With Language tests
     #1

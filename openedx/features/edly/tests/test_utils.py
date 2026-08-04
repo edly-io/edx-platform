@@ -47,6 +47,7 @@ from openedx.features.edly.utils import (
     user_belongs_to_edly_sub_organization,
     user_can_login_on_requested_edly_organization,
     filter_courses_based_on_org,
+    get_certificate_qr_code_data_uri,
     get_current_site_invalid_certificate_context,
 )
 from common.djangoapps.util.password_policy_validators import SPECIAL_CHARACTERS
@@ -659,3 +660,39 @@ class UtilsTests(SharedModuleStoreTestCase):
     def test_min_length_validation(self):
         with self.assertRaises(ValueError):
             generate_password(length=7)
+
+    def test_get_certificate_qr_code_data_uri(self):
+        """
+        Test that a QR code data URI is generated and is safe to embed in an HTML attribute.
+        """
+        verification_url = 'https://example.edly.io/certificates/{uuid}'.format(uuid='a' * 32)
+        data_uri = get_certificate_qr_code_data_uri(verification_url)
+
+        self.assertTrue(data_uri.startswith('data:image/svg+xml'))
+        # Certificate templates embed this directly as an <img> src, so it must not carry
+        # characters that would terminate the attribute or open a tag.
+        for unsafe_character in ['<', '>', '"', "'", '&']:
+            self.assertNotIn(unsafe_character, data_uri)
+
+    def test_get_certificate_qr_code_data_uri_is_unique_per_certificate(self):
+        """
+        Test that two different verification URLs do not produce the same QR code.
+        """
+        first = get_certificate_qr_code_data_uri('https://example.edly.io/certificates/{}'.format('a' * 32))
+        second = get_certificate_qr_code_data_uri('https://example.edly.io/certificates/{}'.format('b' * 32))
+
+        self.assertNotEqual(first, second)
+
+    @ddt.data(None, '')
+    def test_get_certificate_qr_code_data_uri_without_url(self, verification_url):
+        """
+        Test that a missing verification URL yields an empty string instead of raising.
+        """
+        self.assertEqual(get_certificate_qr_code_data_uri(verification_url), '')
+
+    def test_get_certificate_qr_code_data_uri_survives_encoding_failure(self):
+        """
+        Test that a QR code failure never propagates out to the certificate page.
+        """
+        with mock.patch('openedx.features.edly.utils.segno.make', side_effect=ValueError('boom')):
+            self.assertEqual(get_certificate_qr_code_data_uri('https://example.edly.io/certificates/x'), '')

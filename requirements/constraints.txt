@@ -101,6 +101,10 @@ path<13.2.0
 # pillow 8.0.0 drops support for Python 3.5
 pillow<8.0.0
 
+# segno 1.6.0 requires importlib-metadata>=3.6.0 on Python <3.10, which conflicts
+# with the importlib-metadata==1.7.0 pin above. 1.5.x has zero dependencies.
+segno<1.6.0
+
 # ARCHBOM-1141: pip-tools upgrade requires pip upgrade
 pip-tools<5.0.0
 

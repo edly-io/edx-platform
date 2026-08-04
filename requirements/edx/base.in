@@ -143,6 +143,7 @@ random2
 rules                               # Django extension for rules-based authorization checks
 simplejson
 sailthru-client                     # For Sailthru integration
+segno                               # Pure-Python QR code generator; used for certificate verification QR codes
 Shapely                             # Geometry library, used for image click regions in capa
 six                                 # Utilities for supporting Python 2 & 3 in the same codebase
 social-auth-app-django
