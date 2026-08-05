@@ -48,6 +48,7 @@ from openedx.core.djangoapps.lang_pref.api import get_closest_released_language
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.lib.courses import course_image_url
 from openedx.features.edly.utils import (
+    get_certificate_qr_code_data_uri,
     get_current_site_invalid_certificate_context,
     get_logo_from_current_site_configurations
 )
@@ -613,6 +614,10 @@ def render_html_view(request, course_id, certificate=None):
 
         # Append social sharing info
         _update_social_context(request, context, course, user, user_certificate, platform_name)
+
+        # Append a QR code pointing at this certificate's verification page. `share_url` is set
+        # by _update_social_context above and is already absolute and tenant-aware.
+        context['certificate_qr_code'] = get_certificate_qr_code_data_uri(context.get('share_url'))
 
         # Append/Override the existing view context values with certificate specific values
         _update_certificate_context(context, course, user_certificate, platform_name)

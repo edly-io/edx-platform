@@ -11,6 +11,7 @@ import string
 from urllib.parse import urljoin, urlparse
 
 import jwt
+import segno
 import waffle
 from cryptography.fernet import Fernet
 from django.conf import settings
@@ -554,6 +555,25 @@ def is_course_org_same_as_site_org(site, course_id):
 
     LOGGER.info('Course organization does not match site organization')
     return False
+
+
+def get_certificate_qr_code_data_uri(verification_url, scale=10, border=4):
+    """
+    Return an SVG data URI of a QR code encoding a certificate's verification URL.
+
+    Certificate templates embed the result directly as an <img> src, so a failure
+    here must never break the certificate page itself. Returns an empty string
+    when there is nothing to encode or encoding fails, letting the template fall
+    back to rendering no QR code at all.
+    """
+    if not verification_url:
+        return ''
+
+    try:
+        return segno.make(verification_url, error='m').svg_data_uri(scale=scale, border=border)
+    except Exception:  # pylint: disable=broad-except
+        LOGGER.exception('Unable to build certificate verification QR code for "%s"', verification_url)
+        return ''
 
 
 def send_certificate_generation_email(msg, user, site):
