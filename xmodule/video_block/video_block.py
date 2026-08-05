@@ -832,6 +832,11 @@ class _BuiltInVideoBlock(
             ele.set('src', self.handout)
             xml.append(ele)
 
+        if self.thumbnail:
+            ele = etree.Element('thumbnail')
+            ele.set('src', self.thumbnail)
+            xml.append(ele)
+
         transcripts = {}
         if self.transcripts is not None:
             transcripts.update(self.transcripts)
@@ -1041,6 +1046,10 @@ class _BuiltInVideoBlock(
         if handout is not None:
             field_data['handout'] = handout.get('src')
 
+        thumbnail = xml.find('thumbnail')
+        if thumbnail is not None:
+            field_data['thumbnail'] = thumbnail.get('src')
+
         transcripts = xml.findall('transcript')
         if transcripts:
             field_data['transcripts'] = {tr.get('language'): tr.get('src') for tr in transcripts}
@@ -1069,12 +1078,15 @@ class _BuiltInVideoBlock(
                 field_data[attr] = deserialize_field(cls.fields[attr], value)  # lint-amnesty, pylint: disable=unsubscriptable-object
 
         course_id = getattr(id_generator, 'target_course_id', None)
-        # Update the handout location with current course_id
-        if 'handout' in field_data and course_id:
-            handout_location = StaticContent.get_location_from_path(field_data['handout'])
-            if isinstance(handout_location, AssetLocator):
-                handout_new_location = StaticContent.compute_location(course_id, handout_location.path)
-                field_data['handout'] = StaticContent.serialize_asset_key_with_slash(handout_new_location)
+        # Update contentstore asset locations with current course_id
+        if course_id:
+            for asset_field in ('handout', 'thumbnail'):
+                if asset_field not in field_data:
+                    continue
+                asset_location = StaticContent.get_location_from_path(field_data[asset_field])
+                if isinstance(asset_location, AssetLocator):
+                    new_location = StaticContent.compute_location(course_id, asset_location.path)
+                    field_data[asset_field] = StaticContent.serialize_asset_key_with_slash(new_location)
 
         # For backwards compatibility: Add `source` if XML doesn't have `download_video`
         # attribute.
@@ -1266,8 +1278,12 @@ class _BuiltInVideoBlock(
 
     def _poster(self):
         """
-        Helper to get poster info from edxval
+        Helper to get poster info from the thumbnail field or edxval
         """
+        # The thumbnail field wins: a video added as a plain URL has no edxval
+        # CourseVideo row, so the lookup below can never resolve an image for it.
+        if self.thumbnail:
+            return self.thumbnail
         if edxval_api and self.edx_video_id:
             return edxval_api.get_course_video_image_url(
                 course_id=self.scope_ids.usage_id.context_key.for_branch(None),
