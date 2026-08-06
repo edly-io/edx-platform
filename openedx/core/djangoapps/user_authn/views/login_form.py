@@ -94,6 +94,15 @@ def get_login_session_form(request):
     form_desc = FormDescription("post", reverse("user_api_login_session"))
     _apply_third_party_auth_overrides(request, form_desc)
 
+    # Optional per-site field placeholders, used by the custom logistration layout
+    # (CUSTOM_LOGIN_PAGE in SiteConfiguration.site_values). Sites without that key
+    # get an empty string, and form_field.underscore omits the attribute entirely,
+    # so every other tenant's form is unchanged.
+    custom_login_page = configuration_helpers.get_dict('CUSTOM_LOGIN_PAGE', {}) or {}
+    field_placeholders = {}
+    if custom_login_page.get('enabled'):
+        field_placeholders = custom_login_page.get('placeholders') or {}
+
     # Translators: This label appears above a field on the login form
     # meant to hold the user's email address.
     email_label = _("Email")
@@ -109,6 +118,7 @@ def get_login_session_form(request):
         field_type="email",
         label=email_label,
         instructions=email_instructions,
+        placeholder=field_placeholders.get('email', u''),
         restrictions={
             "min_length": accounts.EMAIL_MIN_LENGTH,
             "max_length": accounts.EMAIL_MAX_LENGTH,
@@ -123,6 +133,7 @@ def get_login_session_form(request):
         "password",
         label=password_label,
         field_type="password",
+        placeholder=field_placeholders.get('password', u''),
         restrictions={'max_length': DEFAULT_MAX_PASSWORD_LENGTH}
     )
 
