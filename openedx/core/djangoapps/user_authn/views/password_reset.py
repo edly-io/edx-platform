@@ -324,6 +324,16 @@ def password_reset(request):
     Attempts to send a password reset e-mail.
     """
     user = request.user
+    profile = EdlyUserProfile.objects.filter(user=user).first()
+    if profile and profile.is_social_user:
+        return JsonResponse(
+            {
+                'success': False, 
+                'value': _("This account uses social login; password reset isn't available.")
+            },
+            status=400
+        )
+
     # Prefer logged-in user's email
     email = user.email if user.is_authenticated else request.POST.get('email')
     AUDIT_LOG.info("Password reset initiated for email %s.", email)
