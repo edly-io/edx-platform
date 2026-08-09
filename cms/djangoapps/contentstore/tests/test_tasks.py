@@ -22,6 +22,7 @@ from user_tasks.models import UserTaskArtifact, UserTaskStatus
 
 from cms.djangoapps.contentstore.tests.test_libraries import LibraryTestCase
 from cms.djangoapps.contentstore.tests.utils import CourseTestCase
+from common.djangoapps.course_action_state.managers import CourseRerunUIStateManager
 from common.djangoapps.course_action_state.models import CourseRerunState
 from common.djangoapps.student.tests.factories import UserFactory
 from openedx.core.djangoapps.course_apps.toggles import EXAMS_IDA
@@ -208,6 +209,34 @@ class RerunCourseTaskTestCase(CourseTestCase):  # lint-amnesty, pylint: disable=
         # Verify the OrganizationCourse is cloned with a different org
         self.assertEqual(OrganizationCourse.objects.count(), 2)
         OrganizationCourse.objects.get(course_id=new_course_id, organization__short_name='neworg')
+
+    def test_auxiliary_step_failure_does_not_delete_course(self):
+        """
+        Regression test for EDLYPRODUCT-8393.
+
+        If an auxiliary/best-effort post-succeeded step (video copy, RestrictedCourse clone, or
+        organization linking) raises, the task must still report "succeeded", the CourseRerunState
+        must remain SUCCEEDED, and the already-cloned course must remain retrievable from the
+        modulestore -- it must NOT be deleted.
+        """
+        old_course_key = self.course.id
+        new_course_key = CourseLocator(org=old_course_key.org, course=old_course_key.course, run='rerun')
+
+        CourseRerunState.objects.initiated(old_course_key, new_course_key, self.user, 'Test Re-run')
+
+        with mock.patch(
+            'edxval.api.copy_course_videos',
+            side_effect=Exception('edxval boom!'),
+        ):
+            result = rerun_course(str(old_course_key), str(new_course_key), self.user.id)
+
+        self.assertEqual(result, "succeeded")
+        rerun_state = CourseRerunState.objects.find_first(course_key=new_course_key)
+        self.assertEqual(rerun_state.state, CourseRerunUIStateManager.State.SUCCEEDED)
+        self.assertIsNotNone(
+            modulestore().get_course(new_course_key),
+            "Course was deleted after an auxiliary (video copy) failure",
+        )
 
 
 @override_settings(CONTENTSTORE=TEST_DATA_CONTENTSTORE)

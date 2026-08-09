@@ -141,3 +141,91 @@ class CloneCourseTest(CourseTestCase):
                 course_key=split_course4_id,
                 state=CourseRerunUIStateManager.State.FAILED
             )
+
+    def test_rerun_course_auxiliary_step_failure_does_not_delete_course(self):
+        """
+        Regression test for EDLYPRODUCT-8393: if an auxiliary, post-succeeded step (e.g. linking the
+        destination course to its organization) raises, the rerun must still be reported as
+        "succeeded" and the already-cloned course must NOT be deleted.
+        """
+        org = 'edX'
+        course_number = 'CS101'
+        course_run = '2015_Q1'
+        display_name = 'rerun'
+
+        split_course = CourseFactory.create(
+            org=org,
+            number=course_number,
+            run=course_run,
+            display_name=display_name,
+            default_store=ModuleStoreEnum.Type.split
+        )
+
+        rerun_course_id = CourseLocator(org=org, course=course_number, run="rerun_aux_failure")
+        fields = {'display_name': 'rerun'}
+        CourseRerunState.objects.initiated(split_course.id, rerun_course_id, self.user, fields['display_name'])
+
+        with patch(
+            'cms.djangoapps.contentstore.tasks.add_organization_course',
+            Mock(side_effect=Exception('org link boom!')),
+        ):
+            result = rerun_course.delay(
+                str(split_course.id), str(rerun_course_id), self.user.id,
+                json.dumps(fields, cls=EdxJSONEncoder)
+            )
+
+        # The failure in the auxiliary org-linking step must not surface as a task failure...
+        self.assertEqual(result.get(), "succeeded")
+        # ...the rerun state must remain SUCCEEDED...
+        rerun_state = CourseRerunState.objects.find_first(course_key=rerun_course_id)
+        self.assertEqual(rerun_state.state, CourseRerunUIStateManager.State.SUCCEEDED)
+        # ...and the course itself must still exist and be usable.
+        self.assertIsNotNone(self.store.get_course(rerun_course_id), "Course was deleted after an auxiliary failure")
+
+    def test_rerun_course_post_succeeded_failure_preserves_course(self):
+        """
+        Regression test for EDLYPRODUCT-8393: even a failure that isn't in one of the individually
+        wrapped auxiliary steps -- as long as it happens after the rerun has already been marked
+        succeeded -- must not delete the already-cloned, already-usable course. The rerun is still
+        reported/marked as failed (something genuinely went wrong and should be surfaced), but the
+        course itself is preserved rather than destroyed.
+        """
+        org = 'edX'
+        course_number = 'CS101'
+        course_run = '2015_Q1'
+        display_name = 'rerun'
+
+        split_course = CourseFactory.create(
+            org=org,
+            number=course_number,
+            run=course_run,
+            display_name=display_name,
+            default_store=ModuleStoreEnum.Type.split
+        )
+
+        rerun_course_id = CourseLocator(org=org, course=course_number, run="rerun_post_succeeded_failure")
+        fields = {'display_name': 'rerun'}
+        CourseRerunState.objects.initiated(split_course.id, rerun_course_id, self.user, fields['display_name'])
+
+        with patch(
+            'cms.djangoapps.contentstore.tasks.COURSE_RERUN_COMPLETED.send_event',
+            Mock(side_effect=Exception('event bus boom!')),
+        ):
+            result = rerun_course.delay(
+                str(split_course.id), str(rerun_course_id), self.user.id,
+                json.dumps(fields, cls=EdxJSONEncoder)
+            )
+
+        # The task itself surfaces the failure...
+        self.assertIn("exception: ", result.get())
+        # ...and the rerun state is (correctly) marked failed, since something genuinely broke...
+        CourseRerunState.objects.find_first(
+            course_key=rerun_course_id,
+            state=CourseRerunUIStateManager.State.FAILED
+        )
+        # ...but the course was already fully cloned and marked succeeded before the failure, so it
+        # must NOT be deleted.
+        self.assertIsNotNone(
+            self.store.get_course(rerun_course_id),
+            "Course was deleted even though it had already succeeded before the failure"
+        )
