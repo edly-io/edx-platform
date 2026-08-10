@@ -18,6 +18,7 @@ from django.http import HttpResponse
 from django.test.client import Client
 from django.test.utils import override_settings
 from django.urls import NoReverseMatch, reverse
+from django.utils import translation
 from edx_toggles.toggles.testutils import override_waffle_switch
 from mock import patch
 from common.djangoapps.student.tests.factories import RegistrationFactory, UserFactory, UserProfileFactory
@@ -36,6 +37,11 @@ from openedx.core.djangoapps.user_authn.views.login import (
 )
 from openedx.core.djangolib.testing.utils import CacheIsolationTestCase, skip_unless_lms
 from openedx.core.djangoapps.site_configuration.tests.mixins import SiteMixin
+from openedx.core.djangoapps.site_configuration.tests.test_util import (
+    with_site_configuration,
+    with_site_configuration_context
+)
+from openedx.core.djangoapps.user_authn.views.login_form import _get_custom_login_placeholders
 from openedx.core.lib.api.test_utils import ApiTestCase
 from common.djangoapps.util.password_policy_validators import DEFAULT_MAX_PASSWORD_LENGTH
 
@@ -866,6 +872,82 @@ class LoginSessionViewTest(ApiTestCase):
                 "loginIssueSupportLink": "https://support.example.com/login-issue-help.html",
             },
         ])
+
+    def _get_field_placeholders(self):
+        """Return {field name: placeholder} from the login form description."""
+        response = self.client.get(self.url, content_type="application/json")
+        self.assertHttpOK(response)
+        form_desc = json.loads(response.content.decode('utf-8'))
+        return {field["name"]: field["placeholder"] for field in form_desc["fields"]}
+
+    @with_site_configuration(configuration={
+        'CUSTOM_LOGIN_PAGE': {
+            'enabled': True,
+            'placeholders': {'email': 'you@school.edu', 'password': '********'},
+        }
+    })
+    def test_login_form_custom_placeholders(self):
+        """A site with CUSTOM_LOGIN_PAGE placeholders gets them on both fields."""
+        self.assertEqual(
+            self._get_field_placeholders(),
+            {"email": "you@school.edu", "password": "********"},
+        )
+
+    @with_site_configuration(configuration={
+        'CUSTOM_LOGIN_PAGE': {
+            'enabled': False,
+            'placeholders': {'email': 'you@school.edu', 'password': '********'},
+        }
+    })
+    def test_login_form_custom_placeholders_respects_enabled_gate(self):
+        """`enabled: False` must suppress placeholders even when they are configured.
+
+        This gate is the whole isolation story for the feature, so it is asserted
+        directly rather than inferred from the unconfigured case.
+        """
+        self.assertEqual(self._get_field_placeholders(), {"email": "", "password": ""})
+
+    def test_custom_placeholders_by_language(self):
+        """`by_language` overrides resolve per language, falling back to the base code.
+
+        Mirrors the resolution the theme applies to its hero/card copy: the full
+        language code first, then its base code. Keys the override does not mention
+        keep the top-level value.
+
+        Asserted against the resolver rather than through the view: a request would
+        have its active language re-negotiated by LocaleMiddleware/DarkLangMiddleware
+        from the request itself, discarding `translation.override` and only ever
+        exercising released languages.
+        """
+        configuration = {
+            'CUSTOM_LOGIN_PAGE': {
+                'enabled': True,
+                'placeholders': {'email': 'you@school.edu', 'password': '********'},
+                'by_language': {'ar': {'placeholders': {'email': 'you@school.edu.ar'}}},
+            }
+        }
+        with with_site_configuration_context(configuration=configuration):
+            # Full code `ar-sa` falls back to the `ar` override; `password` is not
+            # mentioned there, so it keeps the top-level value.
+            with translation.override('ar-sa'):
+                self.assertEqual(
+                    _get_custom_login_placeholders(),
+                    {"email": "you@school.edu.ar", "password": "********"},
+                )
+
+            # Exact code match.
+            with translation.override('ar'):
+                self.assertEqual(
+                    _get_custom_login_placeholders(),
+                    {"email": "you@school.edu.ar", "password": "********"},
+                )
+
+            # An unrelated language falls through to the top-level placeholders.
+            with translation.override('fr'):
+                self.assertEqual(
+                    _get_custom_login_placeholders(),
+                    {"email": "you@school.edu", "password": "********"},
+                )
 
     @ddt.data(True, False)
     @patch('openedx.core.djangoapps.user_authn.views.login.segment')
