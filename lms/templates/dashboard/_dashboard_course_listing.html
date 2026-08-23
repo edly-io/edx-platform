@@ -1,9 +1,10 @@
-<%page args="course_overview, enrollment, entitlement, entitlement_session, course_card_index, enrollments_fbe_is_on, is_unfulfilled_entitlement, is_fulfilled_entitlement, entitlement_available_sessions, entitlement_expiration_date, entitlement_expired_at, show_courseware_link, cert_status, can_refund_entitlement, can_unenroll, credit_status, show_email_settings, course_mode_info, is_paid_course, is_course_voucher_refundable, course_requirements, dashboard_index, share_settings, related_programs, display_course_modes_on_dashboard, show_consent_link, enterprise_customer_name, resume_button_url, partner_managed_enrollment" expression_filter="h"/>
+<%page args="course_overview, enrollment, entitlement, entitlement_session, course_card_index, enrollments_fbe_is_on, is_unfulfilled_entitlement, is_fulfilled_entitlement, entitlement_available_sessions, entitlement_expiration_date, entitlement_expired_at, show_courseware_link, cert_status, can_refund_entitlement, can_unenroll, credit_status, show_email_settings, course_mode_info, is_paid_course, is_course_voucher_refundable, course_requirements, dashboard_index, share_settings, related_programs, display_course_modes_on_dashboard, show_consent_link, enterprise_customer_name, resume_button_url, partner_managed_enrollment, course_expiration_date=None" expression_filter="h"/>
 
 <%!
 import datetime
 
 from django.conf import settings
+from django.utils import timezone
 from django.utils.http import urlencode
 from urllib.parse import quote_plus
 from django.utils.translation import gettext as _
@@ -323,6 +324,42 @@ from lms.djangoapps.experiments.utils import UPSELL_TRACKING_FLAG
   </section>
   <footer class="wrapper-messages-primary">
     <div class="messages-list">
+
+      <%
+        show_expiry_banner = False
+        days_until_expiration = None
+        if course_expiration_date and not is_course_expired:
+          now = timezone.now()
+          if course_expiration_date > now:
+            days_until_expiration = (course_expiration_date - now).days
+            show_expiry_banner = True
+      %>
+      % if show_expiry_banner:
+        <div class="message message-expiry-warning is-shown">
+          <span class="msg-icon fa fa-clock-o" aria-hidden="true"></span>
+          % if days_until_expiration == 0:
+            <span class="message-copy">${_('Your access to this course expires today.')}</span>
+          % elif days_until_expiration == 1:
+            <span class="message-copy">${_('Your access to this course expires tomorrow.')}</span>
+          % else:
+            <span class="message-copy">${ngettext(
+              'Your access to this course expires in {days} day.',
+              'Your access to this course expires in {days} days.',
+              days_until_expiration
+            ).format(days=days_until_expiration)}</span>
+          % endif
+          <span class="message-copy expiry-date">
+            (${_('Access ends: ')}
+            <span class="localized-datetime"
+                  data-format="shortDate"
+                  data-datetime="${course_expiration_date.strftime('%Y-%m-%dT%H:%M:%S+00:00')}"
+                  data-language="${user_language}"
+                  data-timezone="${user_timezone}">
+              ${course_expiration_date.strftime('%b %-d, %Y')}
+            </span>)
+          </span>
+        </div>
+      % endif
 
       % if entitlement and not entitlement_expired_at:
         <div class="course-entitlement-selection-container ${'' if is_unfulfilled_entitlement else 'hidden'}"></div>

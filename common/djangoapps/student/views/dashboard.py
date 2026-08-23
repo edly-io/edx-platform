@@ -784,6 +784,7 @@ def student_dashboard(request):  # lint-amnesty, pylint: disable=too-many-statem
     show_account_activation_popup = request.COOKIES.get(settings.SHOW_ACTIVATE_CTA_POPUP_COOKIE_NAME, None)
 
     enrollments_fbe_is_on = []
+    course_expiration_dates = {}
     for enrollment in course_enrollments:
         course_key = CourseKey.from_string(str(enrollment.course_id))
         gated_content = ContentTypeGatingConfig.enabled_for_enrollment(
@@ -795,6 +796,8 @@ def student_dashboard(request):  # lint-amnesty, pylint: disable=too-many-statem
         fbe_is_on = deadline and gated_content
         if fbe_is_on:
             enrollments_fbe_is_on.append(course_key)
+        if deadline:
+            course_expiration_dates[enrollment.course_id] = deadline
 
     context = {
         'urls': urls,
@@ -843,6 +846,7 @@ def student_dashboard(request):  # lint-amnesty, pylint: disable=too-many-statem
         'display_dashboard_courses': (user.is_active or not hide_dashboard_courses_until_activated),
         'empty_dashboard_message': empty_dashboard_message,
         'enrollments_fbe_is_on': enrollments_fbe_is_on,
+        'course_expiration_dates': course_expiration_dates,
         'recovery_email_message': recovery_email_message,
         'recovery_email_activation_message': recovery_email_activation_message,
         'show_load_all_courses_link': show_load_all_courses_link(user, course_limit, course_enrollments),
