@@ -19,6 +19,10 @@ DEFAULT_BRANDING_DICT = {
     'logo': "https://edly-edx-theme-files.s3.amazonaws.com/st-lutherx-logo.png",
     'favicon': "https://edly-edx-theme-files.s3.amazonaws.com/favicon.ico",
 }
+DEFAULT_XBLOCK_COLOR_DICT = {
+    'xblock-color-warning': '#F59810',
+    'xblock-color-warning-light': '#FFFAF1',
+}
 
 
 def dynamic_theming_context(request):  # pylint: disable=unused-argument
@@ -116,6 +120,12 @@ def get_theme_colors():
         'secondary-darken-5p': get_darken_color(secondary_darken_5p, secondary, 0.05),
         'secondary-darken-10p': get_darken_color(secondary_darken_10p, secondary, 0.1),
     }
+
+    # Kept in its own `XBLOCK_COLORS` site_values key rather than inside `COLORS`:
+    # the panel wholesale-replaces `COLORS` on every Appearance save, which would
+    # silently drop these. Defaults match the theme's SASS values, so a site with no
+    # `XBLOCK_COLORS` renders exactly as before.
+    colours.update(configuration_helpers.get_dict('XBLOCK_COLORS', DEFAULT_XBLOCK_COLOR_DICT))
 
     return colours
 
