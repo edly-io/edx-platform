@@ -7,11 +7,14 @@ from contextlib import contextmanager
 from edx_rest_framework_extensions import permissions
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
+from lms.djangoapps.grades.course_grade import CourseGrade
 from opaque_keys import InvalidKeyError
+from openedx.core.djangoapps.signals.signals import COURSE_GRADE_NOW_PASSED
 from rest_framework import status
 from rest_framework.generics import ListAPIView
+from rest_framework.views import APIView
 from rest_framework.response import Response
-
+from django.contrib.auth.models import User
 from lms.djangoapps.courseware.access import has_access
 from lms.djangoapps.grades.api import CourseGradeFactory, clear_prefetched_course_grades, prefetch_course_grades
 from lms.djangoapps.grades.rest_api.serializers import GradingPolicySerializer
@@ -19,6 +22,7 @@ from lms.djangoapps.grades.rest_api.v1.utils import CourseEnrollmentPagination, 
 from openedx.core.lib.api.authentication import BearerAuthenticationAllowInactiveUser
 from openedx.core.lib.api.view_utils import PaginatedAPIView, get_course_key, verify_course_exists
 from xmodule.modulestore.django import modulestore
+from opaque_keys.edx.keys import CourseKey
 
 log = logging.getLogger(__name__)
 
@@ -207,3 +211,15 @@ class CourseGradingPolicy(GradeViewMixin, ListAPIView):
     def get(self, request, course_id, *args, **kwargs):  # pylint: disable=arguments-differ
         course = self._get_course(request, course_id)
         return Response(GradingPolicySerializer(course.raw_grader, many=True).data)
+
+class GenerateCertificateGrade(APIView):
+    def post(self, request, *args, **kwargs):
+    #    user = User.objects.get(id=20543)
+       user = User.objects.get(id=3)
+       course_key = CourseKey.from_string('course-v1:edly+CS202+2015_TS')
+       COURSE_GRADE_NOW_PASSED.send(
+           sender=user,
+            user=user,
+            course_id=course_key,
+        )
+       return Response('Hi There')

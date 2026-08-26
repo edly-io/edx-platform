@@ -44,4 +44,9 @@ urlpatterns = [
         gradebook_views.SubsectionGradeView.as_view(),
         name='course_grade_overrides'
     ),
+    url(
+         r'^courses/gengrade',
+        views.GenerateCertificateGrade.as_view(),
+        name='generate_course_grades'
+    )
 ]
