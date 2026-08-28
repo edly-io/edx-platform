@@ -136,11 +136,74 @@ class _BuiltInVideoBlock(
         </video>
     """
     is_extracted = False
+    # DO NOT REMOVE has_custom_completion while video is scorable (has_score
+    # below). edx-completion's scorable_block_completion handler auto-submits
+    # completion=1.0 for any scored block, but bails early on blocks with
+    # has_custom_completion=True (completion/handlers.py). That early bail is
+    # the only thing preventing a loop: rwaq_features.video_grades turns a
+    # completion save into a score, and without it that score would turn back
+    # into a completion save, and so on.
     has_custom_completion = True
     completion_mode = XBlockCompletionMode.COMPLETABLE
 
+    # Rwaq: videos contribute to subsection/course grades.
+    #
+    # Upstream Open edX treats video as completable-but-never-scored, so a
+    # subsection containing only videos has 0 points possible and is skipped
+    # by the grader entirely. Rwaq's courses are video-only, and the client
+    # expects watching a video to earn credit, so the block declares itself
+    # scorable here.
+    #
+    # has_score MUST be a class attribute on the block: the grader gates
+    # inclusion on it in two independent places, both reading the class/
+    # collected field rather than any score row in the DB —
+    #   1. lms/djangoapps/grades/scores.py::_block_types_possibly_scored()
+    #      builds its allow-list from XBlock.load_classes(), filtering on
+    #      getattr(cls, 'has_score', False); a block type missing from that
+    #      set is never even traversed.
+    #   2. lms/djangoapps/grades/subsection_grade.py::_compute_block_score()
+    #      re-checks getattr(block, 'has_score', False) per block.
+    # No plugin/signal/setting can inject into (1), which is why this lives
+    # in the platform rather than in rwaq_features.
+    #
+    # The score itself is awarded by rwaq_features.video_grades, which turns
+    # a >=95% completion event into a SCORE_PUBLISHED signal. Nothing here
+    # computes a score — the block is only declaring that it *can* hold one.
+    #
+    # NOTE: has_score is collected into each course's cached block structure
+    # at publish time (grades/transformer.py FIELDS_TO_COLLECT), so existing
+    # published courses need a republish before this takes effect for them.
+    has_score = True
+
     video_time = 0
     icon_class = 'video'
+
+    def max_score(self):
+        """
+        Points this video is worth before weighting — always 1.
+
+        REQUIRED alongside has_score, not optional. GradesTransformer calls
+        max_score() on every scorable block at publish time and stores the
+        result (grades/transformer.py::_collect_max_score). If it returns
+        None, an UNWATCHED video is silently dropped from its subsection's
+        totals instead of contributing 0 points:
+
+            scores.py::_get_score_from_persisted_or_latest_block sets
+            weighted_scores = (None, None) when raw_possible is None
+              -> get_score() returns None
+              -> subsection_grade.py's `if problem_score:` skips the block
+
+        The visible symptom is a subsection scoring 100% as soon as ONE of
+        its videos is watched, because only watched videos (which have a real
+        StudentModule row) survive to be counted. Returning 1 here keeps
+        unwatched videos in the denominator, so 1 of 2 watched = 50%.
+
+        The grading pipeline multiplies this raw 1 by the block's `weight`
+        downstream. Note `weight` is not currently exposed in Studio's video
+        editor, so in practice every video is worth exactly 1 point — see the
+        comment on VideoFields.weight.
+        """
+        return 1
 
     show_in_read_only_mode = True
 
