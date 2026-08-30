@@ -46,6 +46,7 @@ from drf_spectacular.utils import (
 )
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.paginators import DefaultPagination
+from edx_rest_framework_extensions.scoping import ScopedQuerysetMixin
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from rest_framework import permissions, status, viewsets
@@ -627,6 +628,34 @@ class CourseEnrollmentDetailView(StandardizedErrorMixin, APIView):
 # ===========================================================================
 # EnrollmentsAdminListView — GET /enrollments/  (admin paginated list)
 # ===========================================================================
+class AdminEnrollmentScopingPolicy:
+    """
+    OEP-66 record-visibility policy for the admin enrollment list.
+
+    Implements the ``ScopingPolicy`` protocol from
+    ``edx_rest_framework_extensions.scoping`` by duck typing (a ``scope``
+    method); it does not need to inherit from it.
+
+    This endpoint is a *platform-administration* tool gated by ``IsAdminUser``
+    (see the view's ``permission_classes``). A platform admin's accessible scope
+    is every enrollment, so this policy returns the queryset unchanged.
+
+    **This pass-through is intentional and load-bearing — please do not remove
+    it.** It is the single seam at which a *narrower* visibility rule will be
+    introduced once openedx-authz can resolve enrollment scopes: for example,
+    restricting a delegated (org-scoped) admin to enrollments in their
+    organization's courses by translating a
+    ``get_scopes_for_subject_and_permission`` scope set into a
+    ``course_id__in=...`` / ``course__org__in=...`` filter. Keeping the policy
+    wired now means that change is confined to this one method. No narrowing is
+    applied today, so behavior is unchanged.
+    """
+
+    def scope(self, queryset, subject):
+        # Platform admins (IsAdminUser) see all enrollments; nothing to narrow yet.
+        return queryset
+
+
 @extend_schema(
     tags=["openedx-platform-sdk"],
     summary="List all course enrollments (admin-only, paginated)",
@@ -661,8 +690,24 @@ class CourseEnrollmentDetailView(StandardizedErrorMixin, APIView):
         403: _RESP_FORBIDDEN,
     },
 )
-class EnrollmentsAdminListView(StandardizedErrorMixin, ListAPIView):
-    """Admin-only paginated enrollment list with OEP-68 filter aliases."""
+class EnrollmentsAdminListView(ScopedQuerysetMixin, StandardizedErrorMixin, ListAPIView):
+    """
+    Admin-only paginated enrollment list with OEP-68 filter aliases.
+
+    OEP-66 — this ORM-backed list endpoint wires the three authorization layers
+    separately (see ``edx_rest_framework_extensions.scoping``):
+
+    * **Endpoint access** — ``permission_classes = (IsAdminUser,)``.
+    * **Record visibility (queryset scoping)** — ``ScopedQuerysetMixin`` applies
+      :class:`AdminEnrollmentScopingPolicy` to the base ``queryset`` in
+      ``get_queryset()``. (A pass-through for platform admins today; see the
+      policy docstring for the seam where an openedx-authz scope-set filter
+      plugs in.)
+    * **User-driven filtering** — ``filter_queryset`` applies the caller-supplied
+      ``course_key`` / ``course_keys`` / ``username`` / ``email`` / ``ordering``
+      params (validated by ``EnrollmentsAdminListForm``). It runs *after* the
+      scoping layer and only narrows the already-authorized queryset.
+    """
 
     # ADR 0034 — JWT + cross-domain session (BearerAuthenticationAllowInactiveUser
     # removed per OEP-0042). EnrollmentCrossDomainSessionAuth retained because the
@@ -677,6 +722,11 @@ class EnrollmentsAdminListView(StandardizedErrorMixin, ListAPIView):
     serializer_class = CourseEnrollmentsApiListSerializer
     pagination_class = EnrollmentsAdminListPagination
 
+    # OEP-66 — base (unscoped) queryset and the record-visibility policy that
+    # ScopedQuerysetMixin.get_queryset() applies on top of it.
+    queryset = CourseEnrollment.objects.all().select_related("user", "course")
+    scoping_policy = AdminEnrollmentScopingPolicy()
+
     # ADR 0033 §3 — whitelist of allowed values for the ``ordering`` param.
     ALLOWED_ORDERING_FIELDS = frozenset({"created", "-created", "id", "-id"})
 
@@ -686,12 +736,16 @@ class EnrollmentsAdminListView(StandardizedErrorMixin, ListAPIView):
         ("course_ids", "course_keys"),
     )
 
-    def get_queryset(self):
+    def filter_queryset(self, queryset):
+        """
+        OEP-66 user-driven filtering layer. Narrows the already-scoped
+        ``queryset`` (from ``ScopedQuerysetMixin.get_queryset()``) by the
+        caller-supplied query parameters; never widens it.
+        """
         form = EnrollmentsAdminListForm(self.request.query_params)
         if not form.is_valid():
             raise ValidationError(form.errors)
 
-        queryset = CourseEnrollment.objects.all().select_related("user", "course")
         course_id = form.cleaned_data.get("course_id")
         course_ids = form.cleaned_data.get("course_ids")
         usernames = form.cleaned_data.get("username")
