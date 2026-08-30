@@ -258,15 +258,15 @@ Code examples
        ),
    ]
 
-**Shared opaque-key converter**, registered once per service with
-``register_converter(CourseKeyConverter, "course_key")``. Because it accepts
-non-deprecated keys only, the regex is simply "no slash" rather than a
-transcription of ``COURSE_KEY_PATTERN``, and deprecated keys are rejected in
-``to_python``:
+**Shared opaque-key converter**, shipped in ``edx-drf-extensions`` alongside
+the pagination and JWT classes and registered once per service with
+``register_url_converters()``. Because it accepts non-deprecated keys only,
+the regex is simply "no slash" rather than a transcription of
+``COURSE_KEY_PATTERN``, and deprecated keys are rejected in ``to_python``:
 
 .. code-block:: python
 
-   # openedx/core/lib/url_converters.py
+   # edx_rest_framework_extensions/url_converters.py
    class CourseKeyConverter:
        """Matches non-deprecated course keys (``course-v1:``, ``ccx-v1:``)."""
 
@@ -290,13 +290,6 @@ appear in one route. Views then receive a parsed ``CourseKey``, which removes
 hand-written ``CourseKey.from_string`` handling from each view and turns a bad
 key into a consistent 404 instead of the ad-hoc 400s that
 :doc:`0029-standardize-error-responses` addresses.
-
-These converters are generic and depend only on ``edx-opaque-keys``, so they
-belong in ``edx-drf-extensions`` alongside the pagination and JWT classes rather
-than in ``openedx/core/lib/``. The companion ADR on extracting the REST API
-reference implementation proposes that library as the home for the shared pieces
-of this series; the path shown above is where they would live until that
-extraction lands.
 
 **Conformance check.** ``openedx/core/tests/test_api_url_conventions.py`` walks
 each service's composed resolver, strips regex anchors so that ``re_path`` and
@@ -341,8 +334,8 @@ Consequences
 Implementation Notes
 ====================
 
-1. Add ``openedx/core/lib/url_converters.py`` and register the converters in both
-   services.
+1. Register the shared converters from ``edx-drf-extensions``
+   (``register_url_converters()``) in both services.
 2. Add the conformance tests with the full allowlist, which freezes the current
    state and fails any new violation.
 3. Record reserved ``{api_name}`` values in one registry, including plugin-app and
