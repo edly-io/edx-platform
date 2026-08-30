@@ -111,19 +111,22 @@ Every REST API URL in the platform must match:
    Usernames, course run keys, usage keys, and UUIDs — never database primary keys
    on an externally reachable API. A resource identified by a relationship uses a
    comma-delimited composite key, the form the enrollment API already uses for
-   ``enrollments/{username},{course_key}``. The requesting user is addressed as
-   ``me``, rather than by an endpoint whose contract changes with the caller.
+   ``enrollments/{username},{course_key}``. Course keys are the non-deprecated
+   forms — ``course-v1:`` and ``ccx-v1:`` — and the converter rejects deprecated
+   ``Org/Course/Run`` keys. The requesting user is addressed as ``me``, rather than by an endpoint
+   whose contract changes with the caller.
 10. **Resource paths contain no verbs.** An operation is a ``POST`` to a noun:
     ``POST /api/instructor/v1/courses/{course_key}/certificate_tasks/`` rather
     than ``enable_certificate_generation`` (see
     :doc:`0031-merge-similar-endpoints`). A genuine non-resource operation may use
     a verb, but must be marked as such in its OpenAPI description.
-11. **Django URL names are** ``snake_case``**, descriptive, and unique within their
-    namespace.** The name is part of the URL contract, because ``reverse()``
-    depends on it, and it is as inconsistent as the paths: ``course-list`` and
-    ``course-detail`` sit beside ``blocks_in_course``, ``courseenrollmentsapilist``,
-    and ``blocked_message``. The version belongs in the path, not the name, which
-    rules out ``enrollment-v2-retrieve`` and ``v1_course_access``. Uniqueness
+11. **Django URL names follow the same conventions.** A name is ``snake_case``,
+    descriptive, and unique within its namespace. The name is part of the URL
+    contract, because ``reverse()`` depends on it, and it is as inconsistent as
+    the paths: ``course-list`` and ``course-detail`` sit beside
+    ``blocks_in_course``, ``courseenrollmentsapilist``, and ``blocked_message``.
+    The version belongs in the path, not the name, which rules out
+    ``enrollment-v2-retrieve`` and ``v1_course_access``. Uniqueness
     matters because reuse is fragile rather than broken: the enrollment API gives
     two ``re_path`` entries the name ``courseenrollment``, which resolves today
     only because Django disambiguates them by argument signature, and stops doing
@@ -200,21 +203,32 @@ Relevance in edx-platform
 
 Three properties of the platform shape how these rules apply.
 
-**Opaque keys can span path segments.** ``COURSE_KEY_PATTERN`` in
-``openedx/core/constants.py`` is
-``r'(?P<course_key_string>[^/+]+(/|\+)[^/+]+(/|\+)[^/?]+)'``. Deprecated
-``Org/Course/Run`` keys contain ``/``, which Django's built-in ``<str:...>``
-converter cannot match, and that is why so many endpoints put the key last.
-Custom converters solve it, but the platform has only three, in two apps
+**Opaque keys need a converter, but not a slash-tolerant one.** Endpoints put the
+course key last today because ``COURSE_KEY_PATTERN``
+(``openedx/core/constants.py``) admits deprecated ``Org/Course/Run`` keys, which
+contain ``/`` and so cannot be matched by Django's ``<str:...>`` converter. New
+APIs do not inherit that constraint: `openedx-platform#31134`_ removed Old Mongo
+create and update operations, leaving only read-only access to static assets and
+the root ``CourseBlock``, so no new deprecated-key course can be authored. New and
+migrated APIs therefore accept non-deprecated keys only and reject deprecated ones
+in the converter, which keeps mid-path nesting unambiguous. Only
+endpoints that must keep serving pre-existing Old Mongo courses need the
+slash-tolerant pattern. Either way a converter is required, and the platform has
+only three, in two apps
 (``openedx/core/djangoapps/xblock/rest_api/url_converters.py`` and
 ``openedx/core/djangoapps/content_libraries/rest_api/url_converters.py``), and
 none is reusable.
 
 **The URL surface is not visible in the two project URLconfs.** Beyond the
-``path('', include(...))`` mounts, plugin apps declare full ``api/...`` paths in
-their own ``urls.py`` — ``content_staging``, ``olx_rest_api``,
-``content_libraries``, and ``instructor`` all do — so a conformance check must
-walk the composed resolver rather than parse ``lms/urls.py`` and ``cms/urls.py``.
+``path('', include(...))`` mounts, apps loaded through ``get_plugin_apps()``
+declare full ``api/...`` paths in their own ``urls.py``: ``content_staging``,
+``olx_rest_api``, ``content_libraries``, and ``lms.djangoapps.instructor`` are all
+absent from the static ``INSTALLED_APPS`` lists and arrive via the plugin
+mechanism. All four are core apps rather than optional extensions, so they should
+be moved into ``INSTALLED_APPS`` and mounted explicitly under their own prefix in
+``lms/urls.py`` and ``cms/urls.py``, which is what rule 5 asks of any API. The
+conformance check still walks the composed resolver, because genuine third-party
+plugins will always contribute routes the project URLconfs cannot show.
 
 **One surface is unversioned deliberately.** ``course_home`` documents itself as
 "a BFF ... not versioned because there is no guarantee of stability over time",
@@ -245,32 +259,44 @@ Code examples
    ]
 
 **Shared opaque-key converter**, registered once per service with
-``register_converter(CourseKeyConverter, "course_key")``. The regex is
-``COURSE_KEY_PATTERN`` with the named group stripped and the alternations made
-non-capturing, because a converter regex is embedded into a larger pattern:
+``register_converter(CourseKeyConverter, "course_key")``. Because it accepts
+non-deprecated keys only, the regex is simply "no slash" rather than a
+transcription of ``COURSE_KEY_PATTERN``, and deprecated keys are rejected in
+``to_python``:
 
 .. code-block:: python
 
    # openedx/core/lib/url_converters.py
    class CourseKeyConverter:
-       """Matches ``course-v1:Org+Course+Run`` and deprecated ``Org/Course/Run``."""
+       """Matches non-deprecated course keys (``course-v1:``, ``ccx-v1:``)."""
 
-       regex = r'[^/+]+(?:/|\+)[^/+]+(?:/|\+)[^/?]+'
+       regex = r'[^/]+'
 
        def to_python(self, value: str) -> CourseKey:
            try:
-               return CourseKey.from_string(value)
+               course_key = CourseKey.from_string(value)
            except InvalidKeyError as exc:
-               raise ValueError from exc     # Django turns this into a 404
+               raise ValueError from exc          # Django turns this into a 404
+           if course_key.deprecated:              # Org/Course/Run — Old Mongo only
+               raise ValueError(f"deprecated course key: {value}")
+           return course_key
 
        def to_url(self, value: CourseKey) -> str:
            return str(value)
 
-Verified on Django 5.2.16: both key styles resolve, ``reverse()`` round-trips
-them, and two converters can appear in one route. Views then receive a parsed
-``CourseKey``, which removes hand-written ``CourseKey.from_string`` handling from
-each view and turns a malformed key into a consistent 404 instead of the ad-hoc
-400s that :doc:`0029-standardize-error-responses` addresses.
+Verified on Django 5.2.16: non-deprecated keys resolve and ``reverse()``
+round-trips them, deprecated and malformed keys both 404, and two converters can
+appear in one route. Views then receive a parsed ``CourseKey``, which removes
+hand-written ``CourseKey.from_string`` handling from each view and turns a bad
+key into a consistent 404 instead of the ad-hoc 400s that
+:doc:`0029-standardize-error-responses` addresses.
+
+These converters are generic and depend only on ``edx-opaque-keys``, so they
+belong in ``edx-drf-extensions`` alongside the pagination and JWT classes rather
+than in ``openedx/core/lib/``. The companion ADR on extracting the REST API
+reference implementation proposes that library as the home for the shared pieces
+of this series; the path shown above is where they would live until that
+extraction lands.
 
 **Conformance check.** ``openedx/core/tests/test_api_url_conventions.py`` walks
 each service's composed resolver, strips regex anchors so that ``re_path`` and
@@ -342,12 +368,12 @@ Rejected Alternatives
 * **Plural API names** (``/api/courses/v1/courses/``) produce stutter, and
   **singular collections** (``/api/enrollment/v1/enrollment/``) are already
   ambiguous in the platform today.
-* **``kebab-case``**, as most general REST style guides recommend. The platform,
-  Django URL names, and Python identifiers are ``snake_case``, and the existing
-  Open edX convention mandates it.
+* **Hyphenated resource names** (``kebab-case``), as most general REST style
+  guides recommend. The platform, Django URL names, and Python identifiers are
+  ``snake_case``, and the existing Open edX convention mandates it.
 * **Deep nesting** (``/api/organizations/{org}/courses/{key}/units/{key}/``).
-  Each level adds a permission surface and a parse point, breaks on keys
-  containing ``/``, and couples children to parent addressing. **URLs mirroring
+  Each level adds a permission surface and a parse point, and couples children to
+  parent addressing. **URLs mirroring
   the codebase** (``/api/contentstore/v1/``) publish an implementation detail as
   a public contract, so refactors become breaking changes.
 * **Independent LMS and CMS namespaces.** Cheap now, but it forecloses serving
@@ -369,6 +395,7 @@ References
 * `combined headless LMS+CMS`_ — the merge this ADR keeps viable
 * `OEP-69 review`_ — where URL expectations were requested
 
+.. _openedx-platform#31134: https://github.com/openedx/openedx-platform/pull/31134
 .. _Open edX REST API Conventions: https://openedx.atlassian.net/wiki/spaces/AC/pages/18350757/Open+edX+REST+API+Conventions
 .. _OEP-49: https://docs.openedx.org/projects/openedx-proposals/en/latest/best-practices/oep-0049-django-app-patterns.html
 .. _OEP-21: https://docs.openedx.org/projects/openedx-proposals/en/latest/processes/oep-0021-proc-deprecation.html
