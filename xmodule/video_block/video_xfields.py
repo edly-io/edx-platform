@@ -23,6 +23,33 @@ class VideoFields:
         scope=Scope.settings
     )
 
+    # Rwaq: points this video is worth once watched (see _BuiltInVideoBlock.has_score).
+    # Mirrors capa_block.CapaMixin.weight so the shared grading pipeline
+    # (grades/signals/handlers.py::problem_raw_score_changed_handler reads
+    # getattr(block, 'weight', None) and passes it to weighted_score) treats
+    # video exactly like any other scored block. Defaults to 1.0 rather than
+    # None so a plain unedited video is worth one point without the author
+    # having to set anything.
+    #
+    # NOT AUTHOR-EDITABLE TODAY. Studio's video editor renders a fixed tab list
+    # (_BuiltInVideoBlock.tabs -> Basic/Advanced templates), which does not
+    # include this field, so in practice every video is worth exactly 1 point.
+    # It is settable only via OLX import. Wiring it into the editor is a
+    # separate piece of work; until then treat per-video point values as
+    # unsupported rather than "set the weight field".
+    #
+    # Also note weight=0 does NOT make a video worth nothing: scores.py's
+    # `cannot_compute_with_weight = weight is None or raw_possible == 0` means
+    # a 0 weight falls back to the raw 1/1. Use the subsection's graded flag to
+    # exclude content from grading, not weight=0.
+    weight = Float(
+        display_name=_("Video Weight"),
+        help=_("Defines the number of points this video is worth when the learner has watched it."),
+        values={"min": 0, "step": .1},
+        default=1.0,
+        scope=Scope.settings
+    )
+
     saved_video_position = RelativeTime(
         help=_("Current position in the video."),
         scope=Scope.user_state,
