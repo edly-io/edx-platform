@@ -13,7 +13,8 @@ from django.conf import settings
 from django.contrib.auth.models import User  # lint-amnesty, pylint: disable=imported-auth-user
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db.models import Count, F
+from django.db.models import Count, F, Value
+from django.db.models.functions import Coalesce
 from django.urls import reverse
 from edx_proctoring.api import get_exam_violation_report
 from opaque_keys.edx.keys import CourseKey, UsageKey
@@ -233,10 +234,15 @@ def list_inactive_enrolled_students(course_key, features):
     enrolled_inactive_user_emails = CourseEnrollment.objects.filter(
         course_id=course_key,
         is_active=True,
-        user__is_active=False
+        user__is_active=False,
     ).annotate(
-        email=F('user__email')
-    ).values('email')
+        id=F('user__id'),
+        username=F('user__username'),
+        name=Coalesce(F('user__profile__name'), Value('')),
+        email=F('user__email'),
+        is_active=F('user__is_active'),
+        date=F('created'),
+    ).values('id', 'username', 'name', 'email', 'mode', 'is_active', 'date')
 
     def extract_student(student, features):
         """
