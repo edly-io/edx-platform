@@ -8,7 +8,11 @@ from django.utils import timezone
 
 from django.utils.translation import gettext_lazy as _
 
+from common.djangoapps.course_modes.models import CourseMode
+from common.djangoapps.student.models import CourseEnrollment
+from common.djangoapps.student.role_helpers import has_staff_roles
 from openedx.core.djangoapps.config_model_utils.models import StackedConfigurationModel
+from openedx.core.djangoapps.config_model_utils.utils import is_in_holdback
 from openedx.features.content_type_gating.helpers import correct_modes_for_fbe, enrollment_date_for_fbe
 
 
@@ -51,14 +55,30 @@ class CourseDurationLimitConfig(StackedConfigurationModel):
         such as the org, site, or globally), and if the configuration is specified to be
         ``enabled_as_of`` before the enrollment was created.
 
+        course duration limits apply to any course with audit or honor mode enrollments — a verified-only course is not subject to
+        duration limits.
+
         Arguments:
             user: The user being queried.
-            course_key: The CourseKey of the course being queried.
             course: The CourseOverview object being queried.
         """
-        target_datetime = enrollment_date_for_fbe(user, course=course)
-        if not target_datetime:
+        # Staff always have unrestricted access
+        if user and user.id and has_staff_roles(user, course.id):
             return False
+
+        enrollment = user and CourseEnrollment.get_enrollment(
+            user, course.id, select_related=['fbeenrollmentexclusion']
+        )
+
+        # Users in the FBE holdback are excluded
+        if is_in_holdback(enrollment):
+            return False
+
+        # Course duration limits apply to audit and honor enrollments only
+        if enrollment and enrollment.mode not in [CourseMode.AUDIT, CourseMode.HONOR]:
+            return False
+
+        target_datetime = enrollment.created if enrollment else timezone.now()
         current_config = cls.current(course_key=course.id)
         return current_config.enabled_as_of_datetime(target_datetime=target_datetime)
 
