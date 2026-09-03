@@ -102,6 +102,10 @@ def enrolled_students_features(course_key, features):
     include_enrollment_mode = 'enrollment_mode' in features
     include_verification_status = 'verification_status' in features
     include_program_enrollments = 'external_user_key' in features
+    # Rwaq: 'mode', 'is_active', 'date' are enrollment-sourced aliases used in profile_info reports.
+    include_mode = 'mode' in features
+    include_user_is_active = 'is_active' in features
+    include_enrollment_date = 'date' in features
     external_user_key_dict = {}
 
     students = User.objects.filter(
@@ -176,7 +180,7 @@ def enrolled_students_features(course_key, features):
                 UNAVAILABLE
             )
 
-        if include_enrollment_mode or include_verification_status:
+        if include_enrollment_mode or include_mode or include_verification_status:
             enrollment_mode = CourseEnrollment.enrollment_mode_for_user(student, course_key)[0]
             if include_verification_status:
                 student_dict['verification_status'] = IDVerificationService.verification_status_for_user(
@@ -185,6 +189,15 @@ def enrolled_students_features(course_key, features):
                 )
             if include_enrollment_mode:
                 student_dict['enrollment_mode'] = enrollment_mode
+            if include_mode:
+                student_dict['mode'] = enrollment_mode
+
+        if include_user_is_active:
+            student_dict['is_active'] = student.is_active
+
+        if include_enrollment_date:
+            enrollment = CourseEnrollment.get_enrollment(student, course_key)
+            student_dict['date'] = enrollment.created if enrollment else ''
 
         if include_program_enrollments:
             # extra external_user_key
@@ -231,26 +244,29 @@ def list_inactive_enrolled_students(course_key, features):
         {'email': 'email3'}
     ]
     """
-    enrolled_inactive_user_emails = CourseEnrollment.objects.filter(
+    _EXTRACTORS = {
+        'id': lambda e: e.user.id,
+        'username': lambda e: e.user.username,
+        'name': lambda e: (getattr(e.user, 'profile', None) and e.user.profile.name) or '',
+        'email': lambda e: e.user.email,
+        'is_active': lambda e: e.user.is_active,
+        'mode': lambda e: e.mode,
+        'date': lambda e: e.created,
+    }
+
+    enrollments = CourseEnrollment.objects.filter(
         course_id=course_key,
         is_active=True,
         user__is_active=False,
-    ).annotate(
-        id=F('user__id'),
-        username=F('user__username'),
-        name=Coalesce(F('user__profile__name'), Value('')),
-        email=F('user__email'),
-        is_active=F('user__is_active'),
-        date=F('created'),
-    ).values('id', 'username', 'name', 'email', 'mode', 'is_active', 'date')
+    ).select_related('user', 'user__profile').order_by('user__username')
 
-    def extract_student(student, features):
+    def extract_student(enrollment, features):
         """
         Build dict containing information about a single inactive enrolled student.
         """
-        return {feature: student.get(feature, None) for feature in features}
+        return {f: _EXTRACTORS[f](enrollment) for f in features if f in _EXTRACTORS}
 
-    return [extract_student(student, features) for student in enrolled_inactive_user_emails]
+    return [extract_student(enrollment, features) for enrollment in enrollments]
 
 
 def get_proctored_exam_results(course_key, features):
