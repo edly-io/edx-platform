@@ -628,7 +628,7 @@ class CourseOverview(TimeStampedModel):
         """
         Returns a list of ID strings for this course's prerequisite courses.
         """
-        return json.loads(self._pre_requisite_courses_json)
+        return json.loads(self._pre_requisite_courses_json or "[]")
 
     @pre_requisite_courses.setter
     def pre_requisite_courses(self, value):

@@ -667,6 +667,16 @@ class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
         scope=Scope.settings,
     )
 
+    use_org_logo_for_certificate = Boolean(
+        display_name=_("Use Organization Logo on Certificate"),
+        help=_(
+            "If true, the organization logo is displayed on the course certificate instead of the default badge. "
+            "The organization must have a logo configured for this setting to take effect."
+        ),
+        scope=Scope.settings,
+        default=False,
+    )
+
     # An extra property is used rather than the wiki_slug/number because
     # there are courses that change the number for different runs. This allows
     # courses to share the same css_class across runs even if they have
