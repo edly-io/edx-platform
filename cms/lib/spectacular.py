@@ -2,11 +2,8 @@
 
 import re
 
-# Legacy schema paths of the APIs migrated to their ADR 0038-conforming
-# /api/authoring/ addresses. The legacy routes stay live for their OEP-21
-# deprecation window and are marked ``deprecated: true`` in the schema so
-# generated clients steer to the conforming address. Paths are as they appear
-# in the schema, i.e. after SCHEMA_PATH_PREFIX_TRIM strips /api/contentstore.
+# Legacy addresses of APIs migrated to /api/authoring/, marked deprecated for
+# their OEP-21 window. Paths are post-SCHEMA_PATH_PREFIX_TRIM.
 LEGACY_MIGRATED_PATH_PREFIXES = (
     "/v1/xblock/",             # → /api/authoring/v1/xblocks/
     "/v3/home/",               # → /api/authoring/v3/home/
@@ -15,9 +12,8 @@ LEGACY_MIGRATED_PATH_PREFIXES = (
     "/v4/home/courses/",       # → /api/authoring/v4/courses/
 )
 
-# BFF surfaces (ADR 0038): kept under /api/ with one canonical conforming
-# mount, but marked ``x-internal`` so clients can tell them apart from a
-# stable resource contract. Applies to both the legacy and conforming mounts.
+# BFF surfaces, marked x-internal so clients can tell them from a stable
+# resource contract. Both the legacy and conforming mounts.
 INTERNAL_BFF_PATH_PREFIXES = (
     "/v3/home/",
     "/api/authoring/v3/home/",

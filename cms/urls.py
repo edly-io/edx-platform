@@ -27,8 +27,7 @@ from openedx.core.apidocs import api_info
 from openedx.core.djangoapps.password_policy import compliance as password_policy_compliance
 from openedx.core.djangoapps.password_policy.forms import PasswordPolicyAwareAdminAuthForm
 
-# Shared opaque-key path converters (ADR 0038): registered once per service,
-# before any URL pattern that uses <course_key:...> / <usage_key:...>.
+# Shared opaque-key path converters, registered before any pattern using them.
 register_url_converters()
 
 django_autodiscover()
@@ -361,10 +360,8 @@ urlpatterns += [
     path('api/contentstore/', include('cms.djangoapps.contentstore.rest_api.urls'))
 ]
 
-# Authoring REST APIs — the ADR 0038-conforming addresses of the APIs
-# standardized under FC-0118, dual-mounted (OEP-21) beside their legacy
-# /api/contentstore/ routes during the deprecation window. Per ADR 0038
-# rule 5, each mount declares its own full api/{api_name}/v{N}/ prefix.
+# Authoring REST APIs — conforming addresses (ADR 0038), dual-mounted beside
+# their legacy /api/contentstore/ routes for the OEP-21 deprecation window.
 urlpatterns += [
     path('api/authoring/v1/', include('cms.djangoapps.contentstore.rest_api.v1.authoring_urls')),
     path('api/authoring/v3/', include('cms.djangoapps.contentstore.rest_api.v3.authoring_urls')),

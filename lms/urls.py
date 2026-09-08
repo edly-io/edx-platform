@@ -54,8 +54,7 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 from openedx.core.djangoapps.user_authn.views.login import redirect_to_lms_login
 from openedx.features.enterprise_support.api import enterprise_enabled
 
-# Shared opaque-key path converters (ADR 0038): registered once per service,
-# before any URL pattern that uses <course_key:...> / <usage_key:...>.
+# Shared opaque-key path converters, registered before any pattern using them.
 register_url_converters()
 
 RESET_COURSE_DEADLINES_NAME = 'reset_course_deadlines'

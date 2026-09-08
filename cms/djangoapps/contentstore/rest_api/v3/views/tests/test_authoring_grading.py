@@ -293,16 +293,8 @@ class TestAuthoringGradingViewSetErrorShape(APITestCase):
         assert "instance" not in response.data
 
 
-# ===========================================================================
-# ADR 0038 — URL-structure tests
-# ===========================================================================
 class TestAuthoringGradingViewSetUrlStructure(APITestCase):
-    """
-    ADR 0038 — the conforming /api/authoring/v3/courses/{course_key}/grading/
-    route is mounted beside the legacy
-    /api/contentstore/v3/authoring_grading/{course_key}/ route and serves
-    the same view.
-    """
+    """The conforming courses/{course_key}/grading/ route serves the same view as the legacy one."""
 
     def setUp(self):
         super().setUp()

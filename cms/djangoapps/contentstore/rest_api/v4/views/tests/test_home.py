@@ -279,15 +279,8 @@ class TestHomeCoursesViewSetOrderingDeprecation(CourseTestCase):
         self.assertNotIn("Deprecation", response)  # noqa: PT009
 
 
-# ===========================================================================
-# ADR 0038 — URL-structure tests
-# ===========================================================================
 class TestHomeCoursesViewSetUrlStructure(APITestCase):
-    """
-    ADR 0038 — the conforming /api/authoring/v4/courses/ route is mounted
-    beside the legacy /api/contentstore/v4/home/courses/ route and serves
-    the same view.
-    """
+    """The conforming /api/authoring/v4/courses/ route serves the same view as the legacy one."""
 
     def test_conforming_url_reverses_to_expected_path(self):
         assert reverse("authoring_v4:course_list") == "/api/authoring/v4/courses/"

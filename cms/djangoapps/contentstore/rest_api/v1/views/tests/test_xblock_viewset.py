@@ -235,11 +235,7 @@ def _authoring_detail_url():
 
 
 class XblockViewSetUrlStructureTest(ModuleStoreTestCase, APITestCase):
-    """
-    ADR 0038 — the conforming /api/authoring/v1/xblocks/ routes are mounted
-    beside the legacy /api/contentstore/v1/xblock/ routes and serve the same
-    view.
-    """
+    """The conforming /api/authoring/v1/xblocks/ routes serve the same view as the legacy ones."""
 
     def setUp(self):
         super().setUp()
