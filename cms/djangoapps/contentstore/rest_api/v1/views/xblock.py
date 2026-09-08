@@ -198,12 +198,9 @@ class XblockViewSet(StandardizedErrorMixin, viewsets.ViewSet):
         bytes) rather than request.data to avoid consuming the WSGI stream
         before @expect_json_in_class_view runs.
         """
-        # ADR 0038: the conforming /api/authoring/v1/xblocks/<usage_key:…>/
-        # route passes a parsed UsageKey, while the legacy
-        # /api/contentstore/v1/xblock/ route passes the raw string. Coerce to
-        # the string form the action methods expect; ``self.kwargs`` is the
-        # same dict ``dispatch()`` unpacks into the handler, so the handler
-        # receives the coerced value as well.
+        # The conforming route passes a parsed UsageKey; the legacy route
+        # passes the raw string. Coerce to the string the actions expect —
+        # ``self.kwargs`` is the dict ``dispatch()`` unpacks into the handler.
         if isinstance(self.kwargs.get("usage_key_string"), UsageKey):
             self.kwargs["usage_key_string"] = str(self.kwargs["usage_key_string"])
         usage_key_string = self.kwargs.get("usage_key_string")

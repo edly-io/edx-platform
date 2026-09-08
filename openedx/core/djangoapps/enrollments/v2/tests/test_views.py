@@ -297,11 +297,7 @@ class TestEnrollmentViewSetMinimalView(APITestCase):
 
 @skip_unless_lms
 class TestEnrollmentUrlStructure(APITestCase):
-    """
-    ADR 0038 — conforming trailing-slash routes with snake_case URL names,
-    mounted beside the legacy slashless routes, which keep their names and
-    serve the same views.
-    """
+    """Conforming trailing-slash routes with snake_case names, beside the legacy slashless ones."""
 
     USERNAME = "someone"
     COURSE_ID = "course-v1:org+course+run"

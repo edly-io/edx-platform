@@ -3,26 +3,11 @@ URLs for the Enrollment API — v2.
 
 Mounted at ``/api/enrollment/v2/`` (see ``lms/urls.py``).
 
-ADR 0028 — :class:`EnrollmentViewSet` is registered via ``DefaultRouter``
-(actions: ``list``, ``create``, ``unenroll``, ``allowed``). The other v2
-endpoints (singleton retrieve by URL form, roles, course-detail-by-id,
-admin enrollments list) cannot be expressed as router-generated URLs, so
-they remain as standalone ``APIView`` classes routed via ``path()`` /
-``re_path()``.
-
-ADR 0038 — the API name and version position already conform. The conforming
-routes below fix the remaining rule 6 violations (a required trailing slash;
-no optional-slash patterns) and rule 11 violations (``snake_case``,
-version-free, unique URL names), and are dual-mounted (OEP-21) beside the
-legacy slashless routes, which keep their original names and are marked
-``deprecated: true`` in the OpenAPI schema (``lms/lib/spectacular.py``).
-Conforming member routes live under the plural ``enrollments/`` and
-``courses/`` collections (rule 2), with course keys resolved by the shared
-``course_key`` converter (rule 9), which rejects deprecated ``Org/Course/Run``
-keys. Deeper ADR 0038 targets — collapsing the singular ``enrollment/``
-collection into ``enrollments/``, replacing ``unenroll`` (a verb, rule 10)
-with ``DELETE`` on the member address, and addressing the requesting user as
-``me`` — are contract changes and belong to a future v3 per ADR 0037.
+Conforming routes (ADR 0038) are dual-mounted beside the legacy slashless
+routes, which keep their original names and are marked ``deprecated: true``
+in the OpenAPI schema (``lms/lib/spectacular.py``). Collapsing ``enrollment/``
+into ``enrollments/``, replacing ``unenroll`` with ``DELETE``, and addressing
+the caller as ``me`` are contract changes deferred to a future version.
 
 URL surface
 -----------
@@ -35,7 +20,7 @@ Router-generated (basename ``enrollment``):
     POST   /enrollment/enrollment_allowed/
     DELETE /enrollment/enrollment_allowed/
 
-Conforming explicit paths (ADR 0038):
+Conforming explicit paths:
     GET    /enrollments/                              (name: enrollment_admin_list)
     GET    /enrollments/{username},{course_key}/      (name: enrollment_detail)
     GET    /courses/{course_key}/                     (name: course_enrollment_detail)
@@ -67,8 +52,7 @@ router.register(r"enrollment", EnrollmentViewSet, basename="enrollment")
 
 urlpatterns = [
     *router.urls,
-    # -- Conforming routes (ADR 0038: required trailing slash, plural
-    # -- collections, snake_case version-free names, shared key converter).
+    # Conforming routes (ADR 0038).
     path(
         "enrollments/",
         EnrollmentsAdminListView.as_view(),
@@ -85,11 +69,9 @@ urlpatterns = [
         name="course_enrollment_detail",
     ),
     path("roles/", UserRolesView.as_view(), name="user_roles"),
-    # -- Legacy routes (OEP-21 deprecation window; ADR 0038 rule 6
-    # -- violations frozen as-is, marked deprecated in the OpenAPI schema).
-    # -- The admin list's optional-slash pattern is narrowed to slashless
-    # -- only: the slashed address is now served by the conforming route
-    # -- above, so every address that resolved before still resolves.
+    # Legacy routes, kept for their OEP-21 window. The admin list's
+    # optional-slash pattern is narrowed to slashless only, since the slashed
+    # address is now served by the conforming route above.
     re_path(
         r"^enrollments$",
         EnrollmentsAdminListView.as_view(),
@@ -105,10 +87,8 @@ urlpatterns = [
     re_path(
         rf"^enrollment/{settings.COURSE_ID_PATTERN}$",
         EnrollmentRetrieveView.as_view(),
-        # Previously this route shared the name ``enrollment-v2-retrieve``
-        # with the composite-key form above, resolving only because Django
-        # disambiguates by argument signature (the fragility ADR 0038 rule 11
-        # calls out). Nothing reverses it, so it gets its own name.
+        # Was sharing ``enrollment-v2-retrieve`` with the composite-key form
+        # above; nothing reverses it, so it gets its own name.
         name="enrollment-v2-retrieve-own",
     ),
     re_path(

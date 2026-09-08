@@ -86,15 +86,8 @@ class TestHomeViewSetErrorShape(APITestCase):
         assert "instance" not in response.data
 
 
-# ===========================================================================
-# ADR 0038 — URL-structure tests
-# ===========================================================================
 class TestHomeViewSetUrlStructure(APITestCase):
-    """
-    ADR 0038 — the conforming /api/authoring/v3/home/ routes are mounted
-    beside the legacy /api/contentstore/v3/home/ routes and serve the same
-    view.
-    """
+    """The conforming /api/authoring/v3/home/ routes serve the same view as the legacy ones."""
 
     def test_conforming_urls_reverse_to_expected_paths(self):
         assert reverse("authoring_v3:home") == "/api/authoring/v3/home/"

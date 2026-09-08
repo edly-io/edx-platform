@@ -380,16 +380,11 @@ class TestCourseDetailsViewSetNestedJsonNormalization(APITestCase):
         assert set(response.data.keys()) == {"course_id", "title"}
 
 
-# ===========================================================================
+# ---------------------------------------------------------------------------
 # ADR 0038 — URL-structure tests
-# ===========================================================================
+# ---------------------------------------------------------------------------
 class TestCourseDetailsViewSetUrlStructure(APITestCase):
-    """
-    ADR 0038 — the conforming /api/authoring/v3/courses/{course_key}/details/
-    route is mounted beside the legacy
-    /api/contentstore/v3/course_details/{course_id}/ route and serves the
-    same view.
-    """
+    """The conforming courses/{course_key}/details/ route serves the same view as the legacy one."""
 
     def _conforming_url(self):
         return reverse(

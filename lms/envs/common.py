@@ -2161,9 +2161,9 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '0.1.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'PREPROCESSING_HOOKS': ['lms.lib.spectacular.lms_api_filter'],
-    # ADR 0038 / OEP-21: mark legacy slashless enrollment addresses
-    # deprecated (lms/lib/spectacular.py). The enum hook is drf-spectacular's
-    # default, restated because setting this key overrides the default list.
+    # Mark legacy slashless enrollment addresses deprecated. The enum hook is
+    # drf-spectacular's default, restated because setting this key replaces
+    # the default list.
     'POSTPROCESSING_HOOKS': [
         'drf_spectacular.hooks.postprocess_schema_enums',
         'lms.lib.spectacular.lms_mark_legacy_paths_deprecated',
