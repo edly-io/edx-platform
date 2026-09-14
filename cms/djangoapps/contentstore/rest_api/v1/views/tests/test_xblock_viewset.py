@@ -219,7 +219,7 @@ class TestXblockViewSetMinimalView(ModuleStoreTestCase, APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# ADR 0038 — URL-structure tests
+# URL-structure tests
 # ---------------------------------------------------------------------------
 
 

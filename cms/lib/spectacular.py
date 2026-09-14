@@ -3,7 +3,7 @@
 import re
 
 # Legacy addresses of APIs migrated to /api/authoring/, marked deprecated for
-# their OEP-21 window. Paths are post-SCHEMA_PATH_PREFIX_TRIM.
+# their deprecation window. Paths are post-SCHEMA_PATH_PREFIX_TRIM.
 LEGACY_MIGRATED_PATH_PREFIXES = (
     "/v1/xblock/",             # → /api/authoring/v1/xblocks/
     "/v3/home/",               # → /api/authoring/v3/home/
@@ -43,7 +43,7 @@ def cms_api_filter(endpoints):
 
 def cms_mark_migrated_paths(result, generator, request, public):  # pylint: disable=unused-argument
     """
-    Post-processing hook (ADR 0038 / OEP-21): mark the legacy addresses of
+    Post-processing hook: mark the legacy addresses of
     migrated APIs ``deprecated: true`` and BFF surfaces ``x-internal``.
     """
     for path, path_item in result.get("paths", {}).items():

@@ -214,7 +214,7 @@ class TestUserRolesViewAliases(APITestCase):
         super().setUp()
         self.user = UserFactory.create(password="test")
         # Renamed from the versioned kebab-case ``enrollment-v2-roles``
-        # (ADR 0038; the path is unchanged).
+        # (the path is unchanged).
         self.url = reverse("v2:user_roles")
 
     @patch("openedx.core.djangoapps.enrollments.v2.views.api.get_user_roles", return_value=[])
@@ -292,7 +292,7 @@ class TestEnrollmentViewSetMinimalView(APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# ADR 0038 — URL-structure tests
+# URL-structure tests
 # ---------------------------------------------------------------------------
 
 @skip_unless_lms

@@ -360,8 +360,8 @@ urlpatterns += [
     path('api/contentstore/', include('cms.djangoapps.contentstore.rest_api.urls'))
 ]
 
-# Authoring REST APIs — conforming addresses (ADR 0038), dual-mounted beside
-# their legacy /api/contentstore/ routes for the OEP-21 deprecation window.
+# Authoring REST APIs — conforming addresses, dual-mounted beside their
+# legacy /api/contentstore/ routes for the deprecation window.
 urlpatterns += [
     path('api/authoring/v1/', include('cms.djangoapps.contentstore.rest_api.v1.authoring_urls')),
     path('api/authoring/v3/', include('cms.djangoapps.contentstore.rest_api.v3.authoring_urls')),

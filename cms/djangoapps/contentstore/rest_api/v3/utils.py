@@ -34,8 +34,8 @@ def resolve_course_key(course_key: str | CourseKey) -> CourseKey:
 
     Accepts either the raw string (the legacy ``/api/contentstore/v3/``
     routes) or an already-parsed :class:`CourseKey` (the conforming
-    ``/api/authoring/v3/`` routes, whose ``course_key`` path converter —
-    ADR 0038 rule 9 — hands views a parsed key).
+    ``/api/authoring/v3/`` routes, whose ``course_key`` path converter
+    hands views a parsed key).
 
     Raises:
         rest_framework.exceptions.NotFound: if the string is unparseable

@@ -3,7 +3,7 @@ URLs for the Enrollment API — v2.
 
 Mounted at ``/api/enrollment/v2/`` (see ``lms/urls.py``).
 
-Conforming routes (ADR 0038) are dual-mounted beside the legacy slashless
+Conforming routes are dual-mounted beside the legacy slashless
 routes, which keep their original names and are marked ``deprecated: true``
 in the OpenAPI schema (``lms/lib/spectacular.py``). Collapsing ``enrollment/``
 into ``enrollments/``, replacing ``unenroll`` with ``DELETE``, and addressing
@@ -26,7 +26,7 @@ Conforming explicit paths:
     GET    /courses/{course_key}/                     (name: course_enrollment_detail)
     GET    /roles/                                    (name: user_roles)
 
-Legacy paths (deprecated, kept for their OEP-21 window):
+Legacy paths (deprecated, kept for their deprecation window):
     GET    /enrollment/{username},{course_key}   (name: enrollment-v2-retrieve)
     GET    /enrollment/{course_key}              (name: enrollment-v2-retrieve-own)
     GET    /enrollments                           (name: enrollment-v2-admin-list)
@@ -52,7 +52,7 @@ router.register(r"enrollment", EnrollmentViewSet, basename="enrollment")
 
 urlpatterns = [
     *router.urls,
-    # Conforming routes (ADR 0038).
+    # Conforming routes.
     path(
         "enrollments/",
         EnrollmentsAdminListView.as_view(),
@@ -69,7 +69,7 @@ urlpatterns = [
         name="course_enrollment_detail",
     ),
     path("roles/", UserRolesView.as_view(), name="user_roles"),
-    # Legacy routes, kept for their OEP-21 window. The admin list's
+    # Legacy routes, kept for their deprecation window. The admin list's
     # optional-slash pattern is narrowed to slashless only, since the slashed
     # address is now served by the conforming route above.
     re_path(

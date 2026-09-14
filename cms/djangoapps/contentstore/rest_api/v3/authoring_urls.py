@@ -1,4 +1,4 @@
-"""Authoring API v3 URLs (ADR 0038 conforming mount for Contentstore v3)."""
+"""Authoring API v3 URLs."""
 
 from django.urls import path
 

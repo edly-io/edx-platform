@@ -381,7 +381,7 @@ class TestCourseDetailsViewSetNestedJsonNormalization(APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# ADR 0038 — URL-structure tests
+# URL-structure tests
 # ---------------------------------------------------------------------------
 class TestCourseDetailsViewSetUrlStructure(APITestCase):
     """The conforming courses/{course_key}/details/ route serves the same view as the legacy one."""
