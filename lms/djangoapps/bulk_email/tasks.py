@@ -514,7 +514,15 @@ def _send_course_email(entry_id, email_id, to_list, global_email_context, subtas
         # use the email from address in the CourseEmail, if it is present, otherwise compute it.
         from_addr = course_email.from_addr or _get_source_address(course_email.course_id, course_title, course_language)
 
+    # get_current() ignores the course's tenant in a Celery worker; resolve via eox-tenant instead.
     site = Site.objects.get_current()
+    try:
+        from eox_tenant.models import TenantConfig
+        lms_base = TenantConfig.get_value_for_org(course_email.course_id.org, 'LMS_BASE', None)
+        if lms_base:
+            site = Site.objects.filter(domain=lms_base).first() or site
+    except ImportError:
+        pass
     try:
         connection = get_connection()
         connection.open()
