@@ -106,8 +106,8 @@ class TestHomeViewSetUrlStructure(APITestCase):
             assert conforming_cls is legacy_cls, f"{conforming_name} must serve the same view as {legacy_name}"
 
     def test_unauthenticated_conforming_route_returns_standardized_401(self):
-        """The conforming mount carries the same contract — ADR 0029 envelope included."""
+        """The conforming mount carries the same contract, error envelope included."""
         response = APIClient().get(reverse("authoring_v3:home"))
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         for field in _REQUIRED_ERROR_FIELDS:
-            assert field in response.data, f"ADR 0029: missing field '{field}'"
+            assert field in response.data, f"missing error-envelope field '{field}'"
