@@ -2,26 +2,32 @@
 
 import re
 
-CMS_PATH_PATTERN = re.compile(r"^/api/(contentstore|authoring)/v\d+/")
-
-# Path prefixes of operations that have a conforming successor and are kept only
-# for their deprecation window. The mounted prefix is listed next to the
-# shortened form, so the hook still matches where a document is published
-# without the service prefix.
-SUPERSEDED_PATH_PREFIXES = (
-    "/api/contentstore/v0/videos/uploads/",
-    "/v0/videos/uploads/",
+# Legacy addresses of APIs migrated to /api/authoring/, marked deprecated for
+# their deprecation window.
+LEGACY_MIGRATED_PATH_PREFIXES = (
+    "/api/contentstore/v1/xblock/",             # → /api/authoring/v1/xblocks/
+    "/api/contentstore/v3/home/",               # → /api/authoring/v3/home/
+    "/api/contentstore/v3/course_details/",     # → /api/authoring/v3/courses/{course_key}/details/
+    "/api/contentstore/v3/authoring_grading/",  # → /api/authoring/v3/courses/{course_key}/grading/
+    "/api/contentstore/v4/home/courses/",       # → /api/authoring/v4/courses/
+    "/api/contentstore/v0/videos/uploads/",     # → /api/authoring/v1/courses/{course_key}/videos/
 )
 
-_OPERATION_KEYS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
+# BFF surfaces, marked x-internal so clients can tell them from a stable
+# resource contract. Both the legacy and conforming mounts.
+INTERNAL_BFF_PATH_PREFIXES = (
+    "/api/contentstore/v3/home/",
+    "/api/authoring/v3/home/",
+)
 
 
 def cms_api_filter(endpoints):
     """
-    Pre-processing hook: keep the versioned authoring and contentstore
-    endpoints, and the course-level endpoints named below.
+    Pre-processing hook: keep only contentstore + authoring versioned
+    endpoints and select course-level endpoints.
     """
     filtered = []
+    CMS_PATH_PATTERN = re.compile(r"^/api/(contentstore|authoring)/v\d+/")
 
     for path, path_regex, method, callback in endpoints:
         if (
@@ -36,15 +42,21 @@ def cms_api_filter(endpoints):
     return filtered
 
 
-def cms_mark_superseded_paths(result, generator, request, public):  # pylint: disable=unused-argument
+def cms_mark_migrated_paths(result, generator, request, public):  # pylint: disable=unused-argument
     """
-    Post-processing hook: mark every operation of a superseded path deprecated.
+    Post-processing hook: mark the legacy addresses of
+    migrated APIs ``deprecated: true`` and BFF surfaces ``x-internal``.
     """
-    for path, path_item in (result.get("paths") or {}).items():
-        if not path.startswith(SUPERSEDED_PATH_PREFIXES):
+    for path, path_item in result.get("paths", {}).items():
+        legacy = path.startswith(LEGACY_MIGRATED_PATH_PREFIXES)
+        internal = path.startswith(INTERNAL_BFF_PATH_PREFIXES)
+        if not (legacy or internal):
             continue
-        for key, operation in path_item.items():
-            if key in _OPERATION_KEYS and isinstance(operation, dict):
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            if legacy:
                 operation["deprecated"] = True
-
+            if internal:
+                operation["x-internal"] = True
     return result

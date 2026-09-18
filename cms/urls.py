@@ -27,8 +27,10 @@ from openedx.core.apidocs import api_info
 from openedx.core.djangoapps.password_policy import compliance as password_policy_compliance
 from openedx.core.djangoapps.password_policy.forms import PasswordPolicyAwareAdminAuthForm
 
-django_autodiscover()
+# Shared opaque-key path converters, registered before any pattern using them.
 register_url_converters()
+
+django_autodiscover()
 admin.site.site_header = _('Studio Administration')
 admin.site.site_title = admin.site.site_header
 
@@ -358,7 +360,7 @@ urlpatterns += [
     path('api/contentstore/', include('cms.djangoapps.contentstore.rest_api.urls'))
 ]
 
-# Authoring REST APIs
+# Authoring REST APIs — conforming addresses for resources standardized here.
 urlpatterns += [
     path('api/authoring/v1/', include('cms.djangoapps.contentstore.rest_api.v1.authoring_urls')),
 ]

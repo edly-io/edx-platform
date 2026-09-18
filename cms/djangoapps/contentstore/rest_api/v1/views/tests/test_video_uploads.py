@@ -5,7 +5,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -37,7 +36,7 @@ from cms.djangoapps.contentstore.rest_api.v1.serializers.video_uploads import Co
 from cms.djangoapps.contentstore.rest_api.v1.views.unknown_route import UnknownRouteView
 from cms.djangoapps.contentstore.rest_api.v1.views.video_uploads import CourseVideoUploadsViewSet
 from cms.djangoapps.contentstore.tests.utils import CourseTestCase
-from cms.lib.spectacular import cms_api_filter, cms_mark_superseded_paths
+from cms.lib.spectacular import cms_api_filter, cms_mark_migrated_paths
 from common.djangoapps.student.roles import (
     CourseInstructorRole,
     CourseLimitedStaffRole,
@@ -53,11 +52,11 @@ LEGACY_LIST_URL_NAME = "cms.djangoapps.contentstore:v0:cms_api_create_videos_upl
 LEGACY_DETAIL_URL_NAME = "cms.djangoapps.contentstore:v0:cms_api_videos_uploads"
 
 ENUM_POSTPROCESSING_HOOK = "drf_spectacular.hooks.postprocess_schema_enums"
-SUPERSEDED_PATHS_HOOK = "cms.lib.spectacular.cms_mark_superseded_paths"
+MIGRATED_PATHS_HOOK = "cms.lib.spectacular.cms_mark_migrated_paths"
 
 # The post-processing hooks the CMS registers. Registering any hook replaces
 # drf-spectacular's own list, so the enum hook has to be named again alongside.
-REGISTERED_POSTPROCESSING_HOOKS = [ENUM_POSTPROCESSING_HOOK, SUPERSEDED_PATHS_HOOK]
+REGISTERED_POSTPROCESSING_HOOKS = [ENUM_POSTPROCESSING_HOOK, MIGRATED_PATHS_HOOK]
 
 PRODUCTION_SETTINGS = "cms.envs.production"
 DEVSTACK_SETTINGS = "cms.envs.devstack"
@@ -65,22 +64,19 @@ SETTINGS_DIRECTORY = Path(cms.envs.__file__).resolve().parent
 REPO_ROOT = SETTINGS_DIRECTORY.parents[1]
 MOCK_CONFIG = SETTINGS_DIRECTORY / "mock.yml"
 
-# The schema settings that decide the addresses the document publishes, and the
-# subset of them a document generated in-process has to be given.
-SCHEMA_SETTING_KEYS = (
+# The schema settings a document generated in this process has to be given for
+# its addresses to come out the way the deployment publishes them.
+GENERATION_SETTING_KEYS = (
     "PREPROCESSING_HOOKS",
     "POSTPROCESSING_HOOKS",
     "SCHEMA_PATH_PREFIX",
-    "SCHEMA_PATH_PREFIX_TRIM",
-    "SERVERS",
 )
-GENERATION_SETTING_KEYS = SCHEMA_SETTING_KEYS[:-1]
 SETTINGS_MARKER = "schema settings: "
 
 
-def schema_settings(module, config_file=MOCK_CONFIG):
+def schema_settings(module):
     """
-    Return the schema settings of the deployment settings module ``module``.
+    Return ``SPECTACULAR_SETTINGS`` of the deployment settings module ``module``.
 
     Deployment settings share their mutable defaults with the settings the test
     process runs under and would alter them on import, so they are read in a
@@ -89,14 +85,14 @@ def schema_settings(module, config_file=MOCK_CONFIG):
     script = (
         "import importlib, json, sys\n"
         "values = importlib.import_module(sys.argv[1]).SPECTACULAR_SETTINGS\n"
-        "print(sys.argv[2] + json.dumps({key: values[key] for key in sys.argv[3:]}))\n"
+        "print(sys.argv[2] + json.dumps(values))\n"
     )
     completed = subprocess.run(
-        [sys.executable, "-c", script, module, SETTINGS_MARKER, *SCHEMA_SETTING_KEYS],
+        [sys.executable, "-c", script, module, SETTINGS_MARKER],
         capture_output=True,
         check=True,
         cwd=REPO_ROOT,
-        env={**os.environ, "CMS_CFG": str(config_file), "SERVICE_VARIANT": "cms"},
+        env={**os.environ, "CMS_CFG": str(MOCK_CONFIG), "SERVICE_VARIANT": "cms"},
         text=True,
     )
     reported = next(
@@ -1595,7 +1591,7 @@ class CourseVideoSchemaTest(CourseVideoUploadsTestBase):
 
 
 class CmsSchemaHookTest(CourseVideoUploadsTestBase):
-    """The schema hooks admit the new paths and flag the superseded ones."""
+    """The schema hooks admit the new paths and deprecate the legacy ones."""
 
     def endpoint(self, path):
         return (path, path, "get", None)
@@ -1611,16 +1607,18 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
             "/api/contentstore/v0/videos/uploads/course-v1:a+b+c",
         ]
 
-    def test_post_processing_marks_only_the_superseded_operations(self):
+    def test_post_processing_marks_only_the_replaced_upload_operations(self):
         schema = {
             "paths": {
-                "/v0/videos/uploads/{course_id}": {"post": {}},
-                "/v0/videos/uploads/{course_id}/{edx_video_id}": {"get": {}, "delete": {}},
-                "/v0/videos/images/{course_id}/{edx_video_id}": {"post": {}},
+                "/api/contentstore/v0/videos/uploads/{course_id}": {"post": {}},
+                "/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}": {
+                    "get": {}, "delete": {},
+                },
+                "/api/contentstore/v0/videos/images/{course_id}/{edx_video_id}": {"post": {}},
                 "/api/authoring/v1/courses/{course_key}/videos/": {"get": {}, "post": {}},
             }
         }
-        result = cms_mark_superseded_paths(schema, None, None, False)
+        result = cms_mark_migrated_paths(schema, None, None, False)
 
         deprecated = {
             (path, method)
@@ -1629,15 +1627,10 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
             if operation.get("deprecated")
         }
         assert deprecated == {
-            ("/v0/videos/uploads/{course_id}", "post"),
-            ("/v0/videos/uploads/{course_id}/{edx_video_id}", "get"),
-            ("/v0/videos/uploads/{course_id}/{edx_video_id}", "delete"),
+            ("/api/contentstore/v0/videos/uploads/{course_id}", "post"),
+            ("/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}", "get"),
+            ("/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}", "delete"),
         }
-
-    def test_post_processing_also_matches_untrimmed_paths(self):
-        schema = {"paths": {"/api/contentstore/v0/videos/uploads/{course_id}": {"post": {}}}}
-        result = cms_mark_superseded_paths(schema, None, None, False)
-        assert result["paths"]["/api/contentstore/v0/videos/uploads/{course_id}"]["post"]["deprecated"] is True
 
     def authoring_schema(self, hooks):
         """Generate the authoring document with ``hooks`` as the post-processing list."""
@@ -1649,7 +1642,7 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
             )
 
     def test_enum_components_survive_the_registered_post_processing(self):
-        deprecation_only = self.authoring_schema([SUPERSEDED_PATHS_HOOK])
+        deprecation_only = self.authoring_schema([MIGRATED_PATHS_HOOK])
         registered = self.authoring_schema(REGISTERED_POSTPROCESSING_HOOKS)
 
         assert not [
@@ -1658,9 +1651,9 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
         assert "ContentTypeEnum" in registered["components"]["schemas"]
 
     def test_post_processing_leaves_other_schema_members_alone(self):
-        schema = {"paths": {"/v0/videos/uploads/{course_id}": {"post": {}, "parameters": []}}}
-        result = cms_mark_superseded_paths(schema, None, None, False)
-        assert not result["paths"]["/v0/videos/uploads/{course_id}"]["parameters"]
+        path = "/api/contentstore/v0/videos/uploads/{course_id}"
+        result = cms_mark_migrated_paths({"paths": {path: {"post": {}, "parameters": []}}}, None, None, False)
+        assert not result["paths"][path]["parameters"]
 
 
 @ddt.ddt
@@ -1693,17 +1686,6 @@ class CmsSchemaAddressTest(TestCase):
         with patched_settings({key: read[key] for key in GENERATION_SETTING_KEYS}):
             return SchemaGenerator().get_schema(request=None, public=True)
 
-    def config_without_public_host(self):
-        """Write a deployment configuration that leaves the public host unset."""
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        config = Path(directory.name) / "cms.yml"
-        config.write_text("".join(
-            line for line in MOCK_CONFIG.read_text().splitlines(keepends=True)
-            if not line.startswith("AUTHORING_API_URL:")
-        ))
-        return config
-
     def test_the_document_publishes_the_mounted_addresses(self):
         assert set(self.PUBLISHED_PATHS) <= set(self.cms_schema()["paths"])
 
@@ -1717,22 +1699,26 @@ class CmsSchemaAddressTest(TestCase):
         assert published, "the pre-processing hook admitted no path"
         assert [path for path in published if not path.startswith("/api/")] == []
 
+    def test_the_published_operation_ids_carry_the_version_not_the_service_prefix(self):
+        operations = self.cms_schema()["paths"]["/api/authoring/v1/courses/{course_key}/videos/"]
+        assert {
+            method: operation["operationId"]
+            for method, operation in operations.items()
+            if isinstance(operation, dict)
+        } == {"get": "v1_courses_videos_list", "post": "v1_courses_videos_create"}
+
     def test_every_published_path_is_an_address_that_resolves(self):
         for published, address in self.PUBLISHED_PATHS.items():
             assert resolve(address).func, published
 
     @ddt.data(PRODUCTION_SETTINGS, DEVSTACK_SETTINGS)
     def test_the_settings_publish_paths_in_full(self, module):
-        assert schema_settings(module)["SCHEMA_PATH_PREFIX_TRIM"] is False
+        settings_values = schema_settings(module)
+        assert "SCHEMA_PATH_PREFIX_TRIM" not in settings_values
+        assert settings_values["SCHEMA_PATH_PREFIX"] == r"/api/(contentstore|authoring)"
 
     @ddt.data(PRODUCTION_SETTINGS, DEVSTACK_SETTINGS)
     def test_the_servers_serve_every_published_path(self, module):
         servers = schema_settings(module)["SERVERS"]
         assert [server["description"] for server in servers] == ["Public", "Local"]
         assert [server for server in servers if "/api/contentstore" in server["url"]] == []
-
-    @ddt.data(PRODUCTION_SETTINGS, DEVSTACK_SETTINGS)
-    def test_an_unset_public_host_is_left_out_of_the_servers(self, module):
-        servers = schema_settings(module, config_file=self.config_without_public_host())["SERVERS"]
-        assert [server["description"] for server in servers] == ["Local"]
-        assert all(server["url"] for server in servers)

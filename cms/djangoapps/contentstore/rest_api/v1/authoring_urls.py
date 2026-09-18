@@ -21,14 +21,11 @@ urlpatterns = [
         CourseVideoUploadsViewSet.as_view({"get": "retrieve", "delete": "destroy"}),
         name="course_video_detail",
     ),
-    # The three routes below stand behind the two above and are reached only by a
-    # request the ones above turned down: a course key the converter refuses
-    # because it is malformed or in the deprecated slash-separated form, or an
-    # address under a course that this API does not serve. They answer with the
-    # API error body, which a client can read, instead of the site's HTML error
-    # page. Order is what keeps them out of the way of real requests, and each
-    # accepts only addresses ending in a slash so that the redirect to the
-    # slash-terminated form keeps working.
+    # Reached only by a request the routes above turned down: a course key the
+    # converter refuses, or an address beneath a course that this API does not
+    # serve. They answer with the API error body rather than the site's HTML
+    # error page. Each matches only slash-terminated addresses, so the redirect
+    # to the slash-terminated form still happens first.
     path(
         "courses/<path:course_key>/videos/",
         UnknownRouteView.as_view(),
