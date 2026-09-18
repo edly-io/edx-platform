@@ -21,11 +21,11 @@ def lms_mark_legacy_paths_deprecated(result, generator, request, public):  # pyl
     """
     Mark the legacy slashless Enrollment v2 addresses ``deprecated: true``.
 
-    Conforming routes always end in a slash, so a slashless /v2/ path is by
-    construction a legacy address. Paths are post-SCHEMA_PATH_PREFIX_TRIM.
+    Conforming routes always end in a slash, so a slashless v2 path is by
+    construction a legacy address.
     """
     for path, path_item in result.get("paths", {}).items():
-        if not path.startswith("/v2/") or path.endswith("/"):
+        if not path.startswith("/api/enrollment/v2/") or path.endswith("/"):
             continue
         for operation in path_item.values():
             if isinstance(operation, dict):

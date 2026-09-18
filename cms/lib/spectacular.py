@@ -3,19 +3,19 @@
 import re
 
 # Legacy addresses of APIs migrated to /api/authoring/, marked deprecated for
-# their deprecation window. Paths are post-SCHEMA_PATH_PREFIX_TRIM.
+# their deprecation window.
 LEGACY_MIGRATED_PATH_PREFIXES = (
-    "/v1/xblock/",             # → /api/authoring/v1/xblocks/
-    "/v3/home/",               # → /api/authoring/v3/home/
-    "/v3/course_details/",     # → /api/authoring/v3/courses/{course_key}/details/
-    "/v3/authoring_grading/",  # → /api/authoring/v3/courses/{course_key}/grading/
-    "/v4/home/courses/",       # → /api/authoring/v4/courses/
+    "/api/contentstore/v1/xblock/",             # → /api/authoring/v1/xblocks/
+    "/api/contentstore/v3/home/",               # → /api/authoring/v3/home/
+    "/api/contentstore/v3/course_details/",     # → /api/authoring/v3/courses/{course_key}/details/
+    "/api/contentstore/v3/authoring_grading/",  # → /api/authoring/v3/courses/{course_key}/grading/
+    "/api/contentstore/v4/home/courses/",       # → /api/authoring/v4/courses/
 )
 
 # BFF surfaces, marked x-internal so clients can tell them from a stable
 # resource contract. Both the legacy and conforming mounts.
 INTERNAL_BFF_PATH_PREFIXES = (
-    "/v3/home/",
+    "/api/contentstore/v3/home/",
     "/api/authoring/v3/home/",
 )
 

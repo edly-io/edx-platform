@@ -2168,8 +2168,8 @@ SPECTACULAR_SETTINGS = {
         'drf_spectacular.hooks.postprocess_schema_enums',
         'lms.lib.spectacular.lms_mark_legacy_paths_deprecated',
     ],
+    # Used for tag extraction only; paths are emitted in full.
     'SCHEMA_PATH_PREFIX': '/api/enrollment',
-    'SCHEMA_PATH_PREFIX_TRIM': '/api/enrollment',
     # SERVERS is environment-specific (LMS_ROOT_URL differs per env) and is
     # set in devstack.py / production.py.
 }
