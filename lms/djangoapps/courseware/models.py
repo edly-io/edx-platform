@@ -102,7 +102,8 @@ class StudentModule(models.Model):
         app_label = "courseware"
         unique_together = (('student', 'module_state_key', 'course_id'),)
         indexes = [
-            models.Index(fields=['module_state_key', 'grade', 'student'], name="courseware_stats")
+            models.Index(fields=['module_state_key', 'grade', 'student'], name="courseware_stats"),
+            models.Index(fields=['course_id', 'modified'], name="courseware_course_modified"),
         ]
 
     # Internal state of the object
