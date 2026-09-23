@@ -1,16 +1,24 @@
-"""Tests for the LMS drf-spectacular hooks."""
+"""Tests for the LMS drf-spectacular hooks and schema class."""
+
+from unittest import mock
 
 from django.test import SimpleTestCase
+from django.urls import path
+from drf_spectacular.generators import SchemaGenerator
+from drf_spectacular.settings import spectacular_settings
+from rest_framework import serializers, viewsets
+from rest_framework.response import Response
+from rest_framework.settings import api_settings
 
-from lms.lib.spectacular import lms_api_filter, lms_mark_legacy_paths_deprecated
+from lms.lib.spectacular import LmsAutoSchema, lms_api_filter, lms_mark_legacy_paths_deprecated
 
 
-def _endpoint(path):
-    return (path, path, "GET", None)
+def _endpoint(route):
+    return (route, route, "GET", None)
 
 
-def _schema(*paths):
-    return {"paths": {path: {"get": {"operationId": path}} for path in paths}}
+def _schema(*routes):
+    return {"paths": {route: {"get": {"operationId": route}} for route in routes}}
 
 
 class LmsApiFilterTest(SimpleTestCase):
@@ -50,3 +58,43 @@ class LmsMarkLegacyPathsDeprecatedTest(SimpleTestCase):
         """Paths are not trimmed, so every key resolves against LMS_ROOT_URL."""
         result = lms_mark_legacy_paths_deprecated(_schema("/api/enrollment/v2/enrollments/"), None, None, False)
         assert list(result["paths"]) == ["/api/enrollment/v2/enrollments/"]
+
+
+class _EmptySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    pass
+
+
+class _EnrollmentsViewSet(viewsets.GenericViewSet):
+    """Stand-in for a view served on both a legacy slashless and a conforming mount."""
+
+    schema = LmsAutoSchema()
+    serializer_class = _EmptySerializer
+
+    def list(self, request):
+        return Response([])
+
+    def retrieve(self, request, pk=None):
+        return Response({})
+
+
+class LmsAutoSchemaTest(SimpleTestCase):
+    """Dual mounts get deterministic operationIds instead of registration-order numeral suffixes."""
+
+    def test_is_the_default_schema_class(self):
+        """Views without their own ``schema`` pick this up via REST_FRAMEWORK settings."""
+        assert api_settings.DEFAULT_SCHEMA_CLASS is LmsAutoSchema
+
+    def test_conforming_keeps_clean_id_and_legacy_is_suffixed(self):
+        patterns = [
+            path("api/enrollment/v2/enrollments", _EnrollmentsViewSet.as_view({"get": "list"})),
+            path("api/enrollment/v2/enrollments/", _EnrollmentsViewSet.as_view({"get": "list"})),
+            path("api/enrollment/v2/enrollment/<str:pk>", _EnrollmentsViewSet.as_view({"get": "retrieve"})),
+            path("api/enrollment/v2/courses/<str:pk>/", _EnrollmentsViewSet.as_view({"get": "retrieve"})),
+        ]
+        with mock.patch.object(spectacular_settings, "SCHEMA_PATH_PREFIX", "/api/enrollment"):
+            schema = SchemaGenerator(patterns=patterns).get_schema(request=None, public=True)
+        ids = {p: op["operationId"] for p, item in schema["paths"].items() for op in item.values()}
+        assert ids["/api/enrollment/v2/enrollments/"] == "v2_enrollments_list"
+        assert ids["/api/enrollment/v2/enrollments"] == "v2_enrollments_list_legacy"
+        assert ids["/api/enrollment/v2/courses/{id}/"] == "v2_courses_retrieve"
+        assert ids["/api/enrollment/v2/enrollment/{id}"] == "v2_enrollment_retrieve_legacy"
