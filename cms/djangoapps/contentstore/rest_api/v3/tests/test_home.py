@@ -14,6 +14,9 @@ from django.urls import resolve, reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from cms.djangoapps.contentstore.rest_api.v3.views.home import HomeViewSet
+from cms.lib.spectacular import CmsAutoSchema
+
 _REQUIRED_ERROR_FIELDS = ("type", "title", "status", "detail", "instance")
 
 
@@ -94,16 +97,21 @@ class TestHomeViewSetUrlStructure(APITestCase):
         assert reverse("authoring_v3:home_courses") == "/api/authoring/v3/home/courses/"
         assert reverse("authoring_v3:home_libraries") == "/api/authoring/v3/home/libraries/"
 
-    def test_conforming_and_legacy_routes_share_view(self):
+    def test_conforming_and_legacy_routes_share_view_and_actions(self):
         pairs = (
             ("cms.djangoapps.contentstore:v3:home-list", "authoring_v3:home"),
             ("cms.djangoapps.contentstore:v3:home-courses", "authoring_v3:home_courses"),
             ("cms.djangoapps.contentstore:v3:home-libraries", "authoring_v3:home_libraries"),
         )
         for legacy_name, conforming_name in pairs:
-            legacy_cls = resolve(reverse(legacy_name)).func.cls
-            conforming_cls = resolve(reverse(conforming_name)).func.cls
-            assert conforming_cls is legacy_cls, f"{conforming_name} must serve the same view as {legacy_name}"
+            legacy = resolve(reverse(legacy_name)).func
+            conforming = resolve(reverse(conforming_name)).func
+            assert conforming.cls is legacy.cls, f"{conforming_name} must serve the same view as {legacy_name}"
+            assert conforming.actions == legacy.actions, f"{conforming_name} must map the same actions as {legacy_name}"
+
+    def test_view_schema_chains_the_cms_schema_class(self):
+        """A per-view ``schema`` bypasses DEFAULT_SCHEMA_CLASS, so it must subclass CmsAutoSchema itself."""
+        assert isinstance(HomeViewSet.schema, CmsAutoSchema)
 
     def test_unauthenticated_conforming_route_returns_standardized_401(self):
         """The conforming mount carries the same contract, error envelope included."""

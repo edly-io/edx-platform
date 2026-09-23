@@ -1,16 +1,24 @@
-"""Tests for the CMS drf-spectacular hooks."""
+"""Tests for the CMS drf-spectacular hooks and schema class."""
+
+from unittest import mock
 
 from django.test import SimpleTestCase
+from django.urls import path
+from drf_spectacular.generators import SchemaGenerator
+from drf_spectacular.settings import spectacular_settings
+from rest_framework import serializers, viewsets
+from rest_framework.response import Response
+from rest_framework.settings import api_settings
 
-from cms.lib.spectacular import cms_api_filter, cms_mark_migrated_paths
+from cms.lib.spectacular import CmsAutoSchema, cms_api_filter, cms_mark_migrated_paths
 
 
-def _endpoint(path):
-    return (path, path, "GET", None)
+def _endpoint(route):
+    return (route, route, "GET", None)
 
 
-def _schema(*paths):
-    return {"paths": {path: {"get": {"operationId": path}} for path in paths}}
+def _schema(*routes):
+    return {"paths": {route: {"get": {"operationId": route}} for route in routes}}
 
 
 class CmsApiFilterTest(SimpleTestCase):
@@ -64,3 +72,36 @@ class CmsMarkMigratedPathsTest(SimpleTestCase):
         """Paths are not trimmed, so every key resolves against a service-root server."""
         result = cms_mark_migrated_paths(_schema("/api/contentstore/v1/xblock/"), None, None, False)
         assert list(result["paths"]) == ["/api/contentstore/v1/xblock/"]
+
+
+class _EmptySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    pass
+
+
+class _HomeViewSet(viewsets.GenericViewSet):
+    """Stand-in for a viewset served on both a legacy and a conforming mount."""
+
+    schema = CmsAutoSchema()
+    serializer_class = _EmptySerializer
+
+    def list(self, request):
+        return Response([])
+
+
+class CmsAutoSchemaTest(SimpleTestCase):
+    """Dual mounts get deterministic operationIds instead of registration-order numeral suffixes."""
+
+    def test_is_the_default_schema_class(self):
+        """Views without their own ``schema`` pick this up via REST_FRAMEWORK settings."""
+        assert api_settings.DEFAULT_SCHEMA_CLASS is CmsAutoSchema
+
+    def test_conforming_keeps_clean_id_and_legacy_is_suffixed(self):
+        patterns = [
+            path("api/contentstore/v3/home/", _HomeViewSet.as_view({"get": "list"})),
+            path("api/authoring/v3/home/", _HomeViewSet.as_view({"get": "list"})),
+        ]
+        with mock.patch.object(spectacular_settings, "SCHEMA_PATH_PREFIX", r"/api/(contentstore|authoring)"):
+            schema = SchemaGenerator(patterns=patterns).get_schema(request=None, public=True)
+        ids = {p: op["operationId"] for p, item in schema["paths"].items() for op in item.values()}
+        assert ids["/api/authoring/v3/home/"] == "v3_home_list"
+        assert ids["/api/contentstore/v3/home/"] == "v3_home_list_legacy"

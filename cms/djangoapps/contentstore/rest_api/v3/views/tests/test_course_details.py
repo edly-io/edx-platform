@@ -403,10 +403,11 @@ class TestCourseDetailsViewSetUrlStructure(APITestCase):
             f"/api/authoring/v3/courses/{TEST_COURSE_ID}/details/"
         )
 
-    def test_conforming_and_legacy_routes_share_view(self):
-        legacy_cls = resolve(self._legacy_url()).func.cls
-        conforming_cls = resolve(self._conforming_url()).func.cls
-        assert conforming_cls is legacy_cls
+    def test_conforming_and_legacy_routes_share_view_and_actions(self):
+        legacy = resolve(self._legacy_url()).func
+        conforming = resolve(self._conforming_url()).func
+        assert conforming.cls is legacy.cls
+        assert conforming.actions == legacy.actions
 
     def test_invalid_course_key_is_404_on_conforming_route(self):
         # The shared course_key converter rejects unparseable keys with a

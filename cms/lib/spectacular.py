@@ -2,6 +2,8 @@
 
 import re
 
+from drf_spectacular.openapi import AutoSchema
+
 # Legacy addresses of APIs migrated to /api/authoring/, marked deprecated for
 # their deprecation window.
 LEGACY_MIGRATED_PATH_PREFIXES = (
@@ -39,6 +41,24 @@ def cms_api_filter(endpoints):
             filtered.append((path, path_regex, method, callback))
 
     return filtered
+
+
+class CmsAutoSchema(AutoSchema):
+    """
+    Give the legacy address of a migrated API a distinct operationId.
+
+    A legacy mount and its conforming mount serve the same view and tokenize to
+    the same operationId, so drf-spectacular would otherwise break the tie with
+    a numeral suffix in registration order. The conforming address keeps the
+    clean id; the deprecated one is suffixed ``_legacy``.
+    """
+
+    def get_operation_id(self):
+        """Suffix the legacy address so the pair never shares an operationId."""
+        operation_id = super().get_operation_id()
+        if self.path.startswith(LEGACY_MIGRATED_PATH_PREFIXES):
+            return f"{operation_id}_legacy"
+        return operation_id
 
 
 def cms_mark_migrated_paths(result, generator, request, public):  # pylint: disable=unused-argument

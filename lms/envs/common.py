@@ -2182,6 +2182,8 @@ SPECTACULAR_SETTINGS = {
     # SERVERS is environment-specific (LMS_ROOT_URL differs per env) and is
     # set in devstack.py / production.py.
 }
+# Legacy slashless Enrollment v2 addresses get distinct operationIds (lms/lib/spectacular.py).
+REST_FRAMEWORK['DEFAULT_SCHEMA_CLASS'] = 'lms.lib.spectacular.LmsAutoSchema'  # noqa: F405
 
 
 STATIC_TEMPLATE_VIEW_DEFAULT_FILE_EXTENSION = 'html'

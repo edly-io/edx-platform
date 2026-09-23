@@ -246,10 +246,13 @@ class XblockViewSetUrlStructureTest(ModuleStoreTestCase, APITestCase):
         assert _authoring_list_url() == "/api/authoring/v1/xblocks/"
         assert _authoring_detail_url() == f"/api/authoring/v1/xblocks/{TEST_LOCATOR}/"
 
-    def test_conforming_and_legacy_routes_share_view(self):
-        legacy_cls = resolve(_detail_url()).func.cls
-        conforming_cls = resolve(_authoring_detail_url()).func.cls
-        assert conforming_cls is legacy_cls
+    def test_conforming_and_legacy_routes_share_view_and_actions(self):
+        pairs = ((_list_url(), _authoring_list_url()), (_detail_url(), _authoring_detail_url()))
+        for legacy_url, conforming_url in pairs:
+            legacy = resolve(legacy_url).func
+            conforming = resolve(conforming_url).func
+            assert conforming.cls is legacy.cls
+            assert conforming.actions == legacy.actions, f"{conforming_url} must map the same actions as {legacy_url}"
 
     def test_invalid_usage_key_is_404_on_conforming_route(self):
         # The shared usage_key converter rejects unparseable keys with a

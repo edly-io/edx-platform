@@ -420,10 +420,10 @@ class TestEnrollmentUrlStructure(APITestCase):
         assert slashless.url_name == "enrollment-v2-admin-list"
         assert slashed.url_name == "enrollment_admin_list"
 
-    def test_legacy_retrieve_routes_have_unique_names(self):
+    def test_legacy_retrieve_routes_resolve_under_distinct_names(self):
         """
-        The two legacy retrieve forms no longer share one URL name (Django
-        disambiguated them only by argument signature).
+        The two legacy retrieve forms resolve under distinct names; the old
+        shared name stays reversible as an alias (see below).
         """
         composite = resolve(
             f"/api/enrollment/v2/enrollment/{self.USERNAME},{self.COURSE_ID}"
@@ -432,6 +432,16 @@ class TestEnrollmentUrlStructure(APITestCase):
         assert composite.func.cls is course_only.func.cls
         assert composite.url_name == "enrollment-v2-retrieve"
         assert course_only.url_name == "enrollment-v2-retrieve-own"
+
+    def test_pre_migration_url_names_still_reverse(self):
+        """Out-of-tree callers of the old names keep working for the deprecation window."""
+        assert reverse("v2:enrollment-v2-roles") == "/api/enrollment/v2/roles/"
+        assert reverse(
+            "v2:enrollment-v2-retrieve", kwargs={"course_id": self.COURSE_ID},
+        ) == f"/api/enrollment/v2/enrollment/{self.COURSE_ID}"
+        # Resolution is unaffected by the aliases: the first-registered names win.
+        assert resolve("/api/enrollment/v2/roles/").url_name == "user_roles"
+        assert resolve(f"/api/enrollment/v2/enrollment/{self.COURSE_ID}").url_name == "enrollment-v2-retrieve-own"
 
     def test_invalid_course_key_is_404_on_conforming_route(self):
         # The shared course_key converter rejects unparseable keys with a

@@ -14,9 +14,11 @@ from rest_framework.test import APIClient, APITestCase
 
 from cms.djangoapps.contentstore.rest_api.v4.views.home import (
     _LEGACY_ORDER_DEPRECATION_HEADER,
+    HomeCoursesViewSet,
 )
 from cms.djangoapps.contentstore.tests.utils import CourseTestCase
 from cms.djangoapps.contentstore.utils import reverse_course_url
+from cms.lib.spectacular import CmsAutoSchema
 from openedx.core.djangoapps.content.course_overviews.tests.factories import (
     CourseOverviewFactory,
 )
@@ -32,6 +34,10 @@ class TestHomeCoursesViewSetPermissions(APITestCase):
     def setUp(self):
         super().setUp()
         self.list_url = reverse("cms.djangoapps.contentstore:v4:home-courses-list")
+
+    def test_view_schema_chains_the_cms_schema_class(self):
+        """A per-view ``schema`` bypasses DEFAULT_SCHEMA_CLASS, so it must subclass CmsAutoSchema itself."""
+        assert isinstance(HomeCoursesViewSet.schema, CmsAutoSchema)
 
     def test_unauthenticated_returns_401(self):
         """Unauthenticated GET /v4/home/courses/ must return 401."""
@@ -285,12 +291,11 @@ class TestHomeCoursesViewSetUrlStructure(APITestCase):
     def test_conforming_url_reverses_to_expected_path(self):
         assert reverse("authoring_v4:course_list") == "/api/authoring/v4/courses/"
 
-    def test_conforming_and_legacy_routes_share_view(self):
-        legacy_cls = resolve(
-            reverse("cms.djangoapps.contentstore:v4:home-courses-list")
-        ).func.cls
-        conforming_cls = resolve(reverse("authoring_v4:course_list")).func.cls
-        assert conforming_cls is legacy_cls
+    def test_conforming_and_legacy_routes_share_view_and_actions(self):
+        legacy = resolve(reverse("cms.djangoapps.contentstore:v4:home-courses-list")).func
+        conforming = resolve(reverse("authoring_v4:course_list")).func
+        assert conforming.cls is legacy.cls
+        assert conforming.actions == legacy.actions
 
     def test_unauthenticated_returns_401(self):
         response = APIClient().get(reverse("authoring_v4:course_list"))

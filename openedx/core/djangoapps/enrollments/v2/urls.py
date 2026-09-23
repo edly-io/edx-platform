@@ -24,11 +24,13 @@ Conforming explicit paths:
     GET    /enrollments/                              (name: enrollment_admin_list)
     GET    /enrollments/{username},{course_key}/      (name: enrollment_detail)
     GET    /courses/{course_key}/                     (name: course_enrollment_detail)
-    GET    /roles/                                    (name: user_roles)
+    GET    /roles/                                    (name: user_roles;
+                                                        alias: enrollment-v2-roles)
 
 Legacy paths (deprecated, kept for their deprecation window):
     GET    /enrollment/{username},{course_key}   (name: enrollment-v2-retrieve)
-    GET    /enrollment/{course_key}              (name: enrollment-v2-retrieve-own)
+    GET    /enrollment/{course_key}              (name: enrollment-v2-retrieve-own;
+                                                   alias: enrollment-v2-retrieve)
     GET    /enrollments                           (name: enrollment-v2-admin-list)
     GET    /course/{course_key}                   (name: enrollment-v2-course-detail)
 """
@@ -69,6 +71,9 @@ urlpatterns = [
         name="course_enrollment_detail",
     ),
     path("roles/", UserRolesView.as_view(), name="user_roles"),
+    # The pre-migration URL names stay reversible for the deprecation window:
+    # same path registered again under the old name, resolution unaffected.
+    path("roles/", UserRolesView.as_view(), name="enrollment-v2-roles"),
     # Legacy routes, kept for their deprecation window. The admin list's
     # optional-slash pattern is narrowed to slashless only, since the slashed
     # address is now served by the conforming route above.
@@ -87,9 +92,12 @@ urlpatterns = [
     re_path(
         rf"^enrollment/{settings.COURSE_ID_PATTERN}$",
         EnrollmentRetrieveView.as_view(),
-        # Was sharing ``enrollment-v2-retrieve`` with the composite-key form
-        # above; nothing reverses it, so it gets its own name.
         name="enrollment-v2-retrieve-own",
+    ),
+    re_path(
+        rf"^enrollment/{settings.COURSE_ID_PATTERN}$",
+        EnrollmentRetrieveView.as_view(),
+        name="enrollment-v2-retrieve",
     ),
     re_path(
         rf"^course/{settings.COURSE_ID_PATTERN}$",
