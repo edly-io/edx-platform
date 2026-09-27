@@ -1616,6 +1616,7 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
     )
 
     def superseded_schema(self):
+        """Run the post-processing hook over the upload paths and one of every other version."""
         paths = {
             "/api/contentstore/v0/videos/uploads/{course_id}": {"post": {}},
             "/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}": {
