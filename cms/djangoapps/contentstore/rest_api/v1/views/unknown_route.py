@@ -10,13 +10,12 @@ from rest_framework.views import APIView
 @extend_schema(exclude=True)
 class UnknownRouteView(StandardizedErrorMixin, APIView):
     """
-    Answer an address under a course that no endpoint of this API serves.
+    Answer a video address whose course key the conforming routes refuse.
 
-    A course key that is malformed or in the deprecated slash-separated form, or
-    a misspelt address beneath a course, would otherwise be answered by the
-    site's HTML error page, which an API client cannot read. Nothing here needs
-    the caller's identity, so the answer is the same for everyone: the address
-    holds no resource.
+    A key that is malformed or in the deprecated slash-separated form fails to
+    resolve, and would otherwise be answered by the site's HTML error page, which
+    an API client cannot read. Nothing here needs the caller's identity, so the
+    answer is the same for everyone: the address holds no resource.
     """
 
     permission_classes = (AllowAny,)

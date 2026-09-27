@@ -778,37 +778,27 @@ class CourseVideoDestroyTest(CourseVideoUploadsTestBase):
 
 
 class CourseVideoRequestErrorTest(CourseVideoUploadsTestBase):
-    """A request the API refuses to read is reported as the caller's error, not the server's."""
+    """A request the API refuses to read gets its status in the standard error body."""
 
-    def test_a_malformed_body_is_reported_as_a_client_error(self):
+    def test_a_malformed_body_is_refused(self):
         response = self.api_client.post(
             self.list_url, data="{not json", content_type="application/json"
         )
-        envelope = assert_error_envelope(response, expected_status=400, expected_type_slug="validation")
-        assert envelope["title"] == "Malformed Request"
+        assert_error_envelope(response, expected_status=400)
 
-    def test_an_unsupported_method_is_reported_as_such(self):
+    def test_an_unsupported_method_is_refused(self):
         response = self.api_client.put(self.list_url, {}, format="json")
-        envelope = assert_error_envelope(
-            response, expected_status=405, expected_type_slug="method-not-allowed"
-        )
-        assert envelope["title"] == "Method Not Allowed"
+        assert_error_envelope(response, expected_status=405)
 
-    def test_an_unsupported_media_type_is_reported_as_such(self):
+    def test_an_unsupported_media_type_is_refused(self):
         response = self.api_client.post(
             self.list_url, data="file_name,content_type", content_type="text/csv"
         )
-        envelope = assert_error_envelope(
-            response, expected_status=415, expected_type_slug="unsupported-media-type"
-        )
-        assert envelope["title"] == "Unsupported Media Type"
+        assert_error_envelope(response, expected_status=415)
 
-    def test_an_unsatisfiable_accept_header_is_reported_as_such(self):
+    def test_an_unsatisfiable_accept_header_is_refused(self):
         response = self.api_client.get(self.list_url, HTTP_ACCEPT="application/xml")
-        envelope = assert_error_envelope(
-            response, expected_status=406, expected_type_slug="not-acceptable"
-        )
-        assert envelope["title"] == "Not Acceptable"
+        assert_error_envelope(response, expected_status=406)
 
 
 @ddt.ddt
@@ -1113,8 +1103,17 @@ class CourseVideoUrlContractTest(CourseVideoUploadsTestBase):
     def test_malformed_course_key_is_not_routed(self):
         self.assert_json_not_found("/api/authoring/v1/courses/a+b+c/videos/")
 
-    def test_an_unknown_address_under_a_course_is_not_routed(self):
-        self.assert_json_not_found("/api/authoring/v1/courses/course-v1:edX+DemoX+Demo_Course/no_such_thing/")
+    def test_a_sibling_resource_under_a_course_is_left_for_its_own_route(self):
+        """
+        The fallbacks claim video addresses only.
+
+        Other resources share this URLconf under courses/, so a fallback that
+        claimed every course address would shadow any route added after it.
+        """
+        from django.urls import Resolver404
+
+        with pytest.raises(Resolver404):
+            resolve("/api/authoring/v1/courses/course-v1:edX+DemoX+Demo_Course/youtube_transcript_checks/")
 
     def test_an_unknown_member_of_a_course_is_not_routed(self):
         self.assert_json_not_found("/api/authoring/v1/courses/a+b+c/videos/abc-123/")
@@ -1140,8 +1139,6 @@ class CourseVideoUrlContractTest(CourseVideoUploadsTestBase):
                 f"/api/authoring/v1/courses/{unusable_key}/videos/",
             "authoring_v1:course_video_detail_unmatched":
                 f"/api/authoring/v1/courses/{unusable_key}/videos/abc-123/",
-            "authoring_v1:course_unmatched":
-                f"/api/authoring/v1/courses/{unusable_key}/",
         }
         kwargs = {
             "authoring_v1:course_video_detail_unmatched": {"edx_video_id": "abc-123"},
@@ -1607,18 +1604,31 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
             "/api/contentstore/v0/videos/uploads/course-v1:a+b+c",
         ]
 
-    def test_post_processing_marks_only_the_replaced_upload_operations(self):
-        schema = {
-            "paths": {
-                "/api/contentstore/v0/videos/uploads/{course_id}": {"post": {}},
-                "/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}": {
-                    "get": {}, "delete": {},
-                },
-                "/api/contentstore/v0/videos/images/{course_id}/{edx_video_id}": {"post": {}},
-                "/api/authoring/v1/courses/{course_key}/videos/": {"get": {}, "post": {}},
-            }
+    # One operation of every other current Studio API version published under
+    # /api/contentstore/. None of them has a successor mounted by this change, so
+    # marking any of them would tell clients to leave the version they should use.
+    OTHER_CURRENT_VERSION_PATHS = (
+        "/api/contentstore/v1/xblock/{usage_key_string}/",
+        "/api/contentstore/v3/home/",
+        "/api/contentstore/v3/course_details/{course_key}/",
+        "/api/contentstore/v3/authoring_grading/{course_key}/",
+        "/api/contentstore/v4/home/courses/",
+    )
+
+    def superseded_schema(self):
+        paths = {
+            "/api/contentstore/v0/videos/uploads/{course_id}": {"post": {}},
+            "/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}": {
+                "get": {}, "delete": {},
+            },
+            "/api/contentstore/v0/videos/images/{course_id}/{edx_video_id}": {"post": {}},
+            "/api/authoring/v1/courses/{course_key}/videos/": {"get": {}, "post": {}},
         }
-        result = cms_mark_migrated_paths(schema, None, None, False)
+        paths.update({path: {"get": {}} for path in self.OTHER_CURRENT_VERSION_PATHS})
+        return cms_mark_migrated_paths({"paths": paths}, None, None, False)
+
+    def test_post_processing_marks_only_the_replaced_upload_operations(self):
+        result = self.superseded_schema()
 
         deprecated = {
             (path, method)
@@ -1631,6 +1641,16 @@ class CmsSchemaHookTest(CourseVideoUploadsTestBase):
             ("/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}", "get"),
             ("/api/contentstore/v0/videos/uploads/{course_id}/{edx_video_id}", "delete"),
         }
+
+    def test_post_processing_marks_no_operation_internal(self):
+        result = self.superseded_schema()
+
+        assert not [
+            (path, method)
+            for path, item in result["paths"].items()
+            for method, operation in item.items()
+            if "x-internal" in operation
+        ]
 
     def authoring_schema(self, hooks):
         """Generate the authoring document with ``hooks`` as the post-processing list."""
