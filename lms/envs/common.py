@@ -2086,6 +2086,9 @@ INSTALLED_APPS = [
     # MFE API
     'lms.djangoapps.mfe_config_api',
 
+    # Uber Learn Progress API
+    'lms.djangoapps.uber_learn',
+
     # Notifications
     'openedx.core.djangoapps.notifications',
 

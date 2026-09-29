@@ -698,6 +698,10 @@
             if (response.entrance_exam_passed) {
               window.parent.postMessage({ type: "entranceExam.passed" }, "*");
             }
+            // Notify the Uber Learn MFE of problem completion.
+            if (window.uberLearn) {
+              window.uberLearn.onCompleted(response.success === "correct");
+            }
             break;
           default:
             that.saveNotification.hide();

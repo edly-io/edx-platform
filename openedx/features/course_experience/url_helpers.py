@@ -186,15 +186,31 @@ def get_learning_mfe_home_url(
 
 def is_request_from_learning_mfe(request: HttpRequest):
     """
-    Returns whether the given request was made by the frontend-app-learning MFE.
+    Returns whether the given request was made by the frontend-app-learning MFE
+    or the Uber Learn MFE.
     """
+    referer = request.META.get('HTTP_REFERER', '')
+
+    # Check the standard Learning MFE origin.
     url_str = configuration_helpers.get_value(
         'LEARNING_MICROFRONTEND_URL',
         settings.LEARNING_MICROFRONTEND_URL,
     )
-    if not url_str:
-        return False
+    if url_str:
+        url = urlparse(url_str)
+        mfe_url_base = f'{url.scheme}://{url.netloc}'
+        if referer.startswith(mfe_url_base):
+            return True
 
-    url = urlparse(url_str)
-    mfe_url_base = f'{url.scheme}://{url.netloc}'
-    return request.META.get('HTTP_REFERER', '').startswith(mfe_url_base)
+    # Also accept requests from the Uber Learn MFE when configured.
+    uber_url_str = configuration_helpers.get_value(
+        'UBER_LEARN_MICROFRONTEND_URL',
+        getattr(settings, 'UBER_LEARN_MICROFRONTEND_URL', ''),
+    )
+    if uber_url_str:
+        uber_url = urlparse(uber_url_str)
+        uber_url_base = f'{uber_url.scheme}://{uber_url.netloc}'
+        if referer.startswith(uber_url_base):
+            return True
+
+    return False

@@ -156,6 +156,10 @@ VideoCompletionHandler.prototype = {
         this.isComplete = true;
         this.lastSentTime = currentTime;
         this.state.el.trigger('complete');
+        // Notify the Uber Learn MFE that the video is complete.
+        if (window.uberLearn) {
+            window.uberLearn.onVideoEnded();
+        }
         if (this.state.config.publishCompletionUrl) {
             $.ajax({
                 type: 'POST',

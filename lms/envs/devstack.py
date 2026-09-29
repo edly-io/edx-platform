@@ -293,6 +293,7 @@ LEARNER_HOME_MICROFRONTEND_URL = 'http://localhost:1996'
 # pylint: disable=line-too-long
 LEARNING_MICROFRONTEND_URL = os.environ.get("LEARNING_MICROFRONTEND_URL", "http://localhost:2000")  # noqa: F405
 LEARNING_MICROFRONTEND_NETLOC = os.environ.get("LEARNING_MICROFRONTEND_NETLOC", urlparse(LEARNING_MICROFRONTEND_URL).netloc)  # noqa: F405
+UBER_LEARN_MICROFRONTEND_URL = os.environ.get("UBER_LEARN_MICROFRONTEND_URL", "http://apps.local.openedx.io:2011")
 
 ###################### Cross-domain requests ######################
 ENABLE_CORS_HEADERS = True

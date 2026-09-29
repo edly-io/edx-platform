@@ -50,6 +50,8 @@ ${static.get_page_title_breadcrumbs(course_name())}
   ## then add a base tag in the head (of the iframe document) to force links
   ## in this iframe to navigate the parent window.
   <base target="_parent">
+  ## Inject Uber Learn design token overrides and XBlock bridge script.
+  <link rel="stylesheet" type="text/css" href="${static.url('css/uber-learn.css')}">
 %endif
 
 ## Expose the $$course_id variable for course-team-authored JS.
@@ -75,6 +77,11 @@ ${static.get_page_title_breadcrumbs(course_name())}
   % endif
 
 ${HTML(fragment.foot_html())}
+
+% if is_learning_mfe:
+  ## XBlock bridge: fires postMessage events consumed by the Uber Learn MFE.
+  <script type="text/javascript" src="${static.url('js/uber-learn-xblock.js')}"></script>
+% endif
 
 </%block>
 
@@ -186,6 +193,7 @@ ${HTML(fragment.foot_html())}
 
         window.parent.postMessage({
             type: 'plugin.resize',
+            version: 1,
             payload: {
               width: newWidth,
               height: newHeight,

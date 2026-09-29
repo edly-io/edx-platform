@@ -193,6 +193,9 @@ urlpatterns = [
     path('api-admin/', include(('openedx.core.djangoapps.api_admin.urls', 'openedx.core.djangoapps.api_admin'),
                                namespace='api_admin')),
 
+    # Uber Learn Progress API
+    path('api/uber_learn/v1/', include('lms.djangoapps.uber_learn.urls')),
+
     # Learner Home and Program Dashboard
     path('api/learner_home/', include('lms.djangoapps.learner_home.urls', namespace='learner_home')),
     path('dashboard/', include('lms.djangoapps.learner_dashboard.urls')),
