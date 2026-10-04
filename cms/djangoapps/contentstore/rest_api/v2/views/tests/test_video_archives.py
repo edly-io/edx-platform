@@ -4,13 +4,12 @@ Unit tests for the course video archives API.
 import io
 import json
 import zipfile
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlencode
 
 import ddt
 import pytest
-import pytz
 import requests
 from django.core.signals import got_request_exception
 from django.urls import Resolver404, resolve, reverse
@@ -119,7 +118,7 @@ class VideoArchiveTestBase(CourseTestCase):
             "duration": 42.0,
             "status": "file_complete",
             "courses": [str(key) for key in (course_key, *also_in)],
-            "created": datetime.now(pytz.utc),
+            "created": datetime.now(UTC),
             "encoded_videos": [
                 {"profile": profile, "url": url, "file_size": 1600, "bitrate": 100}
                 for profile, url in encodings
