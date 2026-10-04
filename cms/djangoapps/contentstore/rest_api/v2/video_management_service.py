@@ -1,8 +1,8 @@
-"""Service layer for the video usage resources of a course."""
+"""Service layer for the video usage and video archive resources of a course."""
 
 from rest_framework.exceptions import NotFound
 
-from cms.djangoapps.contentstore.video_storage_handlers import get_video_usage_path
+from cms.djangoapps.contentstore.video_storage_handlers import create_video_zip, get_video_usage_path
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
 
@@ -28,3 +28,14 @@ def get_course_video_usages(course_key, edx_video_id):
     """
     ensure_course_exists(course_key)
     return get_video_usage_path(course_key, edx_video_id)
+
+
+def create_course_video_archive(course_key, files):
+    """
+    Return a streaming zip response holding the requested videos of the course.
+
+    Every ``files[].url`` must be one of the course's own encoded-video URLs;
+    otherwise ``ValidationError`` is raised before anything is fetched. The
+    archive is assembled while it is sent and is not stored.
+    """
+    return create_video_zip(str(course_key), files)

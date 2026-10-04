@@ -7,6 +7,8 @@ import re
 SUPERSEDED_PATH_PREFIXES = (
     # → /api/authoring/v2/courses/{course_key}/video_usages/{edx_video_id}/
     "/api/contentstore/v1/videos/{course_id}/{edx_video_id}/usage",
+    # → /api/authoring/v2/courses/{course_key}/video_archives/
+    "/api/contentstore/v1/videos/{course_id}/download",
 )
 
 
