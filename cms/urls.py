@@ -360,6 +360,10 @@ urlpatterns += [
     path('api/contentstore/', include('cms.djangoapps.contentstore.rest_api.urls'))
 ]
 
+urlpatterns += [
+    path('api/authoring/v2/', include('cms.djangoapps.contentstore.rest_api.v2.authoring_urls')),
+]
+
 # Content tagging
 urlpatterns += [
     path('api/content_tagging/', include(('openedx.core.djangoapps.content_tagging.urls', 'content_tagging'))),

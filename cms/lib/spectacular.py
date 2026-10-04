@@ -4,7 +4,10 @@ import re
 
 # Path prefixes of operations superseded by a newer version, kept for their
 # deprecation window.
-SUPERSEDED_PATH_PREFIXES = ()
+SUPERSEDED_PATH_PREFIXES = (
+    # → /api/authoring/v2/courses/{course_key}/video_usages/{edx_video_id}/
+    "/api/contentstore/v1/videos/{course_id}/{edx_video_id}/usage",
+)
 
 
 def cms_api_filter(endpoints):
