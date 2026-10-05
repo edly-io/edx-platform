@@ -96,8 +96,9 @@ class Command(BaseCommand):
                 resume.mark_done(out_dir, scope_data['slug'], table)
                 self.stdout.write(f"dumped {table}: {rows} rows")
             except Exception as exc:  # pylint: disable=broad-except
-                mf.update_table(table, status="error", error=str(exc))
-                self.stderr.write(self.style.ERROR(f"ERROR dumping {table}: {exc}"))
+                err = dbutil.describe_error(exc)
+                mf.update_table(table, status="error", error=err)
+                self.stderr.write(self.style.ERROR(f"ERROR dumping {table}: {err}"))
 
         status = mf.finalize()
         self.stdout.write(f"manifest status: {status}")

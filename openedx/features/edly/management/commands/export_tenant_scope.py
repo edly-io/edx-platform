@@ -16,6 +16,7 @@ Usage:
     python manage.py lms export_tenant_scope MIT --dry-run
 """
 import json
+import os
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -39,6 +40,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        os.umask(0o077)  # scope.json names the tenant's org/courses; keep consistent with the other export commands
+
         with connection.cursor() as cursor:
             try:
                 resolved = resolve_scope(cursor, options['slug'])

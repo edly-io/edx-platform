@@ -97,6 +97,17 @@ def _write_defaults_file(conn_params: dict) -> str:
     return path
 
 
+def describe_error(exc) -> str:
+    """str(exc) plus mysqldump's captured stderr (CalledProcessError only), capped."""
+    msg = str(exc)
+    stderr = getattr(exc, "stderr", None)
+    if stderr:
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", "replace")
+        msg += f" | stderr: {stderr.strip()[:2000]}"
+    return msg
+
+
 def _run_mysqldump(conn_params: dict, table: str, where_clause: str, out_path, *, append: bool, no_data: bool) -> None:
     assert no_data or where_clause not in ("", "1=1"), f"refusing unscoped dump for {table}"
     defaults_path = _write_defaults_file(conn_params)

@@ -401,4 +401,6 @@ ALL_TIER_TABLES = TIER_3 + TIER_5 + TIER_6 + TIER_7 + TIER_8
 # of these tables reaches a terminal status, whichever subcommand produced
 # it -- export_tenant_mysql or export_tenant_csmh).
 CSMH_TABLE = "coursewarehistoryextended_studentmodulehistoryextended"
-EXPECTED_TABLES = ALL_TIER_TABLES + [CSMH_TABLE]
+# Manifest key (not a table) for the OLX course export, written by export_tenant_olx.
+OLX_KEY = "olx"
+EXPECTED_TABLES = ALL_TIER_TABLES + [CSMH_TABLE, OLX_KEY]

@@ -50,11 +50,18 @@ class Manifest:
 
     def _recompute_status(self) -> None:
         tables = self.data["tables"]
-        if any(t.get("status") == "error" for t in tables.values()):
+        # Never attempted (no terminal status, not errored): an aborted run, not a finished one.
+        missing = [
+            t for t in self.expected_tables
+            if tables.get(t, {}).get("status") not in _TERMINAL_STATUSES | {"error"}
+        ]
+        if missing:
+            self.data["status"] = "incomplete"
+        elif any(t.get("status") == "error" for t in tables.values()):
+            # Every expected table was attempted; some failed.
             self.data["status"] = "complete_with_errors"
-            return
-        missing = [t for t in self.expected_tables if tables.get(t, {}).get("status") not in _TERMINAL_STATUSES]
-        self.data["status"] = "incomplete" if missing else "complete"
+        else:
+            self.data["status"] = "complete"
 
     def _write(self) -> None:
         tmp = self.path.with_suffix(self.path.suffix + ".partial")

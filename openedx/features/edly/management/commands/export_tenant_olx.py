@@ -25,6 +25,7 @@ Usage:
 """
 import json
 import os
+from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from opaque_keys.edx.keys import CourseKey
@@ -33,6 +34,7 @@ from xmodule.contentstore.django import contentstore
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.xml_exporter import export_course_to_xml
 
+from openedx.features.edly.tenant_export import manifest as manifest_mod, tables
 from openedx.features.edly.tenant_export.scope import load_scope_file
 
 
@@ -75,6 +77,18 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(f"OLX export FAILED for {course_id_str}: {exc}"))
 
         self.stdout.write(f"OLX export done: {len(exported)} ok, {len(failed)} failed")
+
+        # Record in the same MANIFEST.json the other commands write (sibling of out_dir),
+        # so export_tenant_package can't call a run "complete" with no/failed OLX.
+        scope_sha = manifest_mod.sha256_of_text(Path(options['scope']).read_text())
+        mf = manifest_mod.Manifest(
+            Path(out_dir).parent / "MANIFEST.json", scope_data['slug'], scope_sha, tables.EXPECTED_TABLES,
+        )
+        mf.update_table(
+            tables.OLX_KEY, status="error" if failed else "complete",
+            exported=exported, failed=failed, courses_in_scope=len(scope_data['course_ids']),
+        )
+        mf.finalize()
         if failed:
             # One level up from out_dir (e.g. out/olx -> out/olx_export_failures.json)
             # -- sibling to the main package's MANIFEST.json, not buried inside the

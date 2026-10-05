@@ -313,6 +313,7 @@ GUARD_TABLES = (
     "workflow_assessmentworkflowstep",
     "assessment_trainingexample",
     "assessment_rubric",
+    "assessment_criterion",
     "submissions_scoreannotation",
 )
 

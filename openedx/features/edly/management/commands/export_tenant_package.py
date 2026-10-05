@@ -44,7 +44,7 @@ class Command(BaseCommand):
         # trustworthy.
         problems = []
         for table, entry in list(mf.data['tables'].items()):
-            if entry.get('status') != 'complete':
+            if table == tables.OLX_KEY or entry.get('status') != 'complete':
                 continue
             sql_path = out_dir / f"{table}.sql"
             if not sql_path.exists():
@@ -62,6 +62,10 @@ class Command(BaseCommand):
         self.stdout.write(f"manifest status: {status}")
         if problems:
             self.stderr.write(self.style.WARNING(f"checksum/file problems for: {problems}"))
+
+        errored = sorted(t for t, e in mf.data['tables'].items() if e.get('status') == 'error')
+        if errored:
+            self.stderr.write(self.style.WARNING(f"tables/steps with errors (review before handoff): {errored}"))
 
         if status not in ('complete', 'complete_with_errors'):
             raise CommandError(f"export is not ready to hand off -- manifest status is {status!r}")
