@@ -29,9 +29,14 @@ _TERMINAL_STATUSES = {"complete", "skipped_not_in_source"}
 class Manifest:
     def __init__(self, path, tenant_slug: str, scope_sha256: str, expected_tables):
         self.path = Path(path)
+        # Phase 2: one shared manifest across dbs -- expected tables (stems,
+        # see services.stem) are persisted and unioned, so a run covering
+        # only one db can't make the whole export read "complete", and
+        # export_tenant_package needs no db list.
         self.expected_tables = set(expected_tables)
         if self.path.exists():
             self.data = json.loads(self.path.read_text())
+            self.expected_tables |= set(self.data.get("expected_tables", []))
         else:
             self.data = {
                 "tenant_slug": tenant_slug,
@@ -40,6 +45,7 @@ class Manifest:
                 "tables": {},
                 "status": "incomplete",
             }
+        self.data["expected_tables"] = sorted(self.expected_tables)
 
     def update_table(self, name: str, **fields) -> None:
         entry = self.data["tables"].get(name, {})

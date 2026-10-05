@@ -14,6 +14,11 @@ itself, its EDM-citation notes, and the `[Audited 2026-10-02]` fixes.
 Usage:
     python manage.py lms export_tenant_scope MIT --out scope.json
     python manage.py lms export_tenant_scope MIT --dry-run
+    python manage.py lms export_tenant_scope MIT --services credentials,discovery,ecommerce --out scope.json
+
+`--services` (Phase 2) adds a `services` block (credentials site_id,
+discovery/ecommerce partner_id) to scope.json by querying those databases --
+see `tenant_export/services.py` for how the LMS connects to them.
 """
 import json
 import os
@@ -22,6 +27,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
+from openedx.features.edly.tenant_export import services
 from openedx.features.edly.tenant_export.scope import ScopeError, resolve_scope
 
 
@@ -36,6 +42,10 @@ class Command(BaseCommand):
         parser.add_argument('slug', help='EdlySubOrganization slug identifying the tenant to export.')
         parser.add_argument('--out', default='scope.json', help='Path to write scope.json to.')
         parser.add_argument(
+            '--services',
+            help='Comma-separated subset of credentials,discovery,ecommerce to also resolve into scope.json.',
+        )
+        parser.add_argument(
             '--dry-run', action='store_true', help='Resolve and print scope only; writes nothing.',
         )
 
@@ -47,6 +57,14 @@ class Command(BaseCommand):
                 resolved = resolve_scope(cursor, options['slug'])
             except ScopeError as exc:
                 raise CommandError(str(exc))
+
+        if options['services']:
+            names = [n.strip() for n in options['services'].split(',') if n.strip()]
+            try:
+                resolved['services'] = services.resolve_services(names, options['slug'], resolved)
+            except (ScopeError, ValueError) as exc:
+                raise CommandError(str(exc))
+            self.stdout.write(f"services: {resolved['services']}")
 
         self.stdout.write(
             "slug={slug} sub_org_id={sub_org_id} course_org_filter={course_org_filter} "

@@ -144,7 +144,7 @@ def dump_table_chunked(conn_params: dict, table: str, out_path, where_clauses: l
         _run_mysqldump(conn_params, table, clause, out_path, append=(i > 0), no_data=False)
 
 
-def dump_redacted_table(conn_params: dict, table: str, where_clause: str, out_path, cursor) -> int:
+def dump_redacted_table(conn_params: dict, table: str, where_clause: str, out_path, cursor, secret_cols=None) -> int:
     """Schema via `mysqldump --no-data`, then data via a column-redacting
     SELECT run on the CALLER's own already-open Django cursor
     (secrets.redacted_table_dump) -- see plan's "Secrets" section. Unlike
@@ -156,4 +156,4 @@ def dump_redacted_table(conn_params: dict, table: str, where_clause: str, out_pa
     from openedx.features.edly.tenant_export import secrets as secrets_mod
 
     _run_mysqldump(conn_params, table, "", out_path, append=False, no_data=True)
-    return secrets_mod.redacted_table_dump(cursor, table, where_clause, out_path)
+    return secrets_mod.redacted_table_dump(cursor, table, where_clause, out_path, secret_cols=secret_cols)
