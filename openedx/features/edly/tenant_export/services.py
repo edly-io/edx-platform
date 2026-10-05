@@ -38,6 +38,11 @@ SERVICE_DBS = ("credentials", "discovery", "ecommerce")
 ALL_DBS = ("edxapp",) + SERVICE_DBS
 
 
+def expected_service_stems(skip=()):
+    """Stems of every service db's spec tables, except dbs explicitly skipped."""
+    return [s for db in SERVICE_DBS if db not in skip for s in get_spec(db).expected_stems]
+
+
 def stem(db: str, table: str) -> str:
     return table if db == "edxapp" else f"{db}__{table}"
 

@@ -94,7 +94,7 @@ class Command(BaseCommand):
         mf.data.setdefault("services", {})[spec.name] = ctx
         for table, (status, reason) in spec.excluded.items():
             key = services.stem(spec.name, table)
-            if key not in mf.data["tables"]:
+            if not options['dry_run'] and key not in mf.data["tables"]:
                 mf.update_table(key, status=status, reason=reason, db=spec.name)
 
         with db_connection.cursor() as cursor:
@@ -104,8 +104,11 @@ class Command(BaseCommand):
                     self.stdout.write(f"skip (done): {key}")
                     continue
                 if not dbutil.table_exists(cursor, table):
-                    mf.update_table(key, status="skipped_not_in_source", db=spec.name)
-                    self.stdout.write(f"skip (not in source): {key}")
+                    # A spec table missing from a service DB is a wrong schema guess, not "nothing to dump".
+                    msg = "table not in source DB (spec/schema mismatch)"
+                    if not options['dry_run']:
+                        mf.update_table(key, status="error", db=spec.name, error=msg)
+                    self.stderr.write(self.style.ERROR(f"ERROR {key}: {msg}"))
                     continue
 
                 where = spec.where(table, ctx)
@@ -142,5 +145,7 @@ class Command(BaseCommand):
                     mf.update_table(key, status="error", db=spec.name, error=err)
                     self.stderr.write(self.style.ERROR(f"ERROR dumping {key}: {err}"))
 
+        if options['dry_run']:
+            return  # dry-run must not persist MANIFEST.json
         self.stdout.write(f"manifest status: {mf.finalize()}")
 

@@ -70,6 +70,7 @@ def where(table: str, ctx: dict) -> str:
                 f"UNION SELECT parent_id FROM catalogue_product WHERE id IN ({sr_products}) AND parent_id IS NOT NULL")
     vouchers = f"SELECT voucher_id FROM voucher_voucher_offers WHERE conditionaloffer_id IN ({offers})"
     orders = f"SELECT id FROM order_order WHERE partner_id = {p}"
+    voucher_apps = f"voucher_id IN ({vouchers}) AND order_id IN ({orders})"
     lines = f"SELECT id FROM order_line WHERE order_id IN ({orders})"
     baskets = f"SELECT basket_id FROM order_order WHERE partner_id = {p} AND basket_id IS NOT NULL"
     bklines = f"SELECT id FROM basket_line WHERE basket_id IN ({baskets})"
@@ -91,7 +92,9 @@ def where(table: str, ctx: dict) -> str:
         "offer_rangeproduct": f"range_id IN ({ranges}) AND product_id IN ({products})",
         "voucher_voucher": f"id IN ({vouchers})",
         "voucher_voucher_offers": f"conditionaloffer_id IN ({offers})",
-        "voucher_voucherapplication": f"voucher_id IN ({vouchers})",
+        # UNVERIFIED: voucher_voucherapplication.order_id column name needs DESCRIBE.
+        # A shared voucher (offers of several partners) must only show P's orders' applications.
+        "voucher_voucherapplication": voucher_apps,
         "order_order": f"partner_id = {p}",
         "order_line": f"order_id IN ({orders})",
         "order_lineprice": f"order_id IN ({orders})",
@@ -111,7 +114,7 @@ def where(table: str, ctx: dict) -> str:
         "refund_refundline": f"refund_id IN ({refunds})",
         "ecommerce_user": (
             f"id IN (SELECT user_id FROM order_order WHERE partner_id = {p} AND user_id IS NOT NULL) "
-            f"OR id IN (SELECT user_id FROM voucher_voucherapplication WHERE voucher_id IN ({vouchers}) AND user_id IS NOT NULL)"
+            f"OR id IN (SELECT user_id FROM voucher_voucherapplication WHERE {voucher_apps} AND user_id IS NOT NULL)"
         ),
     }[table]
 

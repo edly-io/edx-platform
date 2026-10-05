@@ -85,6 +85,7 @@ def redacted_table_dump(cursor, table: str, where_clause: str, out_path, batch_s
     identical semantics, on both MySQLdb and PyMySQL connections. Never
     hand-rolled escaping.
     """
+    assert where_clause not in ("", "1=1"), f"refusing unscoped dump for {table}"
     if secret_cols is None:
         secret_cols = SECRET_COLUMNS[table]
 

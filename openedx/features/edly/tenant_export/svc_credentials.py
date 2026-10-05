@@ -38,7 +38,7 @@ EXCLUDED = {
 def resolve(cursor, slug, scope):
     # UNVERIFIED: edx_org_short_name == slug is an assumption (column and
     # value format UNVERIFIED on Koa) -- confirm on the demo site.
-    sid = one_id(cursor, "SELECT site_id FROM core_siteconfiguration WHERE edx_org_short_name = %s",
+    sid = one_id(cursor, "SELECT DISTINCT site_id FROM core_siteconfiguration WHERE edx_org_short_name = %s",
                  (slug,), f"credentials site for {slug!r}")
     return {"site_id": sid}
 

@@ -38,6 +38,7 @@ EXCLUDED = {
     "core_salesforceconfiguration": (EXCLUDED_GLOBAL, "global config holding Salesforce credentials"),
     "core_user": (EXCLUDED_GLOBAL, "discovery service accounts, not tenant data"),
     "core_user_groups": (EXCLUDED_GLOBAL, "discovery service accounts, not tenant data"),
+    "social_auth_usersocialauth": (EXCLUDED_GLOBAL, "links discovery service accounts (core_user not dumped); holds tokens"),
 }
 
 

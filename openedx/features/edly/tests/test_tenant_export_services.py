@@ -55,7 +55,7 @@ S = {
   "offer_conditionaloffer": "id,partner_id,benefit_id,condition_id", "offer_benefit": "id,range_id",
   "offer_condition": "id,range_id", "offer_range": "id", "offer_rangeproduct": "id,range_id,product_id",
   "voucher_voucher": "id", "voucher_voucher_offers": "id,voucher_id,conditionaloffer_id",
-  "voucher_voucherapplication": "id,voucher_id,user_id",
+  "voucher_voucherapplication": "id,voucher_id,user_id,order_id",
   "order_order": "id,partner_id,basket_id,user_id,shipping_address_id", "order_line": "id,order_id",
   "order_lineprice": "id,order_id", "order_lineattribute": "id,line_id", "order_paymentevent": "id,order_id",
   "order_orderdiscount": "id,order_id", "order_ordernote": "id,order_id", "order_shippingaddress": "id",
@@ -114,7 +114,7 @@ SEED = {
   # row 2: B's product inside a shared range -> must stay out
   "offer_rangeproduct": [(1, 1, 10), (2, 1, 20), (3, 2, 20)],
   "voucher_voucher": [(1,), (2,)], "voucher_voucher_offers": [(1, 1, 1), (2, 2, 2)],
-  "voucher_voucherapplication": [(1, 1, 100), (2, 2, 200)],
+  "voucher_voucherapplication": [(1, 1, 100, 1), (2, 2, 200, 2)],
   "order_order": [(1, 1, 1, 100, 1), (2, 2, 2, 200, 2)], "order_line": [(1, 1), (2, 2)],
   "order_lineprice": [(1, 1), (2, 2)], "order_lineattribute": [(1, 1), (2, 2)],
   "order_paymentevent": [(1, 1), (2, 2)], "order_orderdiscount": [(1, 1), (2, 2)], "order_ordernote": [(1, 1), (2, 2)],
@@ -219,6 +219,12 @@ class WhereStructureTests(unittest.TestCase):
         self.assertIn("response", sc["payment_paymentprocessorresponse"])
         self.assertIn("marketing_site_api_password", svc_discovery.SECRET_COLUMNS["core_historicalpartner"])
 
+    def test_discovery_social_auth_excluded_so_audit_is_clean(self):
+        spec = SPECS["discovery"]
+        self.assertIn("social_auth_usersocialauth", spec.excluded)
+        r = audit.coverage_report(list(spec.tables) + ["social_auth_usersocialauth"], spec)
+        self.assertEqual(r["unlisted"], [])
+
     def test_stem_naming(self):
         self.assertEqual(services.stem("edxapp", "auth_user"), "auth_user")
         self.assertEqual(services.stem("credentials", "core_user"), "credentials__core_user")
@@ -238,6 +244,21 @@ class TwoTenantLeakTests(unittest.TestCase):
     def test_credentials(self): self._run("credentials")
     def test_discovery(self): self._run("discovery")
     def test_ecommerce(self): self._run("ecommerce")
+
+
+class SharedVoucherLeakTests(unittest.TestCase):
+    """A voucher linked to offers of two partners: only P's order applications/users may be exported."""
+    def test_shared_voucher_scoped_to_partner_orders(self):
+        conn, spec = _db("ecommerce"), SPECS["ecommerce"]
+        conn.execute("INSERT INTO voucher_voucher VALUES (3)")
+        conn.executemany("INSERT INTO voucher_voucher_offers VALUES (?,?,?)", [(3, 3, 1), (4, 3, 2)])
+        conn.execute("INSERT INTO ecommerce_user VALUES (400)")
+        # 3: B's order via the shared voucher; 4: A's order via it; 5: no order (not P's)
+        conn.executemany("INSERT INTO voucher_voucherapplication VALUES (?,?,?,?)",
+                         [(3, 3, 300, 2), (4, 3, 100, 1), (5, 3, 400, None)])
+        ctx = {"partner_id": 1}
+        self.assertEqual(_ids(conn, spec, "voucher_voucherapplication", ctx), {1, 4})
+        self.assertEqual(_ids(conn, spec, "ecommerce_user", ctx), {100})
 
 
 class ResolveTests(unittest.TestCase):
@@ -291,7 +312,7 @@ class Phase1GapTests(unittest.TestCase):
         def literal(self, v):
             return b"NULL" if v is None else b"'" + str(v).replace("'", "''").encode() + b"'"
 
-    def _dump(self, table, cols_info, cols, rows, secret_cols=None, where="1 = 1", batch=2):
+    def _dump(self, table, cols_info, cols, rows, secret_cols=None, where="id >= 0", batch=2):
         conn = sqlite3.connect(":memory:")
         conn.execute(f"CREATE TABLE {table} ({','.join(cols)})")
         conn.executemany(f"INSERT INTO {table} VALUES ({','.join('?' * len(cols))})", rows)
@@ -312,6 +333,12 @@ class Phase1GapTests(unittest.TestCase):
         self.assertEqual(out.count("INSERT INTO"), 5)
         self.assertNotIn("HUNTER", out)
         self.assertNotIn("SECRETVAL", out)
+
+    def test_refuses_unscoped_where(self):
+        info = [("id", "PRI"), ("password", "")]
+        for w in ("", "1=1"):
+            with self.assertRaises(AssertionError):
+                self._dump("auth_user", info, ["id", "password"], [(1, "h")], where=w)
 
     def test_missing_secret_column_fails_loudly(self):
         info = [("id", "PRI"), ("name", "")]
@@ -341,6 +368,18 @@ class ServiceConnectionTests(unittest.TestCase):
 
 
 class ManifestExpectedPersistenceTests(unittest.TestCase):
+    def test_package_expectation_requires_all_service_dbs(self):
+        path = f"{tempfile.mkdtemp()}/MANIFEST.json"
+        # what export_tenant_package seeds: edxapp + every service db's stems
+        mf = Manifest(path, "t", "sha", ["auth_user"] + services.expected_service_stems())
+        mf.update_table("auth_user", status="complete")
+        for s in svc_credentials.SPEC.expected_stems:
+            mf.update_table(s, status="complete")
+        self.assertEqual(mf.finalize(), "incomplete")  # discovery + ecommerce never ran
+        # explicit opt-out drops only that db's stems
+        self.assertFalse(set(svc_discovery.SPEC.expected_stems) & set(services.expected_service_stems({"discovery"})))
+        self.assertTrue(set(svc_ecommerce.SPEC.expected_stems) <= set(services.expected_service_stems({"discovery"})))
+
     def test_other_dbs_expected_tables_survive_reopen(self):
         path = f"{tempfile.mkdtemp()}/MANIFEST.json"
         mf = Manifest(path, "t", "sha", ["auth_user"])
