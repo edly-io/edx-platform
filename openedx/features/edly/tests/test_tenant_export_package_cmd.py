@@ -20,7 +20,7 @@ def _run(status_tables, **opts):
             entry["sha256"] = hashlib.sha256(b"x").hexdigest()
     (out / "MANIFEST.json").write_text(json.dumps({"tenant_slug": "mit", "scope_sha256": "s", "tables": status_tables}))
     cmd = Command(stdout=StringIO(), stderr=StringIO())
-    options = dict(slug="mit", out_dir=str(out), skip_db=["credentials", "discovery", "ecommerce"], skip_forum=True,
+    options = dict(slug="mit", out_dir=str(out), skip_db=["credentials", "discovery", "ecommerce", "notes"], skip_forum=True,
                    skip_s3=True, allow_errors=False)
     options.update(opts)
     cmd.handle(**options)

@@ -38,3 +38,7 @@ SELECT 'partner_stockrecord', COUNT(*) FROM partner_stockrecord WHERE partner_id
 SELECT 'offer_conditionaloffer', COUNT(*) FROM offer_conditionaloffer WHERE partner_id=@partner_id;
 SELECT 'voucher_voucher', COUNT(*) FROM voucher_voucher WHERE id IN (SELECT voucher_id FROM voucher_voucher_offers WHERE conditionaloffer_id IN (SELECT id FROM offer_conditionaloffer WHERE partner_id=@partner_id));
 SELECT 'basket_basket(with order)', COUNT(DISTINCT basket_id) FROM order_order WHERE partner_id=@partner_id;
+
+-- ===== notes ===== (USE edx_notes_api;) edxapp schema assumed `edxapp`; cross-schema, same server
+SET @sub_org_id = 0;  -- edly_edlysuborganization.id for the slug
+SELECT 'v1_note', COUNT(*) FROM v1_note WHERE user_id IN (SELECT anonymous_user_id FROM edxapp.student_anonymoususerid WHERE (course_id IS NULL OR course_id = '') AND user_id IN (SELECT user_id FROM edxapp.edly_edlymultisiteaccess WHERE sub_org_id=@sub_org_id));
