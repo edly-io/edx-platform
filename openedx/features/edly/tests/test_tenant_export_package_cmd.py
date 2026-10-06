@@ -34,6 +34,10 @@ class PackageExitCodeTests(unittest.TestCase):
         data.update(extra)
         return data
 
+    def test_notes_required_unless_skipped(self):
+        with self.assertRaises(CommandError):
+            _run(self._tables(), skip_db=["credentials", "discovery", "ecommerce"])
+
     def test_complete_exits_zero(self):
         _run(self._tables())
 

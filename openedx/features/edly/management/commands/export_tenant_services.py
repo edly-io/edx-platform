@@ -1,10 +1,10 @@
 """
 Dump one Edly tenant's rows from a service database -- credentials,
-discovery or ecommerce -- into --out-dir. Part of the MIT off-boarding
+discovery, ecommerce or notes -- into --out-dir. Part of the MIT off-boarding
 export tooling (EDLYPRODUCT-8584 Phase 2); same scope.json / MANIFEST.json /
 resume / secret-redaction machinery as `export_tenant_mysql`, but the
 tables, WHERE builders and redactions come from the per-service specs in
-`tenant_export/svc_credentials.py`, `svc_discovery.py`, `svc_ecommerce.py`.
+`tenant_export/svc_credentials.py`, `svc_discovery.py`, `svc_ecommerce.py`, `svc_notes.py`.
 
 Needs a `services.<db>` block in scope.json (run `export_tenant_scope
 --services ...` first).
@@ -42,7 +42,7 @@ from openedx.features.edly.tenant_export.sqlutil import count_rows
 
 class Command(BaseCommand):
     help = (
-        "Dump one tenant's credentials/discovery/ecommerce tables into --out-dir "
+        "Dump one tenant's credentials/discovery/ecommerce/notes tables into --out-dir "
         "(flat <db>__<table>.sql layout). DB connection: LMS default settings with "
         "NAME=<db>, overridable via the EXPORT_TENANT_DATABASES setting."
     )

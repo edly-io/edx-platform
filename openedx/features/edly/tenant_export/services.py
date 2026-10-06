@@ -1,5 +1,5 @@
 """Per-DB service registry for the MIT off-boarding export, Phase 2
-(EDLYPRODUCT-8584): credentials / discovery / ecommerce, alongside edxapp.
+(EDLYPRODUCT-8584): credentials / discovery / ecommerce / notes, alongside edxapp.
 
 Ported from the standalone reference implementation
 (`mit-tenant-export/export_mit/services.py`). Phase 1 files/state/manifest
@@ -80,10 +80,14 @@ def get_spec(name: str) -> ServiceSpec:
             "ecommerce": svc_ecommerce.SPEC, "notes": svc_notes.SPEC}[name]
 
 
+# Schema names that differ from the service key (credentials/discovery/ecommerce match).
+SCHEMA_NAMES = {"notes": "edx_notes_api"}
+
+
 def service_db_settings(default_settings: dict, overrides: dict, name: str) -> dict:
     """Pure helper: LMS `default` settings_dict -> settings_dict for service db `name`."""
     cfg = dict(default_settings)
-    cfg["NAME"] = name
+    cfg["NAME"] = SCHEMA_NAMES.get(name, name)
     cfg.update(overrides.get(name, {}))
     return cfg
 

@@ -27,7 +27,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--skip-db', action='append', default=[], choices=services.SERVICE_DBS,
             help='Service db deliberately NOT exported (repeatable); without it, package is only '
-                 '"complete" once credentials, discovery and ecommerce all ran.',
+                 '"complete" once credentials, discovery, ecommerce and notes all ran.',
         )
         parser.add_argument(
             '--skip-forum', action='store_true',

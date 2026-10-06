@@ -109,6 +109,19 @@ def seed_excluded_entries(mf: Manifest) -> None:
             mf.update_table(t, status="excluded_cross_tenant_leak", reason=reason)
 
 
+def tree_sha256(root) -> str:
+    """Deterministic digest of a directory tree: sha256 over sorted `relpath\0filesha\n` lines."""
+    root = Path(root)
+    outer = hashlib.sha256()
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for block in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(block)
+        outer.update(f"{path.relative_to(root).as_posix()}\0{digest.hexdigest()}\n".encode())
+    return outer.hexdigest()
+
+
 def verify_entry_files(data: dict, out_dir, skip_keys=()) -> list:
     """Re-verify on-disk checksums for every manifest entry claimed "complete",
     flipping failures to `status: error` in `data` (mutated). The file an entry
@@ -119,7 +132,15 @@ def verify_entry_files(data: dict, out_dir, skip_keys=()) -> list:
     """
     problems = []
     for key, entry in list(data["tables"].items()):
-        if key in skip_keys or entry.get("status") != "complete":
+        if entry.get("status") != "complete":
+            continue
+        if "tree_sha256" in entry:  # directory entry (OLX): `dir` is relative to the manifest's directory
+            tree = Path(out_dir) / entry["dir"]
+            if not tree.is_dir() or tree_sha256(tree) != entry["tree_sha256"]:
+                problems.append(key)
+                entry.update(status="error", error="directory missing or tree sha256 mismatch at package time")
+            continue
+        if key in skip_keys:
             continue
         path = Path(out_dir) / entry.get("file", f"{key}.sql")
         if not path.exists():
