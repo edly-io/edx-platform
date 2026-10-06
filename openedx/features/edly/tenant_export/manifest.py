@@ -107,3 +107,30 @@ def seed_excluded_entries(mf: Manifest) -> None:
     for t, reason in tables_mod.EXCLUDED_CROSS_TENANT_LEAK.items():
         if t not in mf.data["tables"]:
             mf.update_table(t, status="excluded_cross_tenant_leak", reason=reason)
+
+
+def verify_entry_files(data: dict, out_dir, skip_keys=()) -> list:
+    """Re-verify on-disk checksums for every manifest entry claimed "complete",
+    flipping failures to `status: error` in `data` (mutated). The file an entry
+    points at is `entry["file"]` (Phase 3: `forum/*.jsonl`, `s3/*.index.jsonl`),
+    defaulting to the Phase 1/2 `<key>.sql`. Returns the problem keys.
+
+    Lives here (not in export_tenant_package) so it is unit-testable offline.
+    """
+    problems = []
+    for key, entry in list(data["tables"].items()):
+        if key in skip_keys or entry.get("status") != "complete":
+            continue
+        path = Path(out_dir) / entry.get("file", f"{key}.sql")
+        if not path.exists():
+            problems.append(key)
+            entry.update(status="error", error="file missing at package time")
+            continue
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for block in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(block)
+        if digest.hexdigest() != entry.get("sha256"):
+            problems.append(key)
+            entry.update(status="error", error="sha256 mismatch at package time")
+    return problems

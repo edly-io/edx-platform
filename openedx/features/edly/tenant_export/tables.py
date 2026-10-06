@@ -404,3 +404,20 @@ CSMH_TABLE = "coursewarehistoryextended_studentmodulehistoryextended"
 # Manifest key (not a table) for the OLX course export, written by export_tenant_olx.
 OLX_KEY = "olx"
 EXPECTED_TABLES = ALL_TIER_TABLES + [CSMH_TABLE, OLX_KEY]
+
+# ---- Phase 3 (forum JSONL + S3 asset copy) ----------------------------------
+# Manifest keys, not tables. `forum__<collection>` follows the Phase 2
+# `<db>__<table>` stem convention; `s3__<logical bucket>` is the per-bucket
+# index entry (file = `s3/<logical>.index.jsonl`). Both carry `file`, which
+# export_tenant_package verifies instead of assuming `<key>.sql`.
+FORUM_KEYS = ["forum__contents", "forum__users", "forum__subscriptions"]
+S3_LOGICAL_BUCKETS = [
+    "discovery", "credentials", "grades", "edx-storage", "video-meta", "ora-submissions", "profile-images",
+]
+S3_KEYS = [f"s3__{b}" for b in S3_LOGICAL_BUCKETS]
+PHASE3_EXPECTED = FORUM_KEYS + S3_KEYS
+
+
+def phase3_expected(skip_forum: bool = False, skip_s3: bool = False) -> list:
+    """Phase 3 manifest keys a run is scored against, minus deliberate opt-outs."""
+    return ([] if skip_forum else list(FORUM_KEYS)) + ([] if skip_s3 else list(S3_KEYS))

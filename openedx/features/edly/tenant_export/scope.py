@@ -24,6 +24,7 @@ queries the Koa source only, matching migrate_tenant_tier_data.py's own
 source-only tenant-context resolution instead.
 """
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -32,6 +33,31 @@ from openedx.features.edly.tenant_export.sqlutil import org_like_clause, validat
 
 class ScopeError(Exception):
     """Raised for any condition that should hard-stop an export_tenant_scope run."""
+
+
+_COURSE_ORG_RE = re.compile(r"^course-v1:([^+]+)\+")
+
+
+def merge_orgs(course_org_filter, course_ids) -> list:
+    """course_org_filter UNION the orgs actually present (in their real case)
+    in `course_ids`. MySQL LIKE is case-insensitive, so a site-config filter
+    of `mit` matches `course-v1:MIT+...`; but S3 keys and Mongo prefixes are
+    case-SENSITIVE (Phase 3), so they need the real-case spelling too."""
+    orgs = set(course_org_filter)
+    for course_id in course_ids:
+        match = _COURSE_ORG_RE.match(course_id)
+        if match:
+            orgs.add(match.group(1))
+    return sorted(orgs)
+
+
+def scope_orgs(scope_data: dict) -> list:
+    """`course_orgs` of a loaded scope.json; computed on the fly for a scope
+    file written before Phase 3 (no re-resolve needed)."""
+    orgs = scope_data.get("course_orgs") or merge_orgs(scope_data["course_org_filter"], scope_data["course_ids"])
+    for org in orgs:
+        validate_org_token(org)
+    return orgs
 
 
 def resolve_scope(cursor, slug: str) -> dict:
@@ -93,11 +119,26 @@ def resolve_scope(cursor, slug: str) -> dict:
     )
     course_ids = sorted(r[0] for r in cursor.fetchall())
 
+    # Informational only (Phase 3): the tenant's authoritative org set per the
+    # sub-org M2M. A mismatch with course_orgs is warned about, never used.
+    try:
+        cursor.execute(
+            "SELECT o.short_name FROM edly_edlysuborganization_edx_organizations esoo "
+            "JOIN organizations_organization o ON o.id = esoo.organization_id "
+            "WHERE esoo.edlysuborganization_id = %s",
+            (sub_org_id,),
+        )
+        edx_orgs_m2m = sorted(r[0] for r in cursor.fetchall())
+    except Exception:  # pylint: disable=broad-except -- informational; must never break Phase 1 scope resolution
+        edx_orgs_m2m = []
+
     return {
         "slug": slug,
         "sub_org_id": sub_org_id,
         "course_org_filter": course_org_filter,
         "course_ids": course_ids,
+        "course_orgs": merge_orgs(course_org_filter, course_ids),
+        "edx_orgs_m2m": edx_orgs_m2m,
         "tenant_user_count": tenant_user_count,
         "resolved_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -110,5 +151,7 @@ def load_scope_file(path) -> dict:
     """
     data = json.loads(Path(path).read_text())
     for org in data["course_org_filter"]:
+        validate_org_token(org)
+    for org in data.get("course_orgs", []):
         validate_org_token(org)
     return data

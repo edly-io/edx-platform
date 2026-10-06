@@ -66,6 +66,13 @@ class Command(BaseCommand):
                 raise CommandError(str(exc))
             self.stdout.write(f"services: {resolved['services']}")
 
+        m2m = {o.lower() for o in resolved['edx_orgs_m2m']}
+        if m2m != {o.lower() for o in resolved['course_orgs']}:
+            self.stderr.write(self.style.WARNING(
+                f"org mismatch: course_orgs={resolved['course_orgs']} vs sub-org edx_organizations M2M="
+                f"{resolved['edx_orgs_m2m']} -- confirm which is authoritative before Phase 3 exports"
+            ))
+
         self.stdout.write(
             "slug={slug} sub_org_id={sub_org_id} course_org_filter={course_org_filter} "
             "tenant_user_count={tenant_user_count} course_count={course_count}".format(
