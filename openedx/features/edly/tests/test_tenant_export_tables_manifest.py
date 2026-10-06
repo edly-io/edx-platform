@@ -51,6 +51,24 @@ class DescribeErrorTests(unittest.TestCase):
         self.assertIn("Access denied", describe_error(exc))
 
 
+class TreeHashTests(unittest.TestCase):
+    def test_tree_hash_detects_change_and_verify_flags_it(self):
+        import tempfile
+        from pathlib import Path
+
+        from openedx.features.edly.tenant_export import manifest as m
+
+        root = Path(tempfile.mkdtemp())
+        (root / "olx" / "c").mkdir(parents=True)
+        (root / "olx" / "c" / "f.xml").write_text("a")
+        entry = {"status": "complete", "dir": "olx", "tree_sha256": m.tree_sha256(root / "olx")}
+        data = {"tables": {"olx": dict(entry)}}
+        self.assertEqual(m.verify_entry_files(data, root, skip_keys=("olx",)), [])
+        (root / "olx" / "c" / "f.xml").write_text("b")
+        self.assertEqual(m.verify_entry_files(data, root, skip_keys=("olx",)), ["olx"])
+        self.assertEqual(data["tables"]["olx"]["status"], "error")
+
+
 class EdmParityTests(unittest.TestCase):
     """Every EDM edxapp table (tiers 2-10, checked-in fixture copy) must be dumped or documented as excluded."""
 

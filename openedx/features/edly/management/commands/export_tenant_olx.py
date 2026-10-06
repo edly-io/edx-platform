@@ -105,6 +105,7 @@ class Command(BaseCommand):
         mf.update_table(
             tables.OLX_KEY, status="error" if failed else "complete",
             exported=exported, failed=failed, courses_in_scope=len(course_ids), libraries_in_scope=len(ms_libraries),
+            dir=Path(out_dir).name, tree_sha256=manifest_mod.tree_sha256(out_dir),
         )
         mf.finalize()
         if failed:
