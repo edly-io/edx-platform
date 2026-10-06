@@ -14,6 +14,13 @@ LEGACY_MIGRATED_PATH_PREFIXES = (
     "/api/contentstore/v4/home/courses/",       # → /api/authoring/v4/courses/
 )
 
+# Legacy addresses whose path differs from their conforming twin only in the
+# stripped SCHEMA_PATH_PREFIX, so both tokenize to the same operationId. The
+# other legacy addresses already have distinct ids and keep them.
+COLLIDING_LEGACY_PATH_PREFIXES = (
+    "/api/contentstore/v3/home/",
+)
+
 # BFF surfaces, marked x-internal so clients can tell them from a stable
 # resource contract. Both the legacy and conforming mounts.
 INTERNAL_BFF_PATH_PREFIXES = (
@@ -45,18 +52,18 @@ def cms_api_filter(endpoints):
 
 class CmsAutoSchema(AutoSchema):
     """
-    Give the legacy address of a migrated API a distinct operationId.
+    Give a colliding legacy address a distinct operationId.
 
-    A legacy mount and its conforming mount serve the same view and tokenize to
-    the same operationId, so drf-spectacular would otherwise break the tie with
-    a numeral suffix in registration order. The conforming address keeps the
-    clean id; the deprecated one is suffixed ``_legacy``.
+    Where a legacy mount and its conforming mount tokenize to the same
+    operationId, drf-spectacular would otherwise break the tie with a numeral
+    suffix in registration order. The conforming address keeps the clean id;
+    the deprecated one is suffixed ``_legacy``.
     """
 
     def get_operation_id(self):
-        """Suffix the legacy address so the pair never shares an operationId."""
+        """Suffix the colliding legacy address so the pair never shares an operationId."""
         operation_id = super().get_operation_id()
-        if self.path.startswith(LEGACY_MIGRATED_PATH_PREFIXES):
+        if self.path.startswith(COLLIDING_LEGACY_PATH_PREFIXES):
             return f"{operation_id}_legacy"
         return operation_id
 

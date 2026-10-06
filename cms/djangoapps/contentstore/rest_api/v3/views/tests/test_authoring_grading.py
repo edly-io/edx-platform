@@ -22,6 +22,7 @@ from django.urls import resolve, reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from cms.djangoapps.contentstore.tests.utils import routed_actions
 from common.djangoapps.student.tests.factories import UserFactory
 
 COURSE_ID = "course-v1:edX+ToyX+Toy_Course"
@@ -315,7 +316,7 @@ class TestAuthoringGradingViewSetUrlStructure(APITestCase):
         legacy = resolve(self.legacy_url).func
         conforming = resolve(self.conforming_url).func
         assert conforming.cls is legacy.cls
-        assert conforming.actions == legacy.actions
+        assert routed_actions(conforming) == routed_actions(legacy)
 
     def test_invalid_course_key_is_404_on_conforming_route(self):
         # The shared course_key converter rejects unparseable keys with a

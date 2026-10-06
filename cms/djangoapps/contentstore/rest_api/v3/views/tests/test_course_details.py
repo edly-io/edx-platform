@@ -24,6 +24,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from cms.djangoapps.contentstore.rest_api.v3.views.course_details import CourseDetailsViewSet
+from cms.djangoapps.contentstore.tests.utils import routed_actions
 from common.djangoapps.student.tests.factories import UserFactory
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
@@ -407,7 +408,7 @@ class TestCourseDetailsViewSetUrlStructure(APITestCase):
         legacy = resolve(self._legacy_url()).func
         conforming = resolve(self._conforming_url()).func
         assert conforming.cls is legacy.cls
-        assert conforming.actions == legacy.actions
+        assert routed_actions(conforming) == routed_actions(legacy)
 
     def test_invalid_course_key_is_404_on_conforming_route(self):
         # The shared course_key converter rejects unparseable keys with a

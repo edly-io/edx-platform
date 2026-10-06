@@ -15,6 +15,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from cms.djangoapps.contentstore.rest_api.v3.views.home import HomeViewSet
+from cms.djangoapps.contentstore.tests.utils import routed_actions
 from cms.lib.spectacular import CmsAutoSchema
 
 _REQUIRED_ERROR_FIELDS = ("type", "title", "status", "detail", "instance")
@@ -107,7 +108,9 @@ class TestHomeViewSetUrlStructure(APITestCase):
             legacy = resolve(reverse(legacy_name)).func
             conforming = resolve(reverse(conforming_name)).func
             assert conforming.cls is legacy.cls, f"{conforming_name} must serve the same view as {legacy_name}"
-            assert conforming.actions == legacy.actions, f"{conforming_name} must map the same actions as {legacy_name}"
+            assert routed_actions(conforming) == routed_actions(legacy), (
+                f"{conforming_name} must map the same actions as {legacy_name}"
+            )
 
     def test_view_schema_chains_the_cms_schema_class(self):
         """A per-view ``schema`` bypasses DEFAULT_SCHEMA_CLASS, so it must subclass CmsAutoSchema itself."""

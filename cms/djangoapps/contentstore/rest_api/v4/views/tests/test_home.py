@@ -16,7 +16,7 @@ from cms.djangoapps.contentstore.rest_api.v4.views.home import (
     _LEGACY_ORDER_DEPRECATION_HEADER,
     HomeCoursesViewSet,
 )
-from cms.djangoapps.contentstore.tests.utils import CourseTestCase
+from cms.djangoapps.contentstore.tests.utils import CourseTestCase, routed_actions
 from cms.djangoapps.contentstore.utils import reverse_course_url
 from cms.lib.spectacular import CmsAutoSchema
 from openedx.core.djangoapps.content.course_overviews.tests.factories import (
@@ -295,7 +295,7 @@ class TestHomeCoursesViewSetUrlStructure(APITestCase):
         legacy = resolve(reverse("cms.djangoapps.contentstore:v4:home-courses-list")).func
         conforming = resolve(reverse("authoring_v4:course_list")).func
         assert conforming.cls is legacy.cls
-        assert conforming.actions == legacy.actions
+        assert routed_actions(conforming) == routed_actions(legacy)
 
     def test_unauthenticated_returns_401(self):
         response = APIClient().get(reverse("authoring_v4:course_list"))

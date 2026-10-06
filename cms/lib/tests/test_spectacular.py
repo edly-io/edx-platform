@@ -95,13 +95,18 @@ class CmsAutoSchemaTest(SimpleTestCase):
         """Views without their own ``schema`` pick this up via REST_FRAMEWORK settings."""
         assert api_settings.DEFAULT_SCHEMA_CLASS is CmsAutoSchema
 
-    def test_conforming_keeps_clean_id_and_legacy_is_suffixed(self):
+    def test_only_the_colliding_legacy_address_is_suffixed(self):
         patterns = [
             path("api/contentstore/v3/home/", _HomeViewSet.as_view({"get": "list"})),
             path("api/authoring/v3/home/", _HomeViewSet.as_view({"get": "list"})),
+            path("api/contentstore/v4/home/courses/", _HomeViewSet.as_view({"get": "list"})),
+            path("api/authoring/v4/courses/", _HomeViewSet.as_view({"get": "list"})),
         ]
         with mock.patch.object(spectacular_settings, "SCHEMA_PATH_PREFIX", r"/api/(contentstore|authoring)"):
             schema = SchemaGenerator(patterns=patterns).get_schema(request=None, public=True)
         ids = {p: op["operationId"] for p, item in schema["paths"].items() for op in item.values()}
         assert ids["/api/authoring/v3/home/"] == "v3_home_list"
         assert ids["/api/contentstore/v3/home/"] == "v3_home_list_legacy"
+        # Already distinct from its conforming twin's id, so it keeps its name.
+        assert ids["/api/authoring/v4/courses/"] == "v4_courses_list"
+        assert ids["/api/contentstore/v4/home/courses/"] == "v4_home_courses_list"

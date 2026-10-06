@@ -84,7 +84,7 @@ class LmsAutoSchemaTest(SimpleTestCase):
         """Views without their own ``schema`` pick this up via REST_FRAMEWORK settings."""
         assert api_settings.DEFAULT_SCHEMA_CLASS is LmsAutoSchema
 
-    def test_conforming_keeps_clean_id_and_legacy_is_suffixed(self):
+    def test_only_the_colliding_legacy_address_is_suffixed(self):
         patterns = [
             path("api/enrollment/v2/enrollments", _EnrollmentsViewSet.as_view({"get": "list"})),
             path("api/enrollment/v2/enrollments/", _EnrollmentsViewSet.as_view({"get": "list"})),
@@ -97,4 +97,5 @@ class LmsAutoSchemaTest(SimpleTestCase):
         assert ids["/api/enrollment/v2/enrollments/"] == "v2_enrollments_list"
         assert ids["/api/enrollment/v2/enrollments"] == "v2_enrollments_list_legacy"
         assert ids["/api/enrollment/v2/courses/{id}/"] == "v2_courses_retrieve"
-        assert ids["/api/enrollment/v2/enrollment/{id}"] == "v2_enrollment_retrieve_legacy"
+        # Already distinct from every conforming id, so it keeps its name.
+        assert ids["/api/enrollment/v2/enrollment/{id}"] == "v2_enrollment_retrieve"

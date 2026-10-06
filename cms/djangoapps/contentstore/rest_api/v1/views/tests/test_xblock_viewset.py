@@ -14,6 +14,7 @@ from django.urls import resolve, reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from cms.djangoapps.contentstore.tests.utils import routed_actions
 from common.djangoapps.student.tests.factories import GlobalStaffFactory, UserFactory
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 
@@ -252,7 +253,9 @@ class XblockViewSetUrlStructureTest(ModuleStoreTestCase, APITestCase):
             legacy = resolve(legacy_url).func
             conforming = resolve(conforming_url).func
             assert conforming.cls is legacy.cls
-            assert conforming.actions == legacy.actions, f"{conforming_url} must map the same actions as {legacy_url}"
+            assert routed_actions(conforming) == routed_actions(legacy), (
+                f"{conforming_url} must map the same actions as {legacy_url}"
+            )
 
     def test_invalid_usage_key_is_404_on_conforming_route(self):
         # The shared usage_key converter rejects unparseable keys with a
