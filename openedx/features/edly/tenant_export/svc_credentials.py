@@ -5,6 +5,15 @@ Those files are KNOWN INCOMPLETE (e.g. credentials_sitebadgeprovider-style
 tables are not listed) -- run `export_tenant_audit --db credentials` on the demo site and
 extend TABLES / EXCLUDED until the coverage scan is clean.
 
+Site resolution DIFFERS from EDM: EDM takes the credentials site DOMAIN
+(django_site.domain, a CLI argument); here the tenant slug is matched against
+core_siteconfiguration.edx_org_short_name. Both end at one django_site row
+(= site_id); the slug route is UNVERIFIED (edx_org_short_name == slug) until
+checked on the demo site, and `resolve` hard-errors on 0 or >1 matches.
+
+social_auth_usersocialauth is scoped like EDM (uid IN the credential usernames,
+uid stores the username), not by core_user.id.
+
 Tier 0+1 (auth_permission, auth_group_permissions, django_content_type) are
 global lookups -> excluded_global.
 """
@@ -26,7 +35,9 @@ TABLES = [
 SECRET_COLUMNS = {
     "core_user": {"password": "'!'"},
     "social_auth_usersocialauth": {"extra_data": "'{}'"},
-    "core_siteconfiguration": {"segment_key": "''"},
+    # JSON blob whose DJANGO_SETTINGS_OVERRIDE carries SOCIAL_AUTH_/BACKEND_SERVICE_ OAuth client secrets
+    # (EDM rewrites it at migrate_credentials_tenant_data.py:704-757); blanked whole, like the ecommerce blobs.
+    "core_siteconfiguration": {"segment_key": "''", "edly_client_branding_and_django_settings": "'{}'"},
 }
 
 EXCLUDED = {
@@ -88,7 +99,9 @@ def where(table: str, ctx: dict) -> str:
             f"user_credential_id IN (SELECT id FROM credentials_usercredential WHERE {uc})",
         "core_user": f"id IN ({users})",
         "core_user_groups": f"user_id IN ({users})",
-        "social_auth_usersocialauth": f"user_id IN ({users})",
+        # uid holds the username (EDM migrate_credentials_tenant_data.py ~2031)
+        "social_auth_usersocialauth":
+            f"uid IN (SELECT username FROM credentials_usercredential WHERE {uc})",
     }[table]
 
 

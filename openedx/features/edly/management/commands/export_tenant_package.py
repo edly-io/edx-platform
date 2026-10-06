@@ -50,7 +50,9 @@ class Command(BaseCommand):
         # The manifest unions persisted expectations; an explicit opt-out must also drop those.
         for db in skipped:
             mf.expected_tables -= set(services.get_spec(db).expected_stems)
+            mf.expected_excluded -= {services.stem(db, t) for t in services.get_spec(db).excluded}
         mf.data['expected_tables'] = sorted(mf.expected_tables)
+        mf.data['expected_excluded'] = sorted(mf.expected_excluded)
         mf.data['skipped_dbs'] = sorted(skipped)
 
         # Re-verify on-disk checksums for every table claimed "complete" --

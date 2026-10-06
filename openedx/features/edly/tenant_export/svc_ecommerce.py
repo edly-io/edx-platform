@@ -9,34 +9,44 @@ real Koa DB. Every name needs `DESCRIBE` verification on the demo site (run
 the redaction code fails loudly on a missing secret column). Native Koa dump
 only -- no WooCommerce transform.
 
-Policy [plan]: customer/order PII is kept; only secrets are redacted.
-Abandoned baskets are excluded (baskets are exported only when an order of
-P references them). Whole blob columns are blanked (not key-by-key redacted):
-site payment_processors / oauth_settings / edly_client_theme_branding_settings
-and payment_paymentprocessorresponse.response. EDM only masks these in
-dry-run logs and copies real values; that would hand live payment creds to
-MIT.
+TABLE LIST == the tables EDM's migrate_ecommerce_to_wordpress.py reads (plus
+offer_rangeproduct, kept so range membership is not lost). Tables EDM never
+reads (basket_*, refund_*, payment_*, order_lineprice/lineattribute/
+paymentevent/orderdiscount/ordernote/shippingaddress, voucher_voucherapplication,
+partner_partner_users, partner_partneraddress) are in EXCLUDED, reason
+'not read by EDM'. Scoping follows EDM: Coupon / Enrollment Code product
+classes are not exported as products (EDM ~848; coupon products are reached
+only through the catalog -> stock-record path, as EDM does), orders are
+INNER JOINed to ecommerce_user (guest orders dropped, EDM ~1813) and users are
+those with an order in P (EDM ~792).
+
+Policy [plan]: customer/order PII is kept; only secrets are redacted. Whole
+blob columns are blanked, not key-by-key redacted: site payment_processors /
+oauth_settings / edly_client_theme_branding_settings. The branding blob
+(DJANGO_SETTINGS_OVERRIDE.PAYMENT_PROCESSOR_CONFIG inside) is NOT blanked
+surgically: that needs JSON_REMOVE on a column whose type (JSON vs longtext)
+and key layout are UNVERIFIED on Koa, and invalid JSON would abort the dump.
+Revisit after `export_tenant_audit --db ecommerce` on the demo site. EDM only
+masks these in dry-run logs and copies real values; that would hand live
+payment creds to MIT.
 """
 from openedx.features.edly.tenant_export.services import EXCLUDED_GLOBAL, ServiceSpec, one_id
 
 # UNVERIFIED -- see module docstring.
 TABLES = [
-    "partner_partner", "partner_partner_users", "partner_partneraddress", "core_siteconfiguration",
-    "partner_stockrecord", "catalogue_product", "catalogue_productattributevalue",
+    "partner_partner", "core_siteconfiguration", "partner_stockrecord",
+    "catalogue_productclass", "catalogue_productattribute", "courses_course",
+    "catalogue_product", "catalogue_productattributevalue",
+    "catalogue_catalog", "catalogue_catalog_stock_records",
     "offer_conditionaloffer", "offer_benefit", "offer_condition", "offer_range", "offer_rangeproduct",
-    "voucher_voucher", "voucher_voucher_offers", "voucher_voucherapplication",
-    "order_order", "order_line", "order_lineprice", "order_lineattribute", "order_paymentevent",
-    "order_orderdiscount", "order_ordernote", "order_shippingaddress",
-    "basket_basket", "basket_line", "basket_lineattribute",
-    "payment_source", "payment_transaction", "payment_paymentprocessorresponse",
-    "refund_refund", "refund_refundline",
+    "voucher_voucher", "voucher_voucher_offers",
+    "order_order", "order_line", "order_billingaddress",
     "ecommerce_user",
 ]
 
 # Blank the whole column; '{}' is valid for both JSON-typed and text columns.
 SECRET_COLUMNS = {
     "ecommerce_user": {"password": "'!'"},
-    "payment_paymentprocessorresponse": {"response": "'{}'"},
     "core_siteconfiguration": {
         "payment_processors": "'{}'",
         "oauth_settings": "'{}'",
@@ -44,10 +54,17 @@ SECRET_COLUMNS = {
     },
 }
 
+_NOT_READ = "not read by EDM"
 EXCLUDED = {
-    t: (EXCLUDED_GLOBAL, "shared Oscar lookup (no tenant column); UNVERIFIED name")
-    for t in ("catalogue_productclass", "catalogue_productattribute", "catalogue_category",
-              "catalogue_productcategory")
+    **{t: (EXCLUDED_GLOBAL, "shared Oscar lookup (no tenant column); UNVERIFIED name")
+       for t in ("catalogue_category", "catalogue_productcategory")},
+    **{t: (EXCLUDED_GLOBAL, _NOT_READ) for t in (
+        "basket_basket", "basket_line", "basket_lineattribute",
+        "refund_refund", "refund_refundline",
+        "payment_source", "payment_transaction", "payment_paymentprocessorresponse",
+        "order_lineprice", "order_lineattribute", "order_paymentevent", "order_orderdiscount",
+        "order_ordernote", "order_shippingaddress",
+        "voucher_voucherapplication", "partner_partner_users", "partner_partneraddress")},
 }
 
 
@@ -64,26 +81,37 @@ def where(table: str, ctx: dict) -> str:
     conditions = f"SELECT condition_id FROM offer_conditionaloffer WHERE partner_id = {p}"
     ranges = (f"SELECT range_id FROM offer_benefit WHERE id IN ({benefits}) AND range_id IS NOT NULL "
               f"UNION SELECT range_id FROM offer_condition WHERE id IN ({conditions}) AND range_id IS NOT NULL")
+    catalogs = f"SELECT catalog_id FROM offer_range WHERE id IN ({ranges}) AND catalog_id IS NOT NULL"
+    stockrecords = f"SELECT id FROM partner_stockrecord WHERE partner_id = {p}"
     sr_products = f"SELECT product_id FROM partner_stockrecord WHERE partner_id = {p}"
-    # stockrecord products + their parents (parent rows hold the shared class/title)
-    products = (f"SELECT id FROM catalogue_product WHERE id IN ({sr_products}) "
-                f"UNION SELECT parent_id FROM catalogue_product WHERE id IN ({sr_products}) AND parent_id IS NOT NULL")
+    # EDM ~848: Coupon / Enrollment Code classes are not migrated as products.
+    not_coupon = ("(product_class_id IS NULL OR product_class_id NOT IN "
+                  "(SELECT id FROM catalogue_productclass WHERE name IN ('Coupon', 'Enrollment Code')))")
+    # stockrecord products + their parents (parent rows hold the shared class/title),
+    # plus products reached via P's catalogs (EDM's coupon read path)
+    products = (f"SELECT id FROM catalogue_product WHERE id IN ({sr_products}) AND {not_coupon} "
+                f"UNION SELECT parent_id FROM catalogue_product WHERE id IN ({sr_products}) "
+                f"AND {not_coupon} AND parent_id IS NOT NULL "
+                f"UNION SELECT product_id FROM partner_stockrecord WHERE id IN "
+                f"(SELECT stockrecord_id FROM catalogue_catalog_stock_records WHERE catalog_id IN ({catalogs}) "
+                f"AND stockrecord_id IN ({stockrecords}))")
     vouchers = f"SELECT voucher_id FROM voucher_voucher_offers WHERE conditionaloffer_id IN ({offers})"
-    orders = f"SELECT id FROM order_order WHERE partner_id = {p}"
-    voucher_apps = f"voucher_id IN ({vouchers}) AND order_id IN ({orders})"
-    lines = f"SELECT id FROM order_line WHERE order_id IN ({orders})"
-    baskets = f"SELECT basket_id FROM order_order WHERE partner_id = {p} AND basket_id IS NOT NULL"
-    bklines = f"SELECT id FROM basket_line WHERE basket_id IN ({baskets})"
-    sources = f"SELECT id FROM payment_source WHERE order_id IN ({orders})"
-    refunds = f"SELECT id FROM refund_refund WHERE order_id IN ({orders})"
+    # INNER JOIN ecommerce_user (EDM ~1813): guest orders (NULL / unknown user) are dropped
+    orders = f"SELECT id FROM order_order WHERE partner_id = {p} AND user_id IN (SELECT id FROM ecommerce_user)"
     return {
         "partner_partner": f"id = {p}",
-        "partner_partner_users": f"partner_id = {p}",
-        "partner_partneraddress": f"partner_id = {p}",
         "core_siteconfiguration": f"partner_id = {p}",
         "partner_stockrecord": f"partner_id = {p}",
+        "catalogue_productclass": f"id IN (SELECT product_class_id FROM catalogue_product WHERE id IN ({products}))",
+        "catalogue_productattribute":
+            f"id IN (SELECT attribute_id FROM catalogue_productattributevalue WHERE product_id IN ({products}))",
+        "courses_course":
+            f"id IN (SELECT course_id FROM catalogue_product WHERE id IN ({products}) AND course_id IS NOT NULL)",
         "catalogue_product": f"id IN ({products})",
         "catalogue_productattributevalue": f"product_id IN ({products})",
+        "catalogue_catalog": f"id IN ({catalogs})",
+        "catalogue_catalog_stock_records":
+            f"catalog_id IN ({catalogs}) AND stockrecord_id IN ({stockrecords})",
         "offer_conditionaloffer": f"partner_id = {p}",
         "offer_benefit": f"id IN ({benefits})",
         "offer_condition": f"id IN ({conditions})",
@@ -92,30 +120,11 @@ def where(table: str, ctx: dict) -> str:
         "offer_rangeproduct": f"range_id IN ({ranges}) AND product_id IN ({products})",
         "voucher_voucher": f"id IN ({vouchers})",
         "voucher_voucher_offers": f"conditionaloffer_id IN ({offers})",
-        # UNVERIFIED: voucher_voucherapplication.order_id column name needs DESCRIBE.
-        # A shared voucher (offers of several partners) must only show P's orders' applications.
-        "voucher_voucherapplication": voucher_apps,
-        "order_order": f"partner_id = {p}",
+        "order_order": f"id IN ({orders})",
         "order_line": f"order_id IN ({orders})",
-        "order_lineprice": f"order_id IN ({orders})",
-        "order_lineattribute": f"line_id IN ({lines})",
-        "order_paymentevent": f"order_id IN ({orders})",
-        "order_orderdiscount": f"order_id IN ({orders})",
-        "order_ordernote": f"order_id IN ({orders})",
-        "order_shippingaddress":
-            f"id IN (SELECT shipping_address_id FROM order_order WHERE partner_id = {p} AND shipping_address_id IS NOT NULL)",
-        "basket_basket": f"id IN ({baskets})",
-        "basket_line": f"basket_id IN ({baskets})",
-        "basket_lineattribute": f"line_id IN ({bklines})",
-        "payment_source": f"order_id IN ({orders})",
-        "payment_transaction": f"source_id IN ({sources})",
-        "payment_paymentprocessorresponse": f"basket_id IN ({baskets})",
-        "refund_refund": f"order_id IN ({orders})",
-        "refund_refundline": f"refund_id IN ({refunds})",
-        "ecommerce_user": (
-            f"id IN (SELECT user_id FROM order_order WHERE partner_id = {p} AND user_id IS NOT NULL) "
-            f"OR id IN (SELECT user_id FROM voucher_voucherapplication WHERE {voucher_apps} AND user_id IS NOT NULL)"
-        ),
+        "order_billingaddress":
+            f"id IN (SELECT billing_address_id FROM order_order WHERE id IN ({orders}) AND billing_address_id IS NOT NULL)",
+        "ecommerce_user": f"id IN (SELECT user_id FROM order_order WHERE partner_id = {p})",
     }[table]
 
 
