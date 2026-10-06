@@ -168,6 +168,21 @@ def _maybe_set_legacy_param_deprecation_header(request, response, alias_pairs):
     return response
 
 
+def _course_id_string(course_id):
+    """
+    Return a ``course_id`` URL argument in the string form the views use.
+
+    The conforming routes pass a parsed CourseKey, the legacy routes the raw
+    string. A key that names only a version has no course run behind it, and
+    looking one up raises InvalidKeyError, so it is a 404.
+    """
+    if isinstance(course_id, CourseKey):
+        if course_id.org is None:
+            raise NotFound(f"No course found for course ID '{course_id}'")
+        return str(course_id)
+    return course_id
+
+
 # ---------------------------------------------------------------------------
 # ADR 0036 — minimal enrollment view helper
 # ---------------------------------------------------------------------------
@@ -486,10 +501,7 @@ class EnrollmentRetrieveView(StandardizedErrorMixin, _EnrollmentMinimalViewMixin
         ``has_api_key`` or staff privileges raises ``NotFound`` (so the
         caller cannot probe for the existence of other users' enrollments).
         """
-        # The conforming route passes a parsed CourseKey; the legacy route
-        # passes the raw string. Coerce to the string form used below.
-        if course_id is not None and not isinstance(course_id, str):
-            course_id = str(course_id)
+        course_id = _course_id_string(course_id)
 
         if username is None:
             username = request.user.username
@@ -630,10 +642,7 @@ class CourseEnrollmentDetailView(StandardizedErrorMixin, APIView):
         course schedule and supported enrollment modes; pass
         ``?include_expired=1`` to include expired enrollment modes.
         """
-        # The conforming route passes a parsed CourseKey; the legacy route
-        # passes the raw string.
-        if course_id is not None and not isinstance(course_id, str):
-            course_id = str(course_id)
+        course_id = _course_id_string(course_id)
         try:
             course_key = CourseKey.from_string(course_id)
         except InvalidKeyError as exc:

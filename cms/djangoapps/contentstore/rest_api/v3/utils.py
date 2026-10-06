@@ -48,7 +48,9 @@ def resolve_course_key(course_key: str | CourseKey) -> CourseKey:
         parsed = course_key if isinstance(course_key, CourseKey) else CourseKey.from_string(course_key)
     except InvalidKeyError as exc:
         raise NotFound("The provided course key cannot be parsed.") from exc
-    if not CourseOverview.course_exists(parsed):
+    # A key that names only a version has no course run behind it, and the
+    # existence lookup raises InvalidKeyError for one.
+    if parsed.org is None or not CourseOverview.course_exists(parsed):
         raise NotFound(f"Course {course_key} not found.")
     return parsed
 

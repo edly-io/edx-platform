@@ -373,6 +373,18 @@ class TestEnrollmentUrlStructure(APITestCase):
         response = self.client.get("/api/enrollment/v2/courses/not-a-course-key/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_version_only_course_key_is_404_on_conforming_routes(self):
+        # The converter accepts a key that names only a version. No course run
+        # is behind it, so the views answer 404 rather than 500.
+        user = UserFactory.create()
+        self.client.force_authenticate(user=user)
+        course_key = "course-v1:version@0123456789abcdef01234567"
+        for url in (
+            f"/api/enrollment/v2/courses/{course_key}/",
+            f"/api/enrollment/v2/enrollments/{user.username},{course_key}/",
+        ):
+            assert self.client.get(url).status_code == status.HTTP_404_NOT_FOUND, url
+
     def test_admin_list_contract_is_identical_on_both_addresses(self):
         """Unauthenticated callers get the same 401 on legacy and conforming."""
         legacy = self.client.get("/api/enrollment/v2/enrollments")

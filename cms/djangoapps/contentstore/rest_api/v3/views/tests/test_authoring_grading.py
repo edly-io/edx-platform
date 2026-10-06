@@ -327,6 +327,16 @@ class TestAuthoringGradingViewSetUrlStructure(APITestCase):
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_version_only_course_key_is_404_on_conforming_route(self):
+        # The converter accepts a key that names only a version. No course run
+        # is behind it, so the view answers 404 rather than 500.
+        self.client.force_authenticate(user=UserFactory.create())
+        response = self.client.patch(
+            "/api/authoring/v3/courses/course-v1:version@0123456789abcdef01234567/grading/",
+            data={}, format="json",
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_unauthenticated_patch_returns_401(self):
         response = self.client.patch(self.conforming_url, data={}, format="json")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
