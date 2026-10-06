@@ -1,5 +1,5 @@
 """
-Dump tier 3/5/6/7/8 `edxapp` tables for one Edly tenant, tenant-scoped via
+Dump tier 2/3/4/5/6/7/8/9/10 (+ extras) `edxapp` tables for one Edly tenant, tenant-scoped via
 live SQL subqueries (never a Python-collected user-id list -- see
 `tenant_export/sqlutil.py`). Part of the MIT off-boarding export tooling
 (EDLYPRODUCT-8584 Phase 1); the scoping/security logic itself (every WHERE
@@ -52,12 +52,14 @@ def _where_clauses_for(table, sub_org_id, course_org_filter, tier8_ids):
         return [tables.tier7_where(table, sub_org_id, course_org_filter)]
     if table in tables.TIER_8:
         return ora_chain.get_tier8_where_clauses(table, tier8_ids, sub_org_id, course_org_filter)
+    if table in tables.OTHER_TIER_TABLES:  # tiers 2/4/9/10 + non-tier extras
+        return [tables.tier_other_where(table, sub_org_id, course_org_filter)]
     raise AssertionError(f"table {table!r} is not in any known tier")
 
 
 class Command(BaseCommand):
     help = (
-        "Dump tier 3/5/6/7/8 edxapp tables for one Edly tenant into --out-dir, "
+        "Dump tier 2-10 edxapp tables for one Edly tenant into --out-dir, "
         "tenant-scoped via scope.json (see export_tenant_scope)."
     )
 
@@ -67,7 +69,7 @@ class Command(BaseCommand):
         parser.add_argument('--out-dir', required=True, help='Directory to write dump files + MANIFEST.json into.')
         parser.add_argument(
             '--tables',
-            help='Comma-separated subset; must be a subset of tier 3/5/6/7/8, never a DENYLIST table.',
+            help='Comma-separated subset; must be a subset of tables.ALL_TIER_TABLES, never a DENYLIST table.',
         )
         parser.add_argument(
             '--dry-run', action='store_true',
@@ -98,14 +100,17 @@ class Command(BaseCommand):
 
         unknown = set(requested) - set(tables.ALL_TIER_TABLES)
         if unknown:
-            raise CommandError(f"unknown/out-of-scope tables requested (not in tier 3/5/6/7/8): {sorted(unknown)}")
+            raise CommandError(f"unknown/out-of-scope tables requested (not in tables.ALL_TIER_TABLES): {sorted(unknown)}")
 
         out_dir = Path(options['out_dir'])
         out_dir.mkdir(parents=True, exist_ok=True)
         conn_params = dbutil.conn_params_from_settings_dict(connection.settings_dict)
 
         scope_sha = manifest_mod.sha256_of_text(Path(options['scope']).read_text())
-        mf = manifest_mod.Manifest(out_dir / "MANIFEST.json", scope_data['slug'], scope_sha, tables.EXPECTED_TABLES)
+        mf = manifest_mod.Manifest(
+            out_dir / "MANIFEST.json", scope_data['slug'], scope_sha, tables.EXPECTED_TABLES,
+            expected_excluded=tables.excluded_keys(),
+        )
         manifest_mod.seed_excluded_entries(mf)
 
         tier8_ids = None

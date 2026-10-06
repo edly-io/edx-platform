@@ -24,14 +24,20 @@ from pathlib import Path
 # Statuses that count as "this table is done, one way or another" for the
 # purpose of deciding whether the overall run is complete.
 _TERMINAL_STATUSES = {"complete", "skipped_not_in_source"}
+# EDM-listed tables deliberately not dumped must be recorded with an `excluded_*` status (and a reason).
+_EXCLUDED_PREFIX = "excluded"
 
 
 class Manifest:
-    def __init__(self, path, tenant_slug: str, scope_sha256: str, expected_tables):
+    def __init__(self, path, tenant_slug: str, scope_sha256: str, expected_tables, expected_excluded=()):
         self.path = Path(path)
         self.expected_tables = set(expected_tables)
+        # Tables that must be recorded `excluded_*`; unioned/persisted like expected_tables so a run can
+        # never read "complete" while an EDM-listed table is neither dumped nor documented as excluded.
+        self.expected_excluded = set(expected_excluded)
         if self.path.exists():
             self.data = json.loads(self.path.read_text())
+            self.expected_excluded |= set(self.data.get("expected_excluded", []))
         else:
             self.data = {
                 "tenant_slug": tenant_slug,
@@ -40,6 +46,7 @@ class Manifest:
                 "tables": {},
                 "status": "incomplete",
             }
+        self.data["expected_excluded"] = sorted(self.expected_excluded)
 
     def update_table(self, name: str, **fields) -> None:
         entry = self.data["tables"].get(name, {})
@@ -55,7 +62,11 @@ class Manifest:
             t for t in self.expected_tables
             if tables.get(t, {}).get("status") not in _TERMINAL_STATUSES | {"error"}
         ]
-        if missing:
+        undocumented = [
+            t for t in self.expected_excluded
+            if not str(tables.get(t, {}).get("status", "")).startswith(_EXCLUDED_PREFIX)
+        ]
+        if missing or undocumented:
             self.data["status"] = "incomplete"
         elif any(t.get("status") == "error" for t in tables.values()):
             # Every expected table was attempted; some failed.
@@ -81,9 +92,9 @@ def sha256_of_text(text: str) -> str:
 def seed_excluded_entries(mf: Manifest) -> None:
     """Record `secrets.DENYLIST` and `tables.EXCLUDED_CROSS_TENANT_LEAK`
     tables with an explicit status, so their absence from a completed export
-    is documented rather than silently unexplained. Purely informational --
-    neither set is a member of `tables.EXPECTED_TABLES`, so this has no
-    effect on `_recompute_status`'s "is this run complete" calculation.
+    is documented rather than silently unexplained. Neither set is in
+    `tables.EXPECTED_TABLES`, but both are in `Manifest.expected_excluded`,
+    so a run is not "complete" until they have all been recorded.
     Idempotent -- safe to call from more than one subcommand against the
     same on-disk manifest (`export_tenant_mysql` and `export_tenant_csmh`
     both do, since either one might run first).
@@ -97,7 +108,10 @@ def seed_excluded_entries(mf: Manifest) -> None:
 
     for t in sorted(secrets_mod.DENYLIST):
         if t not in mf.data["tables"]:
-            mf.update_table(t, status="excluded_denylist")
-    for t, reason in tables_mod.EXCLUDED_CROSS_TENANT_LEAK.items():
-        if t not in mf.data["tables"]:
-            mf.update_table(t, status="excluded_cross_tenant_leak", reason=reason)
+            mf.update_table(t, status="excluded_denylist", reason=tables_mod.EXCLUDED.get(t, "hard-denylisted"))
+    for t, reason in tables_mod.EXCLUDED.items():
+        if t in mf.data["tables"]:
+            continue
+        leak = t in tables_mod.EXCLUDED_CROSS_TENANT_LEAK
+        mf.update_table(t, status="excluded_cross_tenant_leak" if leak else "excluded_by_design", reason=reason)
+
