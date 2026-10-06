@@ -1,5 +1,5 @@
 """Per-DB service registry for the MIT off-boarding export, Phase 2
-(EDLYPRODUCT-8584): credentials / discovery / ecommerce, alongside edxapp.
+(EDLYPRODUCT-8584): credentials / discovery / ecommerce / notes, alongside edxapp.
 
 Ported from the standalone reference implementation
 (`mit-tenant-export/export_mit/services.py`). Phase 1 files/state/manifest
@@ -34,7 +34,7 @@ from typing import Callable, Dict, List
 # manifest statuses for tables deliberately not dumped
 EXCLUDED_GLOBAL = "excluded_global"
 
-SERVICE_DBS = ("credentials", "discovery", "ecommerce")
+SERVICE_DBS = ("credentials", "discovery", "ecommerce", "notes")
 ALL_DBS = ("edxapp",) + SERVICE_DBS
 
 
@@ -74,16 +74,20 @@ def one_id(cursor, sql: str, params, what: str) -> int:
 
 
 def get_spec(name: str) -> ServiceSpec:
-    from openedx.features.edly.tenant_export import svc_credentials, svc_discovery, svc_ecommerce
+    from openedx.features.edly.tenant_export import svc_credentials, svc_discovery, svc_ecommerce, svc_notes
 
     return {"credentials": svc_credentials.SPEC, "discovery": svc_discovery.SPEC,
-            "ecommerce": svc_ecommerce.SPEC}[name]
+            "ecommerce": svc_ecommerce.SPEC, "notes": svc_notes.SPEC}[name]
+
+
+# Schema names that differ from the service key (credentials/discovery/ecommerce match).
+SCHEMA_NAMES = {"notes": "edx_notes_api"}
 
 
 def service_db_settings(default_settings: dict, overrides: dict, name: str) -> dict:
     """Pure helper: LMS `default` settings_dict -> settings_dict for service db `name`."""
     cfg = dict(default_settings)
-    cfg["NAME"] = name
+    cfg["NAME"] = SCHEMA_NAMES.get(name, name)
     cfg.update(overrides.get(name, {}))
     return cfg
 

@@ -40,3 +40,14 @@ SELECT 'partner_stockrecord', COUNT(*) FROM partner_stockrecord WHERE partner_id
 SELECT 'offer_conditionaloffer', COUNT(*) FROM offer_conditionaloffer WHERE partner_id=@partner_id;
 SELECT 'voucher_voucher', COUNT(*) FROM voucher_voucher WHERE id IN (SELECT voucher_id FROM voucher_voucher_offers WHERE conditionaloffer_id IN (SELECT id FROM offer_conditionaloffer WHERE partner_id=@partner_id));
 SELECT 'ecommerce_user', COUNT(DISTINCT user_id) FROM order_order WHERE partner_id=@partner_id;
+
+-- ===== notes ===== (USE edx_notes_api;) edxapp schema assumed `edxapp`; same server.
+-- Written as JOINs (not the code's IN-subqueries) so a match is an independent check.
+SET @sub_org_id = 0;  -- edly_edlysuborganization.id for the slug
+-- course orgs of the tenant: edit the LIKE list to the tenant's course_orgs (scope.json)
+SELECT 'v1_note', COUNT(*)
+FROM v1_note n
+JOIN edxapp.student_anonymoususerid a ON a.anonymous_user_id = n.user_id AND (a.course_id IS NULL OR a.course_id = '')
+JOIN edxapp.edly_edlymultisiteaccess m ON m.user_id = a.user_id AND m.sub_org_id = @sub_org_id
+WHERE n.course_id LIKE 'course-v1:ORG+%';
+-- leak check, must be 0: notes of this tenant's members on a course outside the tenant's orgs are NOT exported
