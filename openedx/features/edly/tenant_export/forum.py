@@ -8,9 +8,11 @@ Selection logic is copied (not imported -- EDM is never touched) from
   * contents       -- `course_id` org prefix (threads AND comments carry it)
   * users          -- DERIVED: user ids referenced by the selected contents
   * subscriptions  -- DERIVED: thread-follows of the selected threads
-Differences from EDM, on purpose: JSONL out (no target Mongo, no id remap --
+Differences from EDM, on purpose: JSONL out (no target Mongo, NO id remap --
 raw ids are kept; `users.jsonl` is the id->username map), case-insensitive
-org match, PII scoping of the `users` docs, and a secret-field scan.
+org match (`$options: "i"` on the course_id regex -- EDM's match is case-sensitive, so a
+`course-v1:mitx+...` thread is included here but not by EDM), PII scoping of the `users` docs,
+and a secret-field scan. The org set is `scope.derive_orgs` (EDM's sub-org M2M + case variants).
 
 Traps pinned by tests:
   * a subscription's `source_id` is the thread `_id` as a hex STRING, not an ObjectId;
@@ -19,6 +21,10 @@ Traps pinned by tests:
     their `read_states`/`course_stats` are filtered to tenant courses -- those
     arrays otherwise list OTHER tenants' course ids.
 
+  * secret-looking field NAMES (audit.SECRET_NAME_RE): a HARD name (password/secret/token/api_key/
+    `*_key`) aborts that collection (as before); any other match (credential/private/salt/signature/
+    oauth/hash) has its VALUE blanked to "" and the field path recorded in the manifest entry as
+    `blanked_secret_fields`, so one over-matching name no longer aborts the whole forum export;
   * forum cohort `group_id` values are deliberately kept as opaque ids (no remap); they
     join to Phase 1's `course_groups_courseusergroup` (manifest `forum__contents.notes`).
 
@@ -26,6 +32,7 @@ Output (flat, under `<out-dir>/forum/`): `contents.jsonl`, `users.jsonl`,
 `subscriptions.jsonl`; manifest keys `forum__<collection>` carrying `file`,
 `rows`, `sha256`. Written `.partial` then renamed; `.done` markers per key.
 """
+import copy
 import hashlib
 import json
 import os
@@ -118,6 +125,39 @@ def secret_fields(doc, prefix="") -> set:
     return found
 
 
+# Names that ALWAYS abort the collection (never blanked): password/secret/token/api key/`*_key`.
+HARD_SECRET_RE = re.compile(r"pass(word|wd)?|secret|token|api_?key|_key$|^key$", re.I)
+
+
+def split_secrets(found) -> tuple:
+    """-> (hard, soft) sets of dotted paths; decided on the LAST path segment (the field name)."""
+    hard = {p for p in found if HARD_SECRET_RE.search(p.rsplit(".", 1)[-1])}
+    return hard, set(found) - hard
+
+
+def blank_fields(doc: dict, paths) -> dict:
+    """Deep copy of `doc` with the value at each dotted path set to "" (input untouched)."""
+    out = copy.deepcopy(doc)
+    for path in paths:
+        *parents, leaf = path.split(".")
+        node = out
+        for part in parents:
+            node = node[part]
+        node[leaf] = ""
+    return out
+
+
+def sanitize(doc: dict, hard: set, soft: set) -> dict:
+    """Scan one doc: HARD paths are added to `hard` (caller aborts); soft ones are blanked in the
+    returned doc and added to `soft` for the manifest."""
+    h, sft = split_secrets(secret_fields(doc))
+    hard |= h
+    if sft:
+        soft |= sft
+        return blank_fields(doc, sft)
+    return doc
+
+
 # ---- output ------------------------------------------------------------------
 
 def dumps(doc) -> str:
@@ -168,10 +208,10 @@ def preflight(db) -> int:
 
 
 def _refuse_secrets(mf, collection, found, writer=None) -> None:
-    """Abort a collection's export if its docs carry secret-looking fields."""
+    """Abort a collection's export if its docs carry HARD secret-named fields (`found` = hard set only)."""
     if not found:
         return
-    msg = f"secret-looking field(s) in forum {collection}, refusing to export: {sorted(found)}"
+    msg = f"HARD secret-named field(s) in forum {collection}, refusing to export: {sorted(found)}"
     if writer:
         writer.abort()
         mf.update_table(key(collection), status="error", error=msg)
@@ -204,7 +244,7 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
 
     stats = {"contents": 0, "threads": 0, "comments": 0, "cohorted_threads": 0, "referenced_users": 0,
              "user_docs": 0, "emails_blanked": 0, "subscriptions": 0, "user_follows_skipped": 0}
-    thread_ids, refs, secrets = set(), set(), set()
+    thread_ids, refs, secrets, blanked_contents = set(), set(), set(), set()
     writer = None if (dry_run or done["contents"]) else JsonlWriter(out_dir / FORUM_DIR / "contents.jsonl")
 
     try:
@@ -220,11 +260,11 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
             else:
                 stats["comments"] += 1
             collect_user_refs(doc, refs)
-            secrets |= secret_fields(doc)
+            doc = sanitize(doc, secrets, blanked_contents)
             if writer:
                 writer.write(doc)
         if secrets:
-            raise ForumError(f"secret-looking field(s) in forum contents, refusing to export: {sorted(secrets)}")
+            raise ForumError(f"HARD secret-named field(s) in forum contents, refusing to export: {sorted(secrets)}")
     except Exception as exc:
         if writer:
             writer.abort()
@@ -236,14 +276,14 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
         sha = writer.finish()
         mf.update_table(key("contents"), status="complete", file=f"{FORUM_DIR}/contents.jsonl", format="jsonl",
                         rows=writer.rows, sha256=sha, threads=stats["threads"], comments=stats["comments"],
-                        cohorted_threads=stats["cohorted_threads"],
+                        cohorted_threads=stats["cohorted_threads"], blanked_secret_fields=sorted(blanked_contents),
                         notes="cohort group_id values are intentionally opaque (not remapped); they join to "
                               "Phase 1 course_groups_courseusergroup")
         resume.mark_done(out_dir, slug, key("contents"))
         log(f"wrote {key('contents')}: {writer.rows} rows")
 
     # pass 2: subscriptions (thread-follows only)
-    sub_secrets = set()
+    sub_secrets, blanked_subs = set(), set()
     sub_writer = None if (dry_run or done["subscriptions"]) else JsonlWriter(out_dir / FORUM_DIR / "subscriptions.jsonl")
     for chunk in ([] if done["subscriptions"] else _chunks(thread_ids)):
         for sub in db["subscriptions"].find({"source_id": {"$in": chunk}}):
@@ -251,7 +291,7 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
                 stats["user_follows_skipped"] += 1
                 continue
             stats["subscriptions"] += 1
-            sub_secrets |= secret_fields(sub)
+            sub = sanitize(sub, sub_secrets, blanked_subs)
             if sub_writer:
                 sub_writer.write(sub)
     _refuse_secrets(mf, "subscriptions", sub_secrets, sub_writer)
@@ -259,19 +299,19 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
         sha = sub_writer.finish()
         mf.update_table(key("subscriptions"), status="complete", file=f"{FORUM_DIR}/subscriptions.jsonl",
                         format="jsonl", rows=sub_writer.rows, sha256=sha,
-                        user_follows_skipped=stats["user_follows_skipped"])
+                        user_follows_skipped=stats["user_follows_skipped"], blanked_secret_fields=sorted(blanked_subs))
         resume.mark_done(out_dir, slug, key("subscriptions"))
         log(f"wrote {key('subscriptions')}: {sub_writer.rows} rows")
 
     # pass 3: users (derived from refs; PII-scoped)
-    user_secrets = set()
+    user_secrets, blanked_users = set(), set()
     user_writer = None if (dry_run or done["users"]) else JsonlWriter(out_dir / FORUM_DIR / "users.jsonl")
     for chunk in ([] if done["users"] else _chunks(refs)):
         for user in db["users"].find({"_id": {"$in": chunk}}):
             scoped, blanked = scope_user_doc(user, member_ids, course_re)
             stats["user_docs"] += 1
             stats["emails_blanked"] += blanked
-            user_secrets |= secret_fields(scoped)
+            scoped = sanitize(scoped, user_secrets, blanked_users)
             if user_writer:
                 user_writer.write(scoped)
     _refuse_secrets(mf, "users", user_secrets, user_writer)
@@ -280,6 +320,7 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
         mf.update_table(key("users"), status="complete", file=f"{FORUM_DIR}/users.jsonl", format="jsonl",
                         rows=user_writer.rows, sha256=sha, referenced_ids=len(refs),
                         ids_without_user_doc=len(refs) - user_writer.rows, emails_blanked=stats["emails_blanked"],
+                        blanked_secret_fields=sorted(blanked_users),
                         pii_policy="non-member emails blanked; read_states/course_stats filtered to tenant courses")
         resume.mark_done(out_dir, slug, key("users"))
         log(f"wrote {key('users')}: {user_writer.rows} rows")

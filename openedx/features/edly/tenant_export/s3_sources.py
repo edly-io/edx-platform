@@ -16,7 +16,9 @@ LMS defaults (UNVERIFIED on the Koa deployment -- confirm with `head_bucket`
 preflight / the printed bucket names, override via the setting if wrong):
   * edx-storage     <- settings.AWS_STORAGE_BUCKET_NAME
   * ora-submissions <- same bucket as edx-storage (EDM: ORA2 attachments live there)
-  * grades          <- settings.GRADES_DOWNLOAD['BUCKET'] + ['ROOT_PATH']
+  * grades          <- settings.GRADES_DOWNLOAD['BUCKET'] + ['ROOT_PATH'] (ROOT_PATH is prepended to
+                       the key prefix and recorded in the manifest; EDM ignores it -- see resolvers.grades)
+  * cert-template-assets (opt-in) <- same bucket as edx-storage
 Everything else must be configured explicitly. Credentials in the setting are
 used only to build that bucket's boto3 client; they never reach the manifest.
 """
@@ -25,7 +27,11 @@ from typing import Optional
 
 from openedx.features.edly.tenant_export import tables
 
-LOGICAL_BUCKETS = tuple(tables.S3_LOGICAL_BUCKETS)
+LOGICAL_BUCKETS = tuple(tables.S3_LOGICAL_BUCKETS)     # the default set (== manifest-expected s3__* keys)
+# Selectable only via an explicit --buckets; NOT expected by the manifest. `cert-template-assets` is
+# PLATFORM-WIDE (certificate_template_assets/ has no tenant scoping) -- see s3_resolvers.cert_template_assets.
+OPT_IN_BUCKETS = ("cert-template-assets",)
+ALL_BUCKETS = LOGICAL_BUCKETS + OPT_IN_BUCKETS
 
 
 @dataclass(frozen=True)
@@ -60,6 +66,8 @@ def resolve_sources(configured: dict, lms_get, wanted) -> tuple:
         raw["edx-storage"] = {"bucket": lms_get("AWS_STORAGE_BUCKET_NAME")}
     if "ora-submissions" not in raw and "edx-storage" in raw:
         raw["ora-submissions"] = dict(raw["edx-storage"])
+    if "cert-template-assets" not in raw and "edx-storage" in raw:
+        raw["cert-template-assets"] = dict(raw["edx-storage"])
     grades = lms_get("GRADES_DOWNLOAD") or {}
     root = grades.get("ROOT_PATH") or ""
     if "grades" not in raw and grades.get("BUCKET"):

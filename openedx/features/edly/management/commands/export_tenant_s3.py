@@ -5,7 +5,9 @@ export tooling (EDLYPRODUCT-8584 Phase 3); key scoping is in
 `tenant_export/s3_resolvers.py`, the copy/verify engine in `s3_copy.py`, bucket
 config in `s3_sources.py` (Django setting `EXPORT_TENANT_S3_SOURCES`; LMS
 defaults for edx-storage/grades). Logical buckets: discovery, credentials,
-grades, edx-storage, video-meta, ora-submissions, profile-images.
+grades, edx-storage, video-meta, ora-submissions, profile-images (the default 7), plus the OPT-IN
+`cert-template-assets` (PLATFORM-WIDE `certificate_template_assets/`, includes other tenants' assets;
+only copied when named in --buckets, never part of the manifest's expected keys).
 
 Per bucket it writes `<out-dir>/s3/<logical>.index.jsonl` (every candidate key
 + outcome) and a manifest entry `s3__<logical>`; `.done` marker on success.
@@ -45,7 +47,7 @@ def _client(cfg):
 
 
 class Command(BaseCommand):
-    help = "Copy one tenant's S3 assets (7 logical buckets) into a delivery bucket + per-bucket JSONL index."
+    help = "Copy one tenant's S3 assets (7 default logical buckets + opt-in cert-template-assets) into a delivery bucket + per-bucket JSONL index."
 
     def add_arguments(self, parser):
         parser.add_argument('slug', help='EdlySubOrganization slug identifying the tenant to export.')
@@ -54,7 +56,10 @@ class Command(BaseCommand):
         parser.add_argument('--dest-bucket', help='Delivery bucket (required unless --dry-run).')
         parser.add_argument('--dest-prefix', help='Key prefix in the delivery bucket (default: "<slug>/").')
         parser.add_argument(
-            '--buckets', help=f"Comma-separated subset of: {', '.join(s3_sources.LOGICAL_BUCKETS)} (default: all).",
+            '--buckets',
+            help=f"Comma-separated subset of: {', '.join(s3_sources.ALL_BUCKETS)} (default: "
+                 f"{', '.join(s3_sources.LOGICAL_BUCKETS)}). 'cert-template-assets' is opt-in only and "
+                 "PLATFORM-WIDE (not tenant-scoped: copies every tenant's certificate template assets).",
         )
         parser.add_argument('--copy-mode', choices=('server', 'stream'), default='server')
         parser.add_argument('--workers', type=int, default=8)
@@ -77,7 +82,7 @@ class Command(BaseCommand):
 
         wanted = [b.strip() for b in options['buckets'].split(',') if b.strip()] if options['buckets'] \
             else list(s3_sources.LOGICAL_BUCKETS)
-        unknown = set(wanted) - set(s3_sources.LOGICAL_BUCKETS)
+        unknown = set(wanted) - set(s3_sources.ALL_BUCKETS)
         if unknown:
             raise CommandError(f"unknown bucket(s): {sorted(unknown)}")
         try:

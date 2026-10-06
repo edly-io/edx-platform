@@ -27,7 +27,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--skip-db', action='append', default=[], choices=services.SERVICE_DBS,
             help='Service db deliberately NOT exported (repeatable); without it, package is only '
-                 '"complete" once credentials, discovery and ecommerce all ran.',
+                 '"complete" once credentials, discovery, ecommerce and notes all ran.',
         )
         parser.add_argument(
             '--skip-forum', action='store_true',
@@ -65,11 +65,13 @@ class Command(BaseCommand):
         # The manifest unions persisted expectations; an explicit opt-out must also drop those.
         for db in skipped:
             mf.expected_tables -= set(services.get_spec(db).expected_stems)
+            mf.expected_excluded -= {services.stem(db, t) for t in services.get_spec(db).excluded}
         if options['skip_forum']:
             mf.expected_tables -= set(tables.FORUM_KEYS)
         if options['skip_s3']:
             mf.expected_tables -= set(tables.S3_KEYS)
         mf.data['expected_tables'] = sorted(mf.expected_tables)
+        mf.data['expected_excluded'] = sorted(mf.expected_excluded)
         mf.data['skipped_dbs'] = sorted(skipped)
         mf.data['skipped_phase3'] = sorted(
             n for n, skip in (('forum', options['skip_forum']), ('s3', options['skip_s3'])) if skip

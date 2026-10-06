@@ -31,7 +31,7 @@ S = {
   "credentials_coursecertificate_signatories": "id,coursecertificate_id,signatory_id",
   "credentials_programcertificate_signatories": "id,programcertificate_id,signatory_id",
   "credentials_usercredentialattribute": "id,user_credential_id",
-  "core_user": "id,username", "core_user_groups": "id,user_id", "social_auth_usersocialauth": "id,user_id"},
+  "core_user": "id,username", "core_user_groups": "id,user_id", "social_auth_usersocialauth": "id,uid"},
  "discovery": {
   "core_partner": "id,site_id", "core_historicalpartner": "history_id,id", "django_site": "id",
   "course_metadata_organization": "id,partner_id", "course_metadata_historicalorganization": "id,partner_id",
@@ -49,20 +49,16 @@ S = {
   "course_metadata_seat": "id,course_run_id",
   "course_metadata_program_excluded_course_runs": "id,program_id,courserun_id"},
  "ecommerce": {
-  "partner_partner": "id", "partner_partner_users": "id,partner_id", "partner_partneraddress": "id,partner_id",
-  "core_siteconfiguration": "id,partner_id", "partner_stockrecord": "id,partner_id,product_id",
-  "catalogue_product": "id,parent_id", "catalogue_productattributevalue": "id,product_id",
+  "partner_partner": "id", "core_siteconfiguration": "id,partner_id", "partner_stockrecord": "id,partner_id,product_id",
+  "catalogue_productclass": "id,name", "catalogue_productattribute": "id", "courses_course": "id",
+  "catalogue_product": "id,parent_id,product_class_id,course_id",
+  "catalogue_productattributevalue": "id,product_id,attribute_id",
+  "catalogue_catalog": "id", "catalogue_catalog_stock_records": "id,catalog_id,stockrecord_id",
   "offer_conditionaloffer": "id,partner_id,benefit_id,condition_id", "offer_benefit": "id,range_id",
-  "offer_condition": "id,range_id", "offer_range": "id", "offer_rangeproduct": "id,range_id,product_id",
+  "offer_condition": "id,range_id", "offer_range": "id,catalog_id", "offer_rangeproduct": "id,range_id,product_id",
   "voucher_voucher": "id", "voucher_voucher_offers": "id,voucher_id,conditionaloffer_id",
-  "voucher_voucherapplication": "id,voucher_id,user_id,order_id",
-  "order_order": "id,partner_id,basket_id,user_id,shipping_address_id", "order_line": "id,order_id",
-  "order_lineprice": "id,order_id", "order_lineattribute": "id,line_id", "order_paymentevent": "id,order_id",
-  "order_orderdiscount": "id,order_id", "order_ordernote": "id,order_id", "order_shippingaddress": "id",
-  "basket_basket": "id", "basket_line": "id,basket_id", "basket_lineattribute": "id,line_id",
-  "payment_source": "id,order_id", "payment_transaction": "id,source_id",
-  "payment_paymentprocessorresponse": "id,basket_id,response",
-  "refund_refund": "id,order_id", "refund_refundline": "id,refund_id", "ecommerce_user": "id"},
+  "order_order": "id,partner_id,user_id,billing_address_id", "order_line": "id,order_id",
+  "order_billingaddress": "id", "ecommerce_user": "id"},
 }
 # Tenant A = 1, tenant B = 2 (credentials: site 1/2; others: partner 1/2).
 SEED = {
@@ -83,7 +79,7 @@ SEED = {
   "credentials_programcertificate_signatories": [(1, 101, 3), (2, 201, 2)],
   "credentials_usercredentialattribute": [(1, 1), (2, 3)],
   "core_user": [(1, "alice"), (2, "bob"), (3, "carol"), (4, "dave"), (5, "erin")],
-  "core_user_groups": [(1, 1), (2, 3), (3, 2)], "social_auth_usersocialauth": [(1, 1), (2, 3)]},
+  "core_user_groups": [(1, 1), (2, 3), (3, 2)], "social_auth_usersocialauth": [(1, "alice"), (2, "carol")]},
  "discovery": {
   "core_partner": [(1, 1), (2, 2)], "core_historicalpartner": [(1, 1), (2, 2), (3, 1)], "django_site": [(1,), (2,)],
   "course_metadata_organization": [(1, 1), (2, 2)], "course_metadata_historicalorganization": [(1, 1), (2, 2)],
@@ -105,25 +101,24 @@ SEED = {
   # 4: program_id 10 is a COURSE id of A (EDM bug shape) -> must stay out
   "course_metadata_program_excluded_course_runs": [(1, 11, 1000), (2, 21, 2000), (3, 11, 2000), (4, 10, 1000)]},
  "ecommerce": {
-  "partner_partner": [(1,), (2,)], "partner_partner_users": [(1, 1), (2, 2)], "partner_partneraddress": [(1, 1), (2, 2)],
-  "core_siteconfiguration": [(1, 1), (2, 2)], "partner_stockrecord": [(1, 1, 10), (2, 2, 20)],
-  "catalogue_product": [(5, None), (6, None), (10, 5), (20, 6), (30, None)],
-  "catalogue_productattributevalue": [(1, 10), (2, 20), (3, 5)],
+  "partner_partner": [(1,), (2,)], "core_siteconfiguration": [(1, 1), (2, 2)],
+  "partner_stockrecord": [(1, 1, 10), (2, 2, 20), (3, 1, 40)],
+  # class 1 = ordinary, 2 = Coupon (A's coupon product 40 must be excluded), 3 = B's
+  "catalogue_productclass": [(1, "Seat"), (2, "Coupon"), (3, "Seat")],
+  "catalogue_productattribute": [(1,), (2,), (3,)], "courses_course": [(1,), (2,), (3,)],
+  "catalogue_product": [(5, None, 1, None), (6, None, 3, None), (10, 5, 1, 1), (20, 6, 3, 2), (30, None, 1, 3),
+                        (40, None, 2, None)],
+  "catalogue_productattributevalue": [(1, 10, 1), (2, 20, 3), (3, 5, 2), (4, 40, 3)],
+  "catalogue_catalog": [(1,), (2,)], "catalogue_catalog_stock_records": [(1, 1, 1), (2, 1, 2), (3, 2, 2)],
   "offer_conditionaloffer": [(1, 1, 1, 1), (2, 2, 2, 2)], "offer_benefit": [(1, 1), (2, 2), (3, 1)],
-  "offer_condition": [(1, 1), (2, 2)], "offer_range": [(1,), (2,), (3,)],
+  "offer_condition": [(1, 1), (2, 2)], "offer_range": [(1, 1), (2, 2), (3, None)],
   # row 2: B's product inside a shared range -> must stay out
   "offer_rangeproduct": [(1, 1, 10), (2, 1, 20), (3, 2, 20)],
   "voucher_voucher": [(1,), (2,)], "voucher_voucher_offers": [(1, 1, 1), (2, 2, 2)],
-  "voucher_voucherapplication": [(1, 1, 100, 1), (2, 2, 200, 2)],
-  "order_order": [(1, 1, 1, 100, 1), (2, 2, 2, 200, 2)], "order_line": [(1, 1), (2, 2)],
-  "order_lineprice": [(1, 1), (2, 2)], "order_lineattribute": [(1, 1), (2, 2)],
-  "order_paymentevent": [(1, 1), (2, 2)], "order_orderdiscount": [(1, 1), (2, 2)], "order_ordernote": [(1, 1), (2, 2)],
-  "order_shippingaddress": [(1,), (2,)],
-  "basket_basket": [(1,), (2,), (3,)],  # 3 = abandoned (no order) -> excluded
-  "basket_line": [(1, 1), (2, 2), (3, 3)], "basket_lineattribute": [(1, 1), (2, 2), (3, 3)],
-  "payment_source": [(1, 1), (2, 2)], "payment_transaction": [(1, 1), (2, 2)],
-  "payment_paymentprocessorresponse": [(1, 1, "x"), (2, 2, "x"), (3, 3, "x")],
-  "refund_refund": [(1, 1), (2, 2)], "refund_refundline": [(1, 1), (2, 2)],
+  # order 3: A's guest order (no user) and order 4: unknown user -> dropped (INNER JOIN ecommerce_user)
+  "order_order": [(1, 1, 100, 1), (2, 2, 200, 2), (3, 1, None, 3), (4, 1, 999, 4)],
+  "order_line": [(1, 1), (2, 2), (3, 3), (4, 4)],
+  "order_billingaddress": [(1,), (2,), (3,), (4,)],
   "ecommerce_user": [(100,), (200,), (300,)]},
 }
 # Expected ids for tenant A (pk column `id` unless listed in PK).
@@ -146,18 +141,17 @@ EXPECT_A = {
   "course_metadata_course_subjects": {1}, "course_metadata_historicalcourse": {1}, "course_metadata_program": {11},
   "course_metadata_program_authoring_organizations": {1}, "course_metadata_program_courses": {1},
   "course_metadata_program_credit_backing_organizations": {1}, "course_metadata_historicalprogram": {1},
-  "course_metadata_courserun": {1000}, "course_metadata_courserun_staff": {1}, "course_metadata_seat": {1},
+  "course_metadata_courserun": {1000}, "course_metadata_courserun_staff": {1, 2}, "course_metadata_seat": {1},
   "course_metadata_program_excluded_course_runs": {1}},
  "ecommerce": {
-  "partner_partner": {1}, "partner_partner_users": {1}, "partner_partneraddress": {1}, "core_siteconfiguration": {1},
-  "partner_stockrecord": {1}, "catalogue_product": {5, 10}, "catalogue_productattributevalue": {1, 3},
+  "partner_partner": {1}, "core_siteconfiguration": {1}, "partner_stockrecord": {1, 3},
+  # product 40 (Coupon class) excluded; parent 5 included; class/attribute/course follow the products
+  "catalogue_productclass": {1}, "catalogue_productattribute": {1, 2}, "courses_course": {1},
+  "catalogue_product": {5, 10}, "catalogue_productattributevalue": {1, 3},
+  "catalogue_catalog": {1}, "catalogue_catalog_stock_records": {1},
   "offer_conditionaloffer": {1}, "offer_benefit": {1}, "offer_condition": {1}, "offer_range": {1},
   "offer_rangeproduct": {1}, "voucher_voucher": {1}, "voucher_voucher_offers": {1},
-  "voucher_voucherapplication": {1}, "order_order": {1}, "order_line": {1}, "order_lineprice": {1},
-  "order_lineattribute": {1}, "order_paymentevent": {1}, "order_orderdiscount": {1}, "order_ordernote": {1},
-  "order_shippingaddress": {1}, "basket_basket": {1}, "basket_line": {1}, "basket_lineattribute": {1},
-  "payment_source": {1}, "payment_transaction": {1}, "payment_paymentprocessorresponse": {1},
-  "refund_refund": {1}, "refund_refundline": {1}, "ecommerce_user": {100}},
+  "order_order": {1}, "order_line": {1}, "order_billingaddress": {1}, "ecommerce_user": {100}},
 }
 
 
@@ -216,7 +210,6 @@ class WhereStructureTests(unittest.TestCase):
         sc = svc_ecommerce.SECRET_COLUMNS
         self.assertEqual(set(sc["core_siteconfiguration"]),
                          {"payment_processors", "oauth_settings", "edly_client_theme_branding_settings"})
-        self.assertIn("response", sc["payment_paymentprocessorresponse"])
         self.assertIn("marketing_site_api_password", svc_discovery.SECRET_COLUMNS["core_historicalpartner"])
 
     def test_discovery_social_auth_excluded_so_audit_is_clean(self):
@@ -246,19 +239,55 @@ class TwoTenantLeakTests(unittest.TestCase):
     def test_ecommerce(self): self._run("ecommerce")
 
 
-class SharedVoucherLeakTests(unittest.TestCase):
-    """A voucher linked to offers of two partners: only P's order applications/users may be exported."""
-    def test_shared_voucher_scoped_to_partner_orders(self):
-        conn, spec = _db("ecommerce"), SPECS["ecommerce"]
-        conn.execute("INSERT INTO voucher_voucher VALUES (3)")
-        conn.executemany("INSERT INTO voucher_voucher_offers VALUES (?,?,?)", [(3, 3, 1), (4, 3, 2)])
-        conn.execute("INSERT INTO ecommerce_user VALUES (400)")
-        # 3: B's order via the shared voucher; 4: A's order via it; 5: no order (not P's)
-        conn.executemany("INSERT INTO voucher_voucherapplication VALUES (?,?,?,?)",
-                         [(3, 3, 300, 2), (4, 3, 100, 1), (5, 3, 400, None)])
-        ctx = {"partner_id": 1}
-        self.assertEqual(_ids(conn, spec, "voucher_voucherapplication", ctx), {1, 4})
-        self.assertEqual(_ids(conn, spec, "ecommerce_user", ctx), {100})
+class EcommerceEdmParityTests(unittest.TestCase):
+    # tables migrate_ecommerce_to_wordpress.py reads (FROM/JOIN), read-only reference
+    EDM_READS = {
+        "partner_partner", "core_siteconfiguration", "partner_stockrecord", "catalogue_product",
+        "catalogue_productclass", "catalogue_productattribute", "catalogue_productattributevalue",
+        "courses_course", "catalogue_catalog", "catalogue_catalog_stock_records", "voucher_voucher",
+        "voucher_voucher_offers", "offer_conditionaloffer", "offer_benefit", "offer_condition", "offer_range",
+        "order_order", "order_line", "order_billingaddress", "ecommerce_user",
+    }
+
+    def test_table_list_is_edm_reads_plus_documented_extra(self):
+        self.assertEqual(set(svc_ecommerce.TABLES) - self.EDM_READS, {"offer_rangeproduct"})
+        self.assertEqual(self.EDM_READS - set(svc_ecommerce.TABLES), set())
+
+    def test_unread_tables_excluded_with_reason(self):
+        for t in ("basket_basket", "refund_refund", "payment_source", "order_lineprice", "order_shippingaddress",
+                  "voucher_voucherapplication", "partner_partner_users", "partner_partneraddress"):
+            self.assertEqual(svc_ecommerce.EXCLUDED[t][1], "not read by EDM", t)
+
+    def test_coupon_classes_and_guest_orders_filtered(self):
+        w = svc_ecommerce.where("catalogue_product", {"partner_id": 9})
+        self.assertIn("name IN ('Coupon', 'Enrollment Code')", w)
+        self.assertIn("user_id IN (SELECT id FROM ecommerce_user)", svc_ecommerce.where("order_order", {"partner_id": 9}))
+
+    def test_branding_blob_blanked_whole(self):
+        self.assertEqual(svc_ecommerce.SECRET_COLUMNS["core_siteconfiguration"]["edly_client_theme_branding_settings"], "'{}'")
+
+
+class CredentialsSecretAndScopeTests(unittest.TestCase):
+    def test_branding_and_django_settings_blob_blanked(self):
+        sc = svc_credentials.SECRET_COLUMNS["core_siteconfiguration"]
+        self.assertEqual(sc["edly_client_branding_and_django_settings"], "'{}'")
+
+    def test_social_auth_scoped_by_uid_username(self):
+        w = svc_credentials.where("social_auth_usersocialauth", {"site_id": 7})
+        self.assertTrue(w.startswith("uid IN (SELECT username FROM credentials_usercredential WHERE"))
+
+
+class DiscoveryEdmParityTests(unittest.TestCase):
+    def test_courserun_staff_where_has_no_person_restriction(self):
+        self.assertEqual(svc_discovery.where("course_metadata_courserun_staff", {"partner_id": 9}),
+                         "courserun_id IN (SELECT id FROM course_metadata_courserun WHERE course_id IN "
+                         "(SELECT id FROM course_metadata_course WHERE partner_id = 9))")
+
+    def test_tier_0_1_lookups_registered_excluded_global(self):
+        ex = svc_discovery.EXCLUDED
+        for t in ("core_currency", "taggit_tag", "waffle_switch", "course_metadata_mode"):
+            self.assertEqual(ex[t][0], services.EXCLUDED_GLOBAL)
+        self.assertEqual(sum(1 for v in ex.values() if "tier 0+1" in v[1]), 16)
 
 
 class ResolveTests(unittest.TestCase):

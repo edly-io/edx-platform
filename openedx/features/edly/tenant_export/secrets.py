@@ -27,17 +27,24 @@ DENYLIST = {
     "social_auth_code",
     "social_auth_nonce",
     "social_auth_association",
+    # Secret-bearing EDM tier-4 tables (OAuth `secret`, SAML `private_key`): never exported. Reasons live in
+    # tables.EXCLUDED; they are listed here too so a `--tables` override cannot request them.
+    "third_party_auth_oauth2providerconfig",
+    "third_party_auth_samlconfiguration",
+    "third_party_auth_samlproviderconfig",
 }
 
 # table -> {secret column: SQL literal sentinel to SELECT in its place}.
-# 5 columns total, not 3: the first 3 are the "obvious" ones; the last two
-# were found during design review.
+# The first 3 are the "obvious" ones; the rest were found during design review / the EDM parity audit.
 SECRET_COLUMNS = {
     "auth_user": {"password": "'!'"},
     "auth_registration": {"activation_key": "''"},
     "social_auth_usersocialauth": {"extra_data": "'{}'"},
     "student_pendingemailchange": {"activation_key": "''"},
     "verify_student_softwaresecurephotoverification": {"photo_id_key": "''"},
+    # lti_consumer_lticonfiguration (EDM `_migrate_lti_configurations` copies these verbatim; we blank them).
+    # UNVERIFIED against a real Koa schema: if a column is absent the table errors loudly (never ships a secret).
+    "lti_consumer_lticonfiguration": {"lti_1p1_client_secret": "''", "lti_1p3_private_key": "''"},
 }
 
 

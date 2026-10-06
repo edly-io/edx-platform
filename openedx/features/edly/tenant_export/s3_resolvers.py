@@ -1,4 +1,4 @@
-"""The 7 per-bucket key resolvers for the Phase 3 S3 asset copy (EDLYPRODUCT-8584).
+"""The 7 default (+1 opt-in) per-bucket key resolvers for the Phase 3 S3 asset copy (EDLYPRODUCT-8584).
 
 Each is a GENERATOR of source keys (verbatim -- the delivery layout keeps the
 source key; no EDM-style target transform), taking a `ResolverContext`. The
@@ -10,8 +10,18 @@ them over sqlite + FakeS3.
 Differences from EDM, deliberately: ACLs dropped (we copy bytes, not serving
 config); `SHA1(module_id)` and md5 hashing done in Python; discovery/
 credentials scoped through our scope.json service ids / Phase 2 WHERE builders;
-ORA2 additionally membership-filtered; org prefixes use `course_orgs`
-(site-config orgs UNION real-case orgs in course ids) because S3 is case-sensitive.
+ORA2 additionally membership-filtered (EDM filters only by course org, so a non-member's
+attachment in a tenant course is NOT copied here -- narrower than EDM, on purpose: PII scoping);
+org prefixes use `course_orgs` = EDM's sub-org M2M orgs + real-case variants of those same orgs
+found in course ids (scope.derive_orgs; S3 is case-sensitive, MySQL LIKE is not); credentials
+signatory images are restricted to PROGRAM-certificate signatories like EDM (course-certificate-only
+signatories are not copied; their DB rows are still in the Phase 2 dump). Org LIKE clauses escape
+`_`/`%` in the org token (sqlutil.org_like_clause), so `My_Org` does not match `MyXOrg`; EDM binds
+the org as a parameter without escaping `_`, i.e. EDM can over-match -- we are exact. No key
+remapping anywhere: source keys are delivered verbatim.
+
+`cert-template-assets` is OPT-IN (not in tables.S3_LOGICAL_BUCKETS / the default --buckets / the
+manifest's expected keys): see `cert_template_assets`.
 """
 import hashlib
 from dataclasses import dataclass, field
@@ -108,17 +118,30 @@ def discovery(ctx):
 
 
 def credentials(ctx):
-    """Signatory images; the signatory set is the Phase 2 WHERE (course + program certificates of the site)."""
-    site = _service_ctx(ctx, "credentials")
-    where = svc_credentials.where("credentials_signatory", site)
+    """Signatory images of PROGRAM-certificate signatories of the site -- EDM parity
+    (s3_resolvers.py CredentialsResolver joins credentials_programcertificate_signatories ->
+    credentials_programcertificate). Course-certificate-only signatories are deliberately NOT
+    copied (EDM would not); EDM scopes by core_siteconfiguration.edx_org_short_name, we use the
+    same site via scope.json's resolved `site_id`."""
+    site_id = int(_service_ctx(ctx, "credentials")["site_id"])
     rows = ctx.svc_rows(
-        "credentials", f"SELECT DISTINCT image FROM credentials_signatory WHERE ({where}) AND image IS NOT NULL AND image != ''",
+        "credentials",
+        "SELECT DISTINCT s.image FROM credentials_signatory s "
+        "JOIN credentials_programcertificate_signatories pcs ON s.id = pcs.signatory_id "
+        "JOIN credentials_programcertificate pc ON pcs.programcertificate_id = pc.id "
+        f"WHERE pc.site_id = {site_id} AND s.image IS NOT NULL AND s.image != ''",
     )
     return _dedup(r[0] for r in rows)
 
 
 def grades(ctx):
-    """Grade/report CSVs: `[ROOT_PATH/]sha1(course_id)/...` per tenant course."""
+    """Grade/report CSVs: `[ROOT_PATH/]sha1(course_id)/...` per tenant course.
+
+    ROOT_PATH comes from `GRADES_DOWNLOAD['ROOT_PATH']` (or the per-bucket `root_path` in
+    EXPORT_TENANT_S3_SOURCES) and is prepended to the listing prefix. EDM lists `sha1(course_id)/`
+    with NO root, so our SOURCE KEYS (which keep ROOT_PATH, delivered verbatim) equal EDM's only when
+    ROOT_PATH is empty; a non-empty one means EDM would have found nothing. The effective value and
+    that flag are recorded in the manifest entry (`root_path`, `keys_match_edm`)."""
     root = f"{ctx.root_path.strip('/')}/" if ctx.root_path.strip("/") else ""
 
     def keys():
@@ -129,7 +152,10 @@ def grades(ctx):
                 hit = True
                 yield key
             found_dirs += hit
-        ctx.stats["grades"] = {"course_dirs_expected": len(ctx.course_ids), "course_dirs_found": found_dirs}
+        ctx.stats["grades"] = {
+            "course_dirs_expected": len(ctx.course_ids), "course_dirs_found": found_dirs,
+            "root_path": root.rstrip("/"), "keys_match_edm": not root,
+        }
     return _dedup(keys())
 
 
@@ -207,13 +233,15 @@ def profile_name_hash(seed: str, username: str) -> str:
 
 
 def profile_images(ctx):
-    """media/profile-images/{md5(seed+username)}_{size}.jpg for members with an upload. The seed must
+    """(SQL deliberately has no DISTINCT: `SELECT DISTINCT ... ORDER BY u.id` fails under MySQL
+    ONLY_FULL_GROUP_BY because u.id is not selected; username is unique per auth_user row.)
+    media/profile-images/{md5(seed+username)}_{size}.jpg for members with an upload. The seed must
     be Koa's real `PROFILE_IMAGE_HASH_SEED`; a wrong one silently finds nothing, so the first
     users are sample-verified and a miss on all of them is a hard error. Seed never leaves this function."""
     if not ctx.profile_seed:
         raise ResolverError("PROFILE_IMAGE_HASH_SEED is empty -- cannot compute profile image names")
     usernames = [r[0] for r in ctx.edx_rows(
-        "SELECT DISTINCT u.username FROM auth_user u JOIN auth_userprofile up ON up.user_id = u.id "
+        "SELECT u.username FROM auth_user u JOIN auth_userprofile up ON up.user_id = u.id "
         f"WHERE u.id IN ({membership_subquery(ctx.sub_org_id)}) AND up.profile_image_uploaded_at IS NOT NULL "
         "ORDER BY u.id"
     )]
@@ -231,6 +259,23 @@ def profile_images(ctx):
                 )
         ctx.stats["profile-images"] = {"users_with_uploads": len(usernames), "users_found": hits}
     return _dedup(keys())
+
+
+# ---- 5. cert-template-assets (OPT-IN, platform-wide) ------------------------
+
+CERT_TEMPLATE_PREFIX = "certificate_template_assets/"
+
+
+def cert_template_assets(ctx):
+    """WARNING: PLATFORM-WIDE, NOT tenant-scoped. Lists EVERY key under `certificate_template_assets/`
+    in the edx-storage bucket (EDM CertificateTemplateAssetResolver, settings.py cert-template-assets
+    entry): the DB table `certificates_certificatetemplateasset` has no org/course FK, so there is no
+    way to attribute an asset to one tenant. Running this delivers OTHER tenants' certificate logos/CSS
+    too. Hence OPT-IN only (`--buckets cert-template-assets`); not in the default bucket list nor in
+    the manifest's expected keys. Consistent with the DB side, which excludes the templateasset table.
+    Without it, certificate templates that reference these assets by direct S3 URL show dead links."""
+    ctx.log("cert-template-assets: PLATFORM-WIDE prefix, includes other tenants' assets")
+    return _dedup(ctx.list_keys(CERT_TEMPLATE_PREFIX))
 
 
 def coverage(logical, ctx, counts):
@@ -263,4 +308,5 @@ RESOLVERS = {
     "video-meta": video_meta,
     "ora-submissions": ora_submissions,
     "profile-images": profile_images,
+    "cert-template-assets": cert_template_assets,   # opt-in, see s3_sources.OPT_IN_BUCKETS
 }

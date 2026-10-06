@@ -39,7 +39,7 @@ _COURSE_ORG_RE = re.compile(r"^course-v1:([^+]+)\+")
 
 
 def merge_orgs(course_org_filter, course_ids) -> list:
-    """course_org_filter UNION the orgs actually present (in their real case)
+    """FALLBACK only (see `derive_orgs`): course_org_filter UNION the orgs actually present (in their real case)
     in `course_ids`. MySQL LIKE is case-insensitive, so a site-config filter
     of `mit` matches `course-v1:MIT+...`; but S3 keys and Mongo prefixes are
     case-SENSITIVE (Phase 3), so they need the real-case spelling too."""
@@ -51,10 +51,34 @@ def merge_orgs(course_org_filter, course_ids) -> list:
     return sorted(orgs)
 
 
+def derive_orgs(edx_orgs_m2m, course_org_filter, course_ids) -> list:
+    """The org set used for S3 / Mongo prefixes and org LIKE scoping outside Phase 1.
+
+    BASE = EDM's source: the sub-org's `edly_edlysuborganization_edx_organizations` M2M ->
+    `organizations_organization.short_name` (EDM utils/s3_resolvers.py `_get_tenant_orgs`).
+    ADDITION (not in EDM, deliberate): real-case spellings found in `course_ids` whose
+    case-folded org equals a base org (e.g. base `MITx`, course `course-v1:mitx+...`), because
+    S3 keys and Mongo prefixes are case-SENSITIVE while MySQL LIKE is not. Orgs in `course_ids`
+    that are NOT in the M2M (case-insensitively) are NOT added -- EDM would not copy them.
+    FALLBACK: an empty M2M (query failed / unconfigured sub-org) falls back to the old
+    `merge_orgs(course_org_filter, course_ids)` superset rather than exporting nothing."""
+    base = {o for o in edx_orgs_m2m or [] if o}
+    if not base:
+        return merge_orgs(course_org_filter, course_ids)
+    folded = {o.lower() for o in base}
+    for course_id in course_ids:
+        match = _COURSE_ORG_RE.match(course_id)
+        if match and match.group(1).lower() in folded:
+            base.add(match.group(1))
+    return sorted(base)
+
+
 def scope_orgs(scope_data: dict) -> list:
     """`course_orgs` of a loaded scope.json; computed on the fly for a scope
     file written before Phase 3 (no re-resolve needed)."""
-    orgs = scope_data.get("course_orgs") or merge_orgs(scope_data["course_org_filter"], scope_data["course_ids"])
+    orgs = scope_data.get("course_orgs") or derive_orgs(
+        scope_data.get("edx_orgs_m2m"), scope_data["course_org_filter"], scope_data["course_ids"],
+    )
     for org in orgs:
         validate_org_token(org)
     return orgs
@@ -119,8 +143,8 @@ def resolve_scope(cursor, slug: str) -> dict:
     )
     course_ids = sorted(r[0] for r in cursor.fetchall())
 
-    # Informational only (Phase 3): the tenant's authoritative org set per the
-    # sub-org M2M. A mismatch with course_orgs is warned about, never used.
+    # Phase 3 org base (EDM's source of truth for S3/forum prefixes) -- see `derive_orgs`.
+    # Mismatch vs course_org_filter is warned about by export_tenant_scope.
     try:
         cursor.execute(
             "SELECT o.short_name FROM edly_edlysuborganization_edx_organizations esoo "
@@ -137,7 +161,8 @@ def resolve_scope(cursor, slug: str) -> dict:
         "sub_org_id": sub_org_id,
         "course_org_filter": course_org_filter,
         "course_ids": course_ids,
-        "course_orgs": merge_orgs(course_org_filter, course_ids),
+        "course_orgs": derive_orgs(edx_orgs_m2m, course_org_filter, course_ids),
+        "course_orgs_source": "edx_orgs_m2m" if edx_orgs_m2m else "fallback:course_org_filter+course_ids",
         "edx_orgs_m2m": edx_orgs_m2m,
         "tenant_user_count": tenant_user_count,
         "resolved_at": datetime.now(timezone.utc).isoformat(),
