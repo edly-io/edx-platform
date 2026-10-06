@@ -2074,8 +2074,8 @@ INSTALLED_APPS = [
     'django_filters',
 
     # API Documentation
-    'drf_yasg',
     'drf_spectacular',
+    'drf_spectacular_sidecar',
 
     # edx-drf-extensions
     'csrf.apps.CsrfAppConfig',  # Enables frontend apps to retrieve CSRF tokens.
@@ -2157,13 +2157,6 @@ OPTIONAL_APPS += [  # noqa: F405
 
 add_optional_apps(OPTIONAL_APPS, INSTALLED_APPS)  # noqa: F405
 
-######################### Django Rest Framework ########################
-
-SWAGGER_SETTINGS = {
-    'DEFAULT_INFO': 'openedx.core.apidocs.api_info',
-    'DEEP_LINKING': True,
-}
-
 ###################### drf-spectacular (LMS enrollment schema) ######################
 SPECTACULAR_SETTINGS = {
     'TITLE': 'LMS Enrollment API',
@@ -2177,8 +2170,15 @@ SPECTACULAR_SETTINGS = {
         'drf_spectacular.hooks.postprocess_schema_enums',
         'lms.lib.spectacular.lms_mark_legacy_paths_deprecated',
     ],
-    # Used for tag extraction only; paths are emitted in full.
+    # Stripped from each path to derive its tags and operationId, so changing
+    # it renames every operationId. Paths themselves are emitted in full.
     'SCHEMA_PATH_PREFIX': '/api/enrollment',
+    # Serve the Swagger UI and ReDoc assets from drf-spectacular-sidecar rather
+    # than drf-spectacular's default unpinned jsdelivr CDN URLs, keeping them
+    # self-hosted and version-pinned as the drf-yasg bundles were.
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
     # SERVERS is environment-specific (LMS_ROOT_URL differs per env) and is
     # set in devstack.py / production.py.
 }
