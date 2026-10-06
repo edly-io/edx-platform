@@ -129,6 +129,33 @@ class ExportTests(unittest.TestCase):
         self.assertFalse((out / "forum/contents.jsonl").exists())
         self.assertFalse((out / "forum/contents.jsonl.partial").exists())
 
+    def test_soft_secret_name_is_blanked_and_recorded_not_aborted(self):
+        db = _db([{"_id": FakeOid("d" * 24), "_type": "Comment", "course_id": A, "author_id": "1",
+                   "signature": "sig-value", "meta": {"oauth_provider": "x", "ok": 1}}])
+        out, mf, _ = self._run(db)
+        rows = {r["_id"]: r for r in _rows(out / "forum/contents.jsonl")}
+        row = rows["d" * 24]
+        self.assertEqual((row["signature"], row["meta"]["oauth_provider"], row["meta"]["ok"]), ("", "", 1))
+        self.assertNotIn("sig-value", (out / "forum/contents.jsonl").read_text())
+        self.assertEqual(mf.data["tables"]["forum__contents"]["blanked_secret_fields"], ["meta.oauth_provider", "signature"])
+        self.assertEqual(mf.data["tables"]["forum__users"]["blanked_secret_fields"], [])
+        self.assertEqual(mf.finalize(), "complete")
+        # source docs untouched (deep copy)
+        self.assertEqual(db["contents"].docs[-1]["signature"], "sig-value")
+
+    def test_soft_secret_in_users_blanked(self):
+        db = _db()
+        db["users"].docs[0]["private_notes"] = "hidden"
+        out, mf, _ = self._run(db)
+        users = {u["_id"]: u for u in _rows(out / "forum/users.jsonl")}
+        self.assertEqual(users["1"]["private_notes"], "")
+        self.assertEqual(mf.data["tables"]["forum__users"]["blanked_secret_fields"], ["private_notes"])
+
+    def test_hard_vs_soft_split(self):
+        hard, soft = forum.split_secrets({"api_key", "n.password", "x.token", "signature", "a.salt", "client_key"})
+        self.assertEqual(hard, {"api_key", "n.password", "x.token", "client_key"})
+        self.assertEqual(soft, {"signature", "a.salt"})
+
     def test_secret_field_in_users_or_subscriptions_blocks_export(self):
         for coll, doc in (("users", {"_id": "1", "username": "alice", "api_key": "k"}),
                           ("subscriptions", {"_id": "s9", "source_type": "CommentThread", "source_id": str(T_A),
@@ -201,6 +228,45 @@ class MongoParamsTests(unittest.TestCase):
 
 
 class ScopeOrgsTests(unittest.TestCase):
+    def test_derive_orgs_m2m_base_plus_case_variants_only(self):
+        ids = [A, "course-v1:mitx+7+1", "course-v1:Stray+1+1"]
+        # M2M is the base; `mitx` is added as a documented case variant; `Stray` (not in M2M) is NOT.
+        self.assertEqual(scope.derive_orgs(["MITx"], ["MITx", "Stray"], ids), ["MITx", "mitx"])
+        self.assertEqual(scope.derive_orgs(["MITx", "Extra"], ["MITx"], [A]), ["Extra", "MITx"])
+
+    def test_derive_orgs_falls_back_when_m2m_empty(self):
+        self.assertEqual(scope.derive_orgs([], ["mitx"], [A]), scope.merge_orgs(["mitx"], [A]))
+        self.assertEqual(scope.derive_orgs(None, ["mitx"], [A]), ["MITx", "mitx"])
+
+    def test_scope_orgs_uses_m2m_for_scope_files_without_course_orgs(self):
+        data = {"course_org_filter": ["MITx", "Stray"], "course_ids": [A, "course-v1:Stray+1+1"], "edx_orgs_m2m": ["MITx"]}
+        self.assertEqual(scope.scope_orgs(data), ["MITx"])
+
+    def test_resolve_scope_course_orgs_from_m2m(self):
+        class Cur:
+            def __init__(self):
+                self.q, self.last = [], None
+
+            def execute(self, sql, params=None):
+                self.last = sql
+
+            def fetchone(self):
+                if "FROM edly_edlysuborganization WHERE" in self.last:
+                    return (7, "n", 3)
+                if "COUNT" in self.last:
+                    return (2,)
+                return ('{"course_org_filter": ["mitx", "Stray"]}',)
+
+            def fetchall(self):
+                if "short_name" in self.last:
+                    return [("MITx",)]
+                return [("course-v1:MITx+1+1",), ("course-v1:mitx+2+1",), ("course-v1:Stray+1+1",)]
+
+        out = scope.resolve_scope(Cur(), "mit")
+        self.assertEqual(out["course_orgs"], ["MITx", "mitx"])
+        self.assertEqual(out["course_orgs_source"], "edx_orgs_m2m")
+        self.assertEqual(out["edx_orgs_m2m"], ["MITx"])
+
     def test_merge_keeps_real_case(self):
         self.assertEqual(scope.merge_orgs(["mitx"], [A, "course-v1:MITx+7+1"]), ["MITx", "mitx"])
 

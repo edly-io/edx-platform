@@ -67,10 +67,13 @@ class Command(BaseCommand):
             self.stdout.write(f"services: {resolved['services']}")
 
         m2m = {o.lower() for o in resolved['edx_orgs_m2m']}
-        if m2m != {o.lower() for o in resolved['course_orgs']}:
+        # course_orgs (S3/forum prefixes) is BASED on the M2M (EDM parity); the mismatch that matters is the
+        # M2M vs the site-config course_org_filter that selected course_ids.
+        if m2m != {o.lower() for o in resolved['course_org_filter']}:
             self.stderr.write(self.style.WARNING(
-                f"org mismatch: course_orgs={resolved['course_orgs']} vs sub-org edx_organizations M2M="
-                f"{resolved['edx_orgs_m2m']} -- confirm which is authoritative before Phase 3 exports"
+                f"org mismatch: course_org_filter={resolved['course_org_filter']} vs sub-org edx_organizations M2M="
+                f"{resolved['edx_orgs_m2m']} (course_orgs used for S3/forum={resolved['course_orgs']}, "
+                f"source={resolved['course_orgs_source']}) -- confirm which is authoritative before Phase 3 exports"
             ))
 
         self.stdout.write(

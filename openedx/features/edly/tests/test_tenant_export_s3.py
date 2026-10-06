@@ -107,8 +107,10 @@ class ResolverTests(unittest.TestCase):
         self.assertIn("prog/c.card.jpg", keys)
         self.assertFalse([k for k in keys if "other" in k or "b2" in k])
 
-    def test_credentials_scoped_via_phase2_where(self):
-        self.assertEqual(sorted(R.credentials(_ctx(_store([])))), ["sig/a.png", "sig/c.png"])
+    def test_credentials_program_certificate_signatories_only(self):
+        # EDM parity: sig/a.png belongs to a COURSE-certificate signatory of the site -> not copied;
+        # sig/c.png (program cert, site 1) is; sig/b.png / "" are other-site / empty.
+        self.assertEqual(sorted(R.credentials(_ctx(_store([])))), ["sig/c.png"])
 
     def test_service_block_missing_is_an_error_not_a_skip(self):
         with self.assertRaises(R.ResolverError) as cm:
@@ -127,6 +129,7 @@ class ResolverTests(unittest.TestCase):
         ctx = _ctx(_store([]), profile_seed="seed", edx_rows=lambda sql: sqls.append(sql) or [])
         list(R.profile_images(ctx))
         self.assertTrue(sqls[0].rstrip().endswith("ORDER BY u.id"))
+        self.assertNotIn("DISTINCT", sqls[0].upper())   # DISTINCT + ORDER BY non-selected col breaks ONLY_FULL_GROUP_BY
 
     def test_ora_coverage_errors_when_pairs_but_no_objects(self):
         ctx = _ctx(_store([]))
@@ -148,7 +151,8 @@ class ResolverTests(unittest.TestCase):
         self.assertEqual(R.coverage("grades", ctx, {"candidates": 0})[0], "error")
         ctx = _ctx(_store([f"{a}/g.csv"]), course_ids=cids)
         self.assertEqual(list(R.grades(ctx)), [f"{a}/g.csv"])
-        self.assertEqual(ctx.stats["grades"], {"course_dirs_expected": 2, "course_dirs_found": 1})
+        self.assertEqual(ctx.stats["grades"], {
+            "course_dirs_expected": 2, "course_dirs_found": 1, "root_path": "", "keys_match_edm": True})
         self.assertEqual(R.coverage("grades", ctx, {"candidates": 1})[0], "warning")
         ctx = _ctx(_store([f"{a}/g.csv", f"{b}/g.csv"]), course_ids=cids)
         list(R.grades(ctx))
@@ -156,6 +160,25 @@ class ResolverTests(unittest.TestCase):
         ctx = _ctx(_store([]), course_ids=[])                                       # empty tenant stays clean
         list(R.grades(ctx))
         self.assertIsNone(R.coverage("grades", ctx, {"candidates": 0}))
+
+    def test_grades_root_path_explicit_in_stats(self):
+        a = _sha1("course-v1:MITx+1+1")
+        ctx = _ctx(_store([f"reports/{a}/g.csv", f"{a}/stray.csv"]), course_ids=["course-v1:MITx+1+1"], root_path="/reports/")
+        self.assertEqual(list(R.grades(ctx)), [f"reports/{a}/g.csv"])
+        self.assertEqual(ctx.stats["grades"]["root_path"], "reports")
+        self.assertFalse(ctx.stats["grades"]["keys_match_edm"])
+
+    def test_cert_template_assets_is_platform_wide_and_opt_in(self):
+        store = _store(["certificate_template_assets/1/logo.png", "certificate_template_assets/2/x.css", "other/y"])
+        logs = []
+        keys = sorted(R.cert_template_assets(_ctx(store, log=logs.append)))
+        self.assertEqual(keys, ["certificate_template_assets/1/logo.png", "certificate_template_assets/2/x.css"])
+        self.assertTrue(any("PLATFORM-WIDE" in m for m in logs))
+        # opt-in: resolvable, but not a default bucket nor a manifest-expected key
+        self.assertIn("cert-template-assets", R.RESOLVERS)
+        self.assertNotIn("cert-template-assets", s3_sources.LOGICAL_BUCKETS)
+        self.assertIn("cert-template-assets", s3_sources.ALL_BUCKETS)
+        self.assertNotIn("s3__cert-template-assets", tables.S3_KEYS)
 
     def test_edx_storage_coverage_warns_only_for_tenant_with_courses(self):
         self.assertEqual(R.coverage("edx-storage", _ctx(_store([])), {"candidates": 0})[0], "warning")
@@ -395,6 +418,12 @@ class SourcesTests(unittest.TestCase):
         self.assertEqual(cfgs["grades"].root_path, "reports")
         self.assertEqual(sorted(missing), ["credentials", "profile-images", "video-meta"])
 
+    def test_cert_template_assets_defaults_to_edx_storage_bucket(self):
+        cfgs, missing = s3_sources.resolve_sources({}, lambda n, d=None: {"AWS_STORAGE_BUCKET_NAME": "edx-st"}.get(n, d),
+                                                   ["cert-template-assets"])
+        self.assertEqual(cfgs["cert-template-assets"].bucket, "edx-st")
+        self.assertEqual(missing, [])
+
     def test_setting_overrides_default_and_public_has_no_credentials(self):
         cfgs, _ = s3_sources.resolve_sources({"edx-storage": {"bucket": "mine", "access_key": "AK", "secret_key": "SK"}},
                                              lambda n, d=None: {"AWS_STORAGE_BUCKET_NAME": "other"}.get(n, d), ["edx-storage"])
@@ -417,7 +446,7 @@ class PackageWiringTests(unittest.TestCase):
         self.assertEqual(tables.phase3_expected(skip_s3=True), tables.FORUM_KEYS)
         self.assertEqual(tables.phase3_expected(True, True), [])
         self.assertEqual(set(tables.S3_KEYS), {f"s3__{b}" for b in s3_sources.LOGICAL_BUCKETS})
-        self.assertEqual(set(tables.S3_LOGICAL_BUCKETS), set(R.RESOLVERS))
+        self.assertEqual(set(tables.S3_LOGICAL_BUCKETS) | set(s3_sources.OPT_IN_BUCKETS), set(R.RESOLVERS))
 
     def test_status_incomplete_until_phase3_done_and_skip_drops_expectation(self):
         out = Path(tempfile.mkdtemp())

@@ -90,7 +90,10 @@ class Command(BaseCommand):
         conn_params = dbutil.conn_params_from_settings_dict(db_connection.settings_dict)
 
         scope_sha = manifest_mod.sha256_of_text(Path(options['scope']).read_text())
-        mf = manifest_mod.Manifest(out_dir / "MANIFEST.json", slug, scope_sha, spec.expected_stems)
+        mf = manifest_mod.Manifest(
+            out_dir / "MANIFEST.json", slug, scope_sha, spec.expected_stems,
+            expected_excluded=[services.stem(spec.name, t) for t in spec.excluded],
+        )
         mf.data.setdefault("services", {})[spec.name] = ctx
         for table, (status, reason) in spec.excluded.items():
             key = services.stem(spec.name, table)

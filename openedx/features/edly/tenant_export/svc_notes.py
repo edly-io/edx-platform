@@ -17,6 +17,9 @@ Preconditions (checked in `resolve`): the notes DB is on the same MySQL
 server as edxapp, the notes DB user can SELECT on the edxapp schema, and
 `EXPORT_TENANT_DATABASES['notes']['NAME']` is the real schema (default
 `edx_notes_api`, see `services.SCHEMA_NAMES`).
+UNVERIFIED on the demo site: that `student_anonymoususerid.course_id` of the
+course-independent row is NULL or '' (checked in the WHERE, not against data).
+The cross-schema SELECT grant above is a deployment requirement, not tested.
 ponytail: cross-schema subquery only; if notes ever lives on another server,
 resolve anon ids in Python and chunk them.
 """

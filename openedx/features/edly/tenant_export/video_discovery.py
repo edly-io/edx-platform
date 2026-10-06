@@ -4,6 +4,12 @@ from edlysaas_data_migrations/utils/video_discovery.py (read-only reference,
 never imported). Most tenants' videos exist ONLY via the Mongo path (Studio
 writes `edx_video_id` inline, no coursevideo row), so SQL-only would badly
 undercount. Stdlib only; takes `edx_rows(sql)` + a pymongo-like db.
+
+Difference from EDM: EDM binds `edx_video_id` values as query PARAMETERS, so any string works.
+We hand-build the IN list (the export's `edx_rows` takes no params because the SQL carries literal
+`%`), so ids with any character outside [A-Za-z0-9-_.] are REJECTED (never escaped), reported in
+`unresolved_edx_video_ids`, and their transcripts/images are NOT copied. Real ids are UUID-like or
+`external-video-*`, so this should be empty; a non-empty list is the signal to look at them by hand.
 """
 from openedx.features.edly.tenant_export.sqlutil import chunk_list, org_like_clause
 

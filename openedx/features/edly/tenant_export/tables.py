@@ -1,4 +1,4 @@
-"""Phase 1 table lists (tiers 3/5/6/7/8) + per-table WHERE builders.
+"""edxapp table lists (tiers 2-10 plus extras, and the EXCLUDED map) + per-table WHERE builders.
 
 Table lists and WHERE logic are copied by hand from the real, production
 EDM files (read-only reference, never imported):
@@ -29,12 +29,40 @@ Koa source name on purpose. SOURCE_TABLE_NAME_OVERRIDES below documents the
 mapping; nothing here reads tier_3.txt's name at runtime, so there is no
 risk of silently picking up the wrong one.
 """
-from openedx.features.edly.tenant_export.sqlutil import membership_subquery, org_like_clause
+from openedx.features.edly.tenant_export.sqlutil import (
+    _escape_like_value, membership_subquery, org_like_clause, validate_org_token,
+)
 
 SOURCE_TABLE_NAME_OVERRIDES = {
-    # Ulmo/target name (as tier_3.txt lists it) -> Koa/source name (used here)
+    # Ulmo/target name (as EDM's tier_*.txt lists it) -> Koa/source name (used here)
     "edly_features_app_edlymultisiteaccess": "edly_edlymultisiteaccess",
+    # Verified: lms/djangoapps/certificates/models.py `CertificateWhitelist` (renamed to allowlist in Teak).
+    "certificates_certificateallowlist": "certificates_certificatewhitelist",
+    # Verified: openedx/features/edly/models.py `EdlyOrganization`.
+    "edly_features_app_edlyorganization": "edly_edlyorganization",
+    # UNVERIFIED semantic mapping: Ulmo's EdlyTenant is assumed to be what Koa calls EdlySubOrganization
+    # (the table name itself is verified in models.py).
+    "edly_features_app_edlytenant": "edly_edlysuborganization",
 }
+
+# =============================================================================
+# Documented deliberate deviations from EDM (kept on purpose; do not "fix")
+# =============================================================================
+# * journal_djangoapp_journalmodel: NULL-user, course-only rows are DROPPED (EDM's `OR (user IS NULL AND org)`
+#   branch is kept out; see tier7_where) -- the `user IN (...)` branch of EDM leaks other tenants' rows.
+# * assessment_trainingexample*: scoped through the tenant's own training-workflow items, not the shared
+#   (content_hash-deduplicated) rubric as EDM does -- see ora_chain.py. Narrower than EDM by design.
+# * certificates_certificatetemplateasset: EXCLUDED (EDM scopes it 1=1, a cross-tenant leak) -- see EXCLUDED.
+# * LIKE patterns: org short names are validated and `_`/`%`/`\` escaped (sqlutil._escape_like_value), so a
+#   literal underscore in an org name cannot over-match. EDM interpolates the raw value.
+# * Empty course_org_filter is a hard error (scope.py), not EDM's silent `1=0`.
+# * edxval_video/encodedvideo/videotranscript: scoped via edxval_coursevideo only. EDM also unions video ids
+#   found in Mongo modulestore xblocks (video_discovery.py); that needs a Mongo connection, so Mongo-only videos
+#   are a known GAP here (the S3 video-meta bucket does use the Mongo discovery).
+# Table-name coverage: every table below that is defined by a pip-installed package rather than by this checkout
+# (figures, proctoring, lti_consumer, edxval, edx_when, wiki, milestones, edly_panel_app) is listed in
+# UNVERIFIED_IN_CHECKOUT. Their names/columns are taken from EDM, which reads the same Koa source DB; a missing
+# table is recorded `skipped_not_in_source`, a wrong column surfaces as a per-table `error` in the manifest.
 
 # =============================================================================
 # TIER 3: Core identity (per-tenant)
@@ -353,7 +381,7 @@ def tier7_where(table: str, sub_org_id, course_org_filter) -> str:
         # this export. Drop the unfiltered-by-org OR branch entirely: always
         # require both membership AND org match. (This means NULL-user,
         # course-only journal rows are excluded from this export -- accepted,
-        # see README's known limitations.)
+        # documented in the deviations block at the top of this module.)
         return f"user IN ({membership}) AND ({org_course_id})"
 
     raise KeyError(f"no tier-7 WHERE builder for table {table!r}")
@@ -392,7 +420,180 @@ TIER_8 = [
     "problem_builder_answer",
 ]
 
-ALL_TIER_TABLES = TIER_3 + TIER_5 + TIER_6 + TIER_7 + TIER_8
+
+# =============================================================================
+# TIERS 2, 4, 9, 10 + non-tier tables EDM moves in code (EDLYPRODUCT-8584 audit)
+# WHERE logic from migrate_tenant_tier_data.py:590-640 (tier 4), 1491-1648 (tier 9), 1363-1386 (tier 10),
+# 3337+ (LTI), migrate_users_and_courses.py:697+/888+/993+. All tenant membership is a live subquery.
+# =============================================================================
+
+# Koa has no eox_tenant tables (not installed); the other two map via SOURCE_TABLE_NAME_OVERRIDES.
+TIER_2 = ["django_site", "theming_sitetheme", "edly_edlyorganization", "edly_edlysuborganization"]
+
+# third_party_auth_* are secret-bearing (see EXCLUDED) and are not dumped.
+TIER_4 = ["figures_sitedailymetrics", "figures_sitemonthlymetrics"]
+
+TIER_9 = [
+    "teams_courseteam", "teams_courseteammembership",
+    "wiki_article", "wiki_articleforobject", "wiki_articlerevision", "wiki_urlpath",
+    "edxval_video", "edxval_encodedvideo", "edxval_videotranscript", "edxval_coursevideo", "edxval_videoimage",
+    # Order: datepolicy, contentdate, userdate (EDM: do not reorder; DatePolicy has no content_date_id).
+    "edx_when_datepolicy", "edx_when_contentdate", "edx_when_userdate",
+    "figures_coursedailymetrics", "figures_enrollmentdata", "figures_learnercoursegrademetrics",
+    "proctoring_proctoredexam", "proctoring_proctoredexamstudentattempt",
+    "lti_consumer_ltiagslineitem", "lti_consumer_ltiagsscore",
+    "django_comment_client_role", "django_comment_client_role_users", "django_comment_client_permission_roles",
+    "django_comment_common_discussionsidmapping",
+    "milestones_usermilestone", "django_admin_log", "block_structure", "experiments_experimentdata",
+]
+
+TIER_10 = ["certificates_certificatewhitelist"]  # EDM: certificates_certificateallowlist (Teak name)
+
+# Not in any EDM tier file; EDM moves these in migrate_users_and_courses.py / _migrate_lti_configurations.
+# edly_panel_app_edlyuseractivity is EDM's *source* name (Koa, from the edly-panel-edx-app package).
+TIER_EXTRA = [
+    "edly_edlymultisiteaccess_groups",
+    "student_usersignupsource",
+    "edly_panel_app_edlyuseractivity",
+    "lti_consumer_lticonfiguration",
+]
+
+UNVERIFIED_IN_CHECKOUT = [
+    "figures_sitedailymetrics", "figures_sitemonthlymetrics", "figures_coursedailymetrics",
+    "figures_enrollmentdata", "figures_learnercoursegrademetrics",
+    "proctoring_proctoredexam", "proctoring_proctoredexamstudentattempt",
+    "lti_consumer_ltiagslineitem", "lti_consumer_ltiagsscore", "lti_consumer_lticonfiguration",
+    "edxval_video", "edxval_encodedvideo", "edxval_videotranscript", "edxval_coursevideo", "edxval_videoimage",
+    "edx_when_datepolicy", "edx_when_contentdate", "edx_when_userdate",
+    "wiki_article", "wiki_articleforobject", "wiki_articlerevision", "wiki_urlpath",
+    "milestones_usermilestone", "edly_panel_app_edlyuseractivity",
+]
+
+# EDM-listed (tiers 2-10) tables deliberately NOT dumped: table -> reason. Recorded in the manifest as
+# `excluded_*`; a run cannot read "complete" until each is recorded (Manifest.expected_excluded).
+EXCLUDED = {
+    **EXCLUDED_CROSS_TENANT_LEAK,
+    "eox_tenant_tenantconfig": "eox_tenant is not installed on Koa (Koa tenant config is site_configuration_siteconfiguration, which holds secrets)",
+    "eox_tenant_route": "eox_tenant is not installed on Koa",
+    "third_party_auth_oauth2providerconfig": "carries OAuth `secret`; secrets are never exported",
+    "third_party_auth_samlconfiguration": "carries SAML `private_key`; secrets are never exported",
+    "third_party_auth_samlproviderconfig": "third_party_auth_* is treated as secret-bearing as a family",
+    "oauth_dispatch_applicationaccess": (
+        "EDM scopes it by the tenant's OAuth apps (panel-DB client_ids); oauth2_provider_application holds "
+        "client secrets and is not exported, so these rows would dangle"
+    ),
+    "django_comment_client_permission": "global static table; EDM itself scopes it 1=0",
+    "celery_utils_failedtask": "ephemeral task failures; EDM itself scopes it 1=0",
+}
+
+
+def excluded_keys() -> set:
+    """Every table that must appear in the manifest as `excluded_*` (EXCLUDED + secrets.DENYLIST)."""
+    from openedx.features.edly.tenant_export import secrets as secrets_mod
+    return set(EXCLUDED) | set(secrets_mod.DENYLIST)
+
+
+def _orgs_contain_like(column: str, orgs, prefix: str) -> str:
+    parts = []
+    for org in orgs:
+        validate_org_token(org)
+        parts.append(f"{column} LIKE '%{prefix}:{_escape_like_value(org)}+%'")
+    return " OR ".join(parts)
+
+
+def _site_subq(sub_org_id, col="lms_site_id") -> str:
+    return f"SELECT {col} FROM edly_edlysuborganization WHERE id = {int(sub_org_id)}"
+
+
+def tier_other_where(table: str, sub_org_id, orgs) -> str:
+    """WHERE for TIER_2/4/9/10/EXTRA tables (one clause each; every subquery is live, never an id list)."""
+    sub = int(sub_org_id)
+    member = membership_subquery(sub)
+    course = org_like_clause("course_id", orgs)
+    lms_site = _site_subq(sub)
+
+    # ---- tier 2 (Koa equivalents; EDM's tenant-structure rows for this tenant only)
+    if table in ("django_site",):
+        return " OR ".join(f"id IN ({_site_subq(sub, c)})" for c in ("lms_site_id", "studio_site_id", "preview_site_id"))
+    if table == "theming_sitetheme":
+        return " OR ".join(f"site_id IN ({_site_subq(sub, c)})" for c in ("lms_site_id", "studio_site_id", "preview_site_id"))
+    if table == "edly_edlyorganization":
+        return f"id IN ({_site_subq(sub, 'edly_organization_id')})"
+    if table == "edly_edlysuborganization":
+        return f"id = {sub}"
+
+    # ---- tier 4: site_id only (EDM also ORs organization_id where that column exists; none of these have it)
+    if table in ("figures_sitedailymetrics", "figures_sitemonthlymetrics"):
+        return f"site_id IN ({lms_site})"
+
+    # ---- tier 9
+    team = f"SELECT id FROM teams_courseteam WHERE ({course})"
+    wiki_articles = (
+        "SELECT DISTINCT article_id FROM wiki_urlpath WHERE article_id IS NOT NULL AND ("
+        + " OR ".join(f"slug = '{o}' OR slug LIKE '{_escape_like_value(o)}/%'" for o in orgs) + ")"
+    )
+    coursevideo_videos = f"SELECT DISTINCT video_id FROM edxval_coursevideo WHERE ({course})"
+    exam = f"SELECT id FROM proctoring_proctoredexam WHERE ({course})"
+    role = f"SELECT id FROM django_comment_client_role WHERE ({course})"
+    line_item = f"SELECT id FROM lti_consumer_ltiagslineitem WHERE ({_orgs_contain_like('resource_link_id', orgs, 'block-v1')})"
+    simple_course = {
+        "teams_courseteam", "edxval_coursevideo", "edx_when_contentdate", "proctoring_proctoredexam",
+        "django_comment_client_role", "django_comment_common_discussionsidmapping",
+    }
+    if table in simple_course:
+        return f"({course})"
+    mapping = {
+        "teams_courseteammembership": f"team_id IN ({team})",
+        "wiki_article": f"id IN ({wiki_articles})",
+        "wiki_articleforobject": f"article_id IN ({wiki_articles})",
+        "wiki_articlerevision": f"article_id IN ({wiki_articles})",
+        "wiki_urlpath": f"article_id IN ({wiki_articles})",
+        "edxval_video": f"id IN ({coursevideo_videos})",
+        "edxval_encodedvideo": f"video_id IN ({coursevideo_videos})",
+        "edxval_videotranscript": f"video_id IN ({coursevideo_videos})",
+        "edxval_videoimage": f"course_video_id IN (SELECT id FROM edxval_coursevideo WHERE ({course}))",
+        "edx_when_datepolicy": (
+            f"id IN (SELECT DISTINCT policy_id FROM edx_when_contentdate WHERE ({course}) AND policy_id IS NOT NULL)"
+        ),
+        # EDM: userdate is scoped by tenant users only (no course filter).
+        "edx_when_userdate": f"user_id IN ({member})",
+        "figures_coursedailymetrics": f"site_id IN ({lms_site}) AND ({course})",
+        "figures_enrollmentdata": f"site_id IN ({lms_site}) AND user_id IN ({member})",
+        "figures_learnercoursegrademetrics": f"site_id IN ({lms_site}) AND user_id IN ({member})",
+        "proctoring_proctoredexamstudentattempt": f"proctored_exam_id IN ({exam}) AND user_id IN ({member})",
+        "lti_consumer_ltiagslineitem": f"({_orgs_contain_like('resource_link_id', orgs, 'block-v1')})",
+        # user_id here is a varchar LTI id, NOT auth_user.id -- scope through the line item (EDM 1292 note).
+        "lti_consumer_ltiagsscore": f"line_item_id IN ({line_item})",
+        "django_comment_client_role_users": f"role_id IN ({role}) AND user_id IN ({member})",
+        "django_comment_client_permission_roles": f"role_id IN ({role})",
+        "milestones_usermilestone": f"user_id IN ({member})",
+        "django_admin_log": f"user_id IN ({member})",
+        "block_structure": f"({_orgs_contain_like('data_usage_key', orgs, 'block-v1')})",
+        "experiments_experimentdata": f"user_id IN ({member})",
+        # ---- tier 10 (Koa name of certificates_certificateallowlist)
+        "certificates_certificatewhitelist": f"user_id IN ({member}) AND ({course})",
+        # ---- non-tier tables
+        "edly_edlymultisiteaccess_groups": (
+            f"edlymultisiteaccess_id IN (SELECT id FROM edly_edlymultisiteaccess WHERE sub_org_id = {sub})"
+        ),
+        # EDM synthesizes rows (users x LMS/Studio domains); we copy the real source rows for tenant users.
+        "student_usersignupsource": f"user_id IN ({member})",
+        "edly_panel_app_edlyuseractivity": f"edly_sub_organization_id = {sub} AND user_id IN ({member})",
+        # _migrate_lti_configurations: XBLOCK configs by block location, DB (shared) configs by org slug.
+        "lti_consumer_lticonfiguration": (
+            f"(config_store = 'CONFIG_ON_XBLOCK' AND ({_orgs_contain_like('location', orgs, 'block-v1')})) OR "
+            "(config_store = 'CONFIG_ON_DB' AND organization_slug IN ("
+            + ",".join(f"'{o}'" for o in orgs) + "))"
+        ),
+    }
+    try:
+        return mapping[table]
+    except KeyError:
+        raise KeyError(f"no WHERE builder for table {table!r}") from None
+
+
+OTHER_TIER_TABLES = TIER_2 + TIER_4 + TIER_9 + TIER_10 + TIER_EXTRA
+ALL_TIER_TABLES = TIER_2 + TIER_3 + TIER_4 + TIER_5 + TIER_6 + TIER_7 + TIER_8 + TIER_9 + TIER_10 + TIER_EXTRA
 
 # CSMH lives in a genuinely separate database (`edxapp_csmh`, see
 # tenant_export/csmh.py) -- but is still part of the one full expected-table

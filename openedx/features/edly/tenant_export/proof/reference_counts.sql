@@ -2,8 +2,9 @@
 -- logic, written from EDM's commands). Run read-only on the demo site, compare
 -- with `export_tenant_services MIT --db X --dry-run`. Ecommerce names are UNVERIFIED (DESCRIBE first).
 -- EXPECTED DIFFS vs EDM: discovery program_excluded_course_runs (EDM bug: program
--- ids vs course ids), *_authoring_organizations (EDM scopes by course only),
--- video; ecommerce catalogue_product (+parent products); maybe social_auth.
+-- ids vs course ids), video (additive; EDM migrates zero rows),
+-- ecommerce catalogue_product (+parent products). *_authoring_organizations and
+-- courserun_staff net rows should now MATCH EDM.
 
 -- ===== credentials ===== (USE credentials;)
 SET @site_id = 0;  -- core_siteconfiguration.site_id for the tenant
@@ -32,12 +33,13 @@ SELECT 'program_excluded_course_runs', COUNT(*) FROM course_metadata_program_exc
 
 -- ===== ecommerce ===== (USE ecommerce;) UNVERIFIED names
 SET @partner_id = 0;  -- partner_partner.id where short_code = slug
-SELECT 'order_order', COUNT(*) FROM order_order WHERE partner_id=@partner_id;
-SELECT 'order_line', COUNT(*) FROM order_line WHERE order_id IN (SELECT id FROM order_order WHERE partner_id=@partner_id);
+-- orders INNER JOIN ecommerce_user (guest orders dropped, as EDM)
+SELECT 'order_order', COUNT(*) FROM order_order o JOIN ecommerce_user u ON o.user_id=u.id WHERE o.partner_id=@partner_id;
+SELECT 'order_line', COUNT(*) FROM order_line WHERE order_id IN (SELECT o.id FROM order_order o JOIN ecommerce_user u ON o.user_id=u.id WHERE o.partner_id=@partner_id);
 SELECT 'partner_stockrecord', COUNT(*) FROM partner_stockrecord WHERE partner_id=@partner_id;
 SELECT 'offer_conditionaloffer', COUNT(*) FROM offer_conditionaloffer WHERE partner_id=@partner_id;
 SELECT 'voucher_voucher', COUNT(*) FROM voucher_voucher WHERE id IN (SELECT voucher_id FROM voucher_voucher_offers WHERE conditionaloffer_id IN (SELECT id FROM offer_conditionaloffer WHERE partner_id=@partner_id));
-SELECT 'basket_basket(with order)', COUNT(DISTINCT basket_id) FROM order_order WHERE partner_id=@partner_id;
+SELECT 'ecommerce_user', COUNT(DISTINCT user_id) FROM order_order WHERE partner_id=@partner_id;
 
 -- ===== notes ===== (USE edx_notes_api;) edxapp schema assumed `edxapp`; same server.
 -- Written as JOINs (not the code's IN-subqueries) so a match is an independent check.
