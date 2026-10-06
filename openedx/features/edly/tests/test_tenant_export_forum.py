@@ -129,6 +129,24 @@ class ExportTests(unittest.TestCase):
         self.assertFalse((out / "forum/contents.jsonl").exists())
         self.assertFalse((out / "forum/contents.jsonl.partial").exists())
 
+    def test_secret_field_in_users_or_subscriptions_blocks_export(self):
+        for coll, doc in (("users", {"_id": "1", "username": "alice", "api_key": "k"}),
+                          ("subscriptions", {"_id": "s9", "source_type": "CommentThread", "source_id": str(T_A),
+                                             "subscriber_id": "1", "token": "t"})):
+            db = _db()
+            db[coll].docs.append(doc) if coll == "subscriptions" else db[coll].docs.__setitem__(0, doc)
+            out = Path(tempfile.mkdtemp())
+            mf = Manifest(out / "MANIFEST.json", "mit", "sha", [])
+            with self.assertRaises(forum.ForumError):
+                forum.export_forum(db, ["MITx"], ["1"], out, "mit", mf, print)
+            self.assertEqual(mf.data["tables"][forum.key(coll)]["status"], "error")
+            self.assertFalse((out / f"forum/{coll}.jsonl").exists())
+            self.assertFalse((out / f"forum/{coll}.jsonl.partial").exists())
+
+    def test_cohort_group_id_note_in_manifest(self):
+        _, mf, _ = self._run()
+        self.assertIn("course_groups_courseusergroup", mf.data["tables"]["forum__contents"]["notes"])
+
     def test_wrong_db_guard(self):
         with self.assertRaises(forum.ForumError):
             self._run(FakeMongo(contents=[]))

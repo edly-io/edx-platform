@@ -3,9 +3,10 @@ works over any boto3-like clients (tests use `tests/tenant_export_fakes.FakeS3`)
 
 Per object: HEAD source -> (missing | HEAD dest -> skip if identical | copy ->
 HEAD dest + verify size, and ETag when both are non-multipart). Default mode is
-a SERVER-SIDE `copy()` (`SourceClient=` for the cross-bucket/credential case);
-`stream` mode (GET -> upload_fileobj) is the fallback when the delivery
-credentials cannot read the source bucket. No ACLs are ever set.
+a SERVER-SIDE `copy()` with `SourceClient=` for HEAD on the source; the managed
+copy still issues the actual copy with the DESTINATION credentials, which therefore
+need s3:GetObject on every source bucket. Otherwise use `--copy-mode stream`
+(GET with the source client -> upload_fileobj). No ACLs are ever set.
 
 Delivery layout: `<dest_prefix>s3/<logical>/<source key verbatim>`; one JSONL
 index per bucket (`<out>/s3/<logical>.index.jsonl`, `.partial` -> rename)
@@ -14,7 +15,10 @@ manifest entry (`s3__<logical>`).
 
 Guards: delivery bucket != source bucket; delivery prefix must be empty unless
 resuming; candidates > 0 with nothing found/copied is an ERROR (a wrong prefix
-or seed silently yielding zero is the failure mode that already bit EDM).
+or seed silently yielding zero is the failure mode that already bit EDM). For
+listing-based buckets an empty candidate set is itself suspicious, so the caller may
+pass `coverage(counts) -> None | ("warning"|"error", msg)`: an error flips the status,
+a warning keeps `complete` but is recorded in the entry's `warnings` list.
 """
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -97,7 +101,7 @@ def _copy_one(key, ctx):
 
 
 def copy_bucket(logical, keys, src, src_bucket, dst, dst_bucket, dest_prefix, out_dir, *,
-                mode="server", workers=8, dry_run=False, log=print) -> dict:
+                mode="server", workers=8, dry_run=False, log=print, coverage=None) -> dict:
     """Copy every key of `keys` (a generator from s3_resolvers) and write the index.
     Returns manifest-ready fields incl. `status` ('complete' | 'error'). dry_run: count
     candidates only (no HEAD, no copy, no files). Resolver exceptions propagate (writer aborted)."""
@@ -145,7 +149,14 @@ def copy_bucket(logical, keys, src, src_bucket, dst, dst_bucket, dest_prefix, ou
         status, error = "error", "zero-result guard: candidate keys but none found/copied (wrong prefix/seed/bucket?)"
     elif counts["errors"]:
         status, error = "error", f"{counts['errors']} object(s) failed -- see the index; re-run with --resume"
-    out = {"status": status, "file": rel, "sha256": sha, "rows": writer.rows, "copy_mode": mode,
+    warnings = []
+    if status == "complete" and coverage:
+        verdict = coverage(counts)
+        if verdict and verdict[0] == "error":
+            status, error = "error", f"coverage guard: {verdict[1]}"
+        elif verdict:
+            warnings.append(verdict[1])
+    out = {"status": status, "warnings": warnings, "file": rel, "sha256": sha, "rows": writer.rows, "copy_mode": mode,
            "dest_prefix": f"{dest_prefix}s3/{logical}/", **counts}
     if error:
         out["error"] = error

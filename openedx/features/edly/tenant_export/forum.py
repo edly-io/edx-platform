@@ -19,6 +19,9 @@ Traps pinned by tests:
     their `read_states`/`course_stats` are filtered to tenant courses -- those
     arrays otherwise list OTHER tenants' course ids.
 
+  * forum cohort `group_id` values are deliberately kept as opaque ids (no remap); they
+    join to Phase 1's `course_groups_courseusergroup` (manifest `forum__contents.notes`).
+
 Output (flat, under `<out-dir>/forum/`): `contents.jsonl`, `users.jsonl`,
 `subscriptions.jsonl`; manifest keys `forum__<collection>` carrying `file`,
 `rows`, `sha256`. Written `.partial` then renamed; `.done` markers per key.
@@ -86,7 +89,8 @@ def thread_id(doc):
 
 def scope_user_doc(doc: dict, member_ids, course_re) -> tuple:
     """-> (scoped copy, email_blanked). Non-members lose `email`; everyone's
-    `read_states` / `course_stats` keep only tenant-course entries."""
+    `read_states` / `course_stats` keep only tenant-course entries. Every other field
+    (e.g. `notification_ids`) is copied verbatim -- opaque ids, not tenant data."""
     out = dict(doc)
     blanked = False
     if str(doc.get("_id")) not in member_ids and out.get("email"):
@@ -163,6 +167,17 @@ def preflight(db) -> int:
     return total
 
 
+def _refuse_secrets(mf, collection, found, writer=None) -> None:
+    """Abort a collection's export if its docs carry secret-looking fields."""
+    if not found:
+        return
+    msg = f"secret-looking field(s) in forum {collection}, refusing to export: {sorted(found)}"
+    if writer:
+        writer.abort()
+        mf.update_table(key(collection), status="error", error=msg)
+    raise ForumError(msg)
+
+
 def _chunks(values, size=CHUNK):
     values = sorted(values)
     for i in range(0, len(values), size):
@@ -221,11 +236,14 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
         sha = writer.finish()
         mf.update_table(key("contents"), status="complete", file=f"{FORUM_DIR}/contents.jsonl", format="jsonl",
                         rows=writer.rows, sha256=sha, threads=stats["threads"], comments=stats["comments"],
-                        cohorted_threads=stats["cohorted_threads"])
+                        cohorted_threads=stats["cohorted_threads"],
+                        notes="cohort group_id values are intentionally opaque (not remapped); they join to "
+                              "Phase 1 course_groups_courseusergroup")
         resume.mark_done(out_dir, slug, key("contents"))
         log(f"wrote {key('contents')}: {writer.rows} rows")
 
     # pass 2: subscriptions (thread-follows only)
+    sub_secrets = set()
     sub_writer = None if (dry_run or done["subscriptions"]) else JsonlWriter(out_dir / FORUM_DIR / "subscriptions.jsonl")
     for chunk in ([] if done["subscriptions"] else _chunks(thread_ids)):
         for sub in db["subscriptions"].find({"source_id": {"$in": chunk}}):
@@ -233,8 +251,10 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
                 stats["user_follows_skipped"] += 1
                 continue
             stats["subscriptions"] += 1
+            sub_secrets |= secret_fields(sub)
             if sub_writer:
                 sub_writer.write(sub)
+    _refuse_secrets(mf, "subscriptions", sub_secrets, sub_writer)
     if sub_writer:
         sha = sub_writer.finish()
         mf.update_table(key("subscriptions"), status="complete", file=f"{FORUM_DIR}/subscriptions.jsonl",
@@ -244,14 +264,17 @@ def export_forum(db, orgs, member_ids, out_dir, slug, mf, log, dry_run=False) ->
         log(f"wrote {key('subscriptions')}: {sub_writer.rows} rows")
 
     # pass 3: users (derived from refs; PII-scoped)
+    user_secrets = set()
     user_writer = None if (dry_run or done["users"]) else JsonlWriter(out_dir / FORUM_DIR / "users.jsonl")
     for chunk in ([] if done["users"] else _chunks(refs)):
         for user in db["users"].find({"_id": {"$in": chunk}}):
             scoped, blanked = scope_user_doc(user, member_ids, course_re)
             stats["user_docs"] += 1
             stats["emails_blanked"] += blanked
+            user_secrets |= secret_fields(scoped)
             if user_writer:
                 user_writer.write(scoped)
+    _refuse_secrets(mf, "users", user_secrets, user_writer)
     if user_writer:
         sha = user_writer.finish()
         mf.update_table(key("users"), status="complete", file=f"{FORUM_DIR}/users.jsonl", format="jsonl",

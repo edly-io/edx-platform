@@ -110,9 +110,57 @@ class ResolverTests(unittest.TestCase):
     def test_credentials_scoped_via_phase2_where(self):
         self.assertEqual(sorted(R.credentials(_ctx(_store([])))), ["sig/a.png", "sig/c.png"])
 
-    def test_service_block_missing_is_a_skip(self):
-        with self.assertRaises(R.ResolverSkip):
+    def test_service_block_missing_is_an_error_not_a_skip(self):
+        with self.assertRaises(R.ResolverError) as cm:
             R.discovery(_ctx(_store([]), services={}))
+        self.assertIn("export_tenant_scope --services discovery", str(cm.exception))
+
+    def test_require_service_blocks_precheck(self):
+        with self.assertRaises(R.ResolverError) as cm:
+            R.require_service_blocks(["grades", "discovery", "credentials"], {"credentials": {"site_id": 1}})
+        self.assertIn("services discovery", str(cm.exception).replace("--", "").replace("services.", "services "))
+        R.require_service_blocks(["grades", "edx-storage"], {})                      # excluded via --buckets: fine
+        R.require_service_blocks(["discovery", "credentials"], {"discovery": {"partner_id": 1}, "credentials": {"site_id": 1}})
+
+    def test_profile_images_sample_query_is_ordered(self):
+        sqls = []
+        ctx = _ctx(_store([]), profile_seed="seed", edx_rows=lambda sql: sqls.append(sql) or [])
+        list(R.profile_images(ctx))
+        self.assertTrue(sqls[0].rstrip().endswith("ORDER BY u.id"))
+
+    def test_ora_coverage_errors_when_pairs_but_no_objects(self):
+        ctx = _ctx(_store([]))
+        self.assertEqual(list(R.ora_submissions(ctx)), [])
+        level, msg = R.coverage("ora-submissions", ctx, {"candidates": 0})
+        self.assertEqual(level, "error")
+        self.assertIsNone(R.coverage("ora-submissions", ctx, {"candidates": 3}))
+
+    def test_ora_coverage_clean_for_tenant_without_pairs(self):
+        ctx = _ctx(_store([]), sub_org_id=99)
+        self.assertEqual(list(R.ora_submissions(ctx)), [])
+        self.assertIsNone(R.coverage("ora-submissions", ctx, {"candidates": 0}))
+
+    def test_grades_coverage_error_warning_and_clean(self):
+        a, b = _sha1("course-v1:MITx+1+1"), _sha1("course-v1:MITx+2+1")
+        cids = ["course-v1:MITx+1+1", "course-v1:MITx+2+1"]
+        ctx = _ctx(_store([]), course_ids=cids)
+        self.assertEqual(list(R.grades(ctx)), [])
+        self.assertEqual(R.coverage("grades", ctx, {"candidates": 0})[0], "error")
+        ctx = _ctx(_store([f"{a}/g.csv"]), course_ids=cids)
+        self.assertEqual(list(R.grades(ctx)), [f"{a}/g.csv"])
+        self.assertEqual(ctx.stats["grades"], {"course_dirs_expected": 2, "course_dirs_found": 1})
+        self.assertEqual(R.coverage("grades", ctx, {"candidates": 1})[0], "warning")
+        ctx = _ctx(_store([f"{a}/g.csv", f"{b}/g.csv"]), course_ids=cids)
+        list(R.grades(ctx))
+        self.assertIsNone(R.coverage("grades", ctx, {"candidates": 2}))
+        ctx = _ctx(_store([]), course_ids=[])                                       # empty tenant stays clean
+        list(R.grades(ctx))
+        self.assertIsNone(R.coverage("grades", ctx, {"candidates": 0}))
+
+    def test_edx_storage_coverage_warns_only_for_tenant_with_courses(self):
+        self.assertEqual(R.coverage("edx-storage", _ctx(_store([])), {"candidates": 0})[0], "warning")
+        self.assertIsNone(R.coverage("edx-storage", _ctx(_store([])), {"candidates": 1}))
+        self.assertIsNone(R.coverage("edx-storage", _ctx(_store([]), course_ids=[]), {"candidates": 0}))
 
     def test_grades_honours_root_path_and_sha1_dir(self):
         a, b = _sha1("course-v1:MITx+1+1"), _sha1("course-v1:Other+1+1")
@@ -258,9 +306,21 @@ class CopyEngineTests(unittest.TestCase):
         self.assertEqual(res["status"], "error")
         self.assertIn("zero-result guard", res["error"])
 
-    def test_no_candidates_is_not_an_error(self):
+    def test_genuinely_empty_tenant_is_complete(self):
+        # no coverage expectation (no pairs/courses) -> an empty bucket is fine
+        res, *_ = self._run([], coverage=lambda counts: None)
+        self.assertEqual((res["status"], res["candidates"], res["warnings"]), ("complete", 0, []))
         res, *_ = self._run([])
-        self.assertEqual((res["status"], res["candidates"]), ("complete", 0))
+        self.assertEqual(res["status"], "complete")
+
+    def test_coverage_error_flips_status_and_warning_is_recorded(self):
+        res, *_ = self._run([], coverage=lambda counts: ("error", "expected objects"))
+        self.assertEqual(res["status"], "error")
+        self.assertIn("expected objects", res["error"])
+        res, *_ = self._run([], coverage=lambda counts: ("warning", "looks thin"))
+        self.assertEqual((res["status"], res["warnings"]), ("complete", ["looks thin"]))
+        res, *_ = self._run(["a"], coverage=lambda counts: ("error", "x") if counts["candidates"] == 0 else None)
+        self.assertEqual((res["status"], res["warnings"]), ("complete", []))
 
     def test_copy_failure_is_error_status_but_others_proceed(self):
         dst = FakeS3({"dest": {}}, fail_keys={"mit/s3/edx-storage/bad"})

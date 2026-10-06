@@ -9,7 +9,7 @@ reference). Which bucket holds what is deployment config, not code, so:
         'video-meta':     {'bucket': '...'},
         'discovery':      {'bucket': '...'},
         'credentials':    {'bucket': '...'},
-        # optional per entry: region, endpoint_url, access_key, secret_key, root_path, key_prefix
+        # optional per entry: region, endpoint_url, access_key, secret_key, root_path
     }
 
 LMS defaults (UNVERIFIED on the Koa deployment -- confirm with `head_bucket`

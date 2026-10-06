@@ -80,4 +80,6 @@ class Command(BaseCommand):
         prefix = "[dry-run] " if options['dry_run'] else ""
         self.stdout.write(prefix + ", ".join(f"{k}={v}" for k, v in stats.items()))
         if mf:
-            self.stdout.write(f"manifest status: {mf.finalize()}")
+            self.stdout.write(
+                f"manifest status for this command's keys only (overall status: run export_tenant_package): {mf.finalize()}"
+            )

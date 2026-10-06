@@ -39,6 +39,11 @@ class Command(BaseCommand):
                  'export_tenant_s3 ran for every bucket.',
         )
 
+        parser.add_argument(
+            '--allow-errors', action='store_true',
+            help='Exit 0 even when the manifest status is "complete_with_errors" (default: exit non-zero).',
+        )
+
     def handle(self, *args, **options):
         out_dir = Path(options['out_dir'])
         manifest_path = out_dir / "MANIFEST.json"
@@ -84,5 +89,10 @@ class Command(BaseCommand):
         if errored:
             self.stderr.write(self.style.WARNING(f"tables/steps with errors (review before handoff): {errored}"))
 
+        if status == 'complete_with_errors' and not options['allow_errors']:
+            raise CommandError(
+                "manifest status is 'complete_with_errors' -- fix and re-run the failed steps, "
+                "or pass --allow-errors to accept"
+            )
         if status not in ('complete', 'complete_with_errors'):
             raise CommandError(f"export is not ready to hand off -- manifest status is {status!r}")

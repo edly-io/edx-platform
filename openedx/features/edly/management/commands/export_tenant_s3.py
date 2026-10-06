@@ -80,6 +80,10 @@ class Command(BaseCommand):
         unknown = set(wanted) - set(s3_sources.LOGICAL_BUCKETS)
         if unknown:
             raise CommandError(f"unknown bucket(s): {sorted(unknown)}")
+        try:
+            s3_resolvers.require_service_blocks(wanted, scope_data.get('services'))
+        except s3_resolvers.ResolverError as exc:
+            raise CommandError(str(exc))
 
         cfgs, unconfigured = s3_sources.resolve_sources(
             getattr(settings, 'EXPORT_TENANT_S3_SOURCES', None), lambda n, d=None: getattr(settings, n, d), wanted,
@@ -156,7 +160,9 @@ class Command(BaseCommand):
                 modulestore_client.close()
 
         if mf:
-            self.stdout.write(f"manifest status: {mf.finalize()}")
+            self.stdout.write(
+                f"manifest status for this command's keys only (overall status: run export_tenant_package): {mf.finalize()}"
+            )
 
     def _run_bucket(self, logical, cfg, src, dst, base_ctx, options, dest_prefix, out_dir, mf, slug):
         key = f"s3__{logical}"
@@ -171,13 +177,8 @@ class Command(BaseCommand):
             result = s3_copy.copy_bucket(
                 logical, s3_resolvers.RESOLVERS[logical](ctx), src, cfg.bucket, dst, options['dest_bucket'],
                 dest_prefix, out_dir, mode=options['copy_mode'], workers=options['workers'], dry_run=dry_run,
-                log=self.stdout.write,
+                log=self.stdout.write, coverage=lambda counts: s3_resolvers.coverage(logical, ctx, counts),
             )
-        except s3_resolvers.ResolverSkip as exc:
-            self.stdout.write(self.style.WARNING(f"SKIP {key}: {exc}"))
-            if mf:
-                mf.update_table(key, status="skipped_not_in_source", reason=str(exc))
-            return
         except Exception as exc:  # pylint: disable=broad-except -- one bucket must not abort the others
             self.stderr.write(self.style.ERROR(f"ERROR {key}: {exc}"))
             if mf:
@@ -197,3 +198,7 @@ class Command(BaseCommand):
             resume.mark_done(out_dir, slug, key)
         summary = {k: result[k] for k in ('candidates', 'copied', 'skipped', 'missing', 'errors', 'bytes')}
         self.stdout.write(f"{result['status']} {key}: {summary}")
+        for warning in result.get('warnings', []):
+            self.stdout.write(self.style.WARNING(f"WARNING {key}: {warning}"))
+        if result.get('error'):
+            self.stderr.write(self.style.ERROR(f"ERROR {key}: {result['error']}"))

@@ -25,10 +25,6 @@ class ResolverError(Exception):
     """Hard stop for one bucket (wrong seed, missing prerequisite...)."""
 
 
-class ResolverSkip(Exception):
-    """Bucket does not apply to this scope (e.g. no discovery partner in scope.json)."""
-
-
 @dataclass
 class ResolverContext:
     slug: str
@@ -58,10 +54,25 @@ def _ids(values) -> str:
     return ",".join(str(int(v)) for v in values)
 
 
+_SERVICE_BUCKETS = ("discovery", "credentials")
+
+
+def _missing_block_msg(db):
+    return f"scope.json has no services.{db} block -- re-run export_tenant_scope --services {db}"
+
+
+def require_service_blocks(wanted, services) -> None:
+    """Fail fast (before any copy) if a requested discovery/credentials bucket has no scope.json
+    `services.<db>` block; the operator excludes the bucket via --buckets or re-runs the scope."""
+    missing = [b for b in _SERVICE_BUCKETS if b in wanted and not (services or {}).get(b)]
+    if missing:
+        raise ResolverError("; ".join(_missing_block_msg(b) for b in missing))
+
+
 def _service_ctx(ctx, db):
     svc = ctx.services.get(db)
     if not svc:
-        raise ResolverSkip(f"scope.json has no services.{db} block (run export_tenant_scope --services {db})")
+        raise ResolverError(_missing_block_msg(db))
     return svc
 
 
@@ -111,8 +122,14 @@ def grades(ctx):
     root = f"{ctx.root_path.strip('/')}/" if ctx.root_path.strip("/") else ""
 
     def keys():
+        found_dirs = 0
         for course_id in ctx.course_ids:
-            yield from ctx.list_keys(f"{root}{hashlib.sha1(str(course_id).encode('utf-8')).hexdigest()}/")
+            hit = False
+            for key in ctx.list_keys(f"{root}{hashlib.sha1(str(course_id).encode('utf-8')).hexdigest()}/"):
+                hit = True
+                yield key
+            found_dirs += hit
+        ctx.stats["grades"] = {"course_dirs_expected": len(ctx.course_ids), "course_dirs_found": found_dirs}
     return _dedup(keys())
 
 
@@ -197,7 +214,8 @@ def profile_images(ctx):
         raise ResolverError("PROFILE_IMAGE_HASH_SEED is empty -- cannot compute profile image names")
     usernames = [r[0] for r in ctx.edx_rows(
         "SELECT DISTINCT u.username FROM auth_user u JOIN auth_userprofile up ON up.user_id = u.id "
-        f"WHERE u.id IN ({membership_subquery(ctx.sub_org_id)}) AND up.profile_image_uploaded_at IS NOT NULL"
+        f"WHERE u.id IN ({membership_subquery(ctx.sub_org_id)}) AND up.profile_image_uploaded_at IS NOT NULL "
+        "ORDER BY u.id"
     )]
 
     def keys():
@@ -213,6 +231,28 @@ def profile_images(ctx):
                 )
         ctx.stats["profile-images"] = {"users_with_uploads": len(usernames), "users_found": hits}
     return _dedup(keys())
+
+
+def coverage(logical, ctx, counts):
+    """Silent-zero guard for LISTING-based buckets (a wrong prefix/layout lists nothing, and an empty
+    candidate set is otherwise indistinguishable from an empty tenant). Call AFTER the key generator
+    was fully consumed. -> None | ("warning" | "error", message). A tenant with no inputs stays clean."""
+    found = counts["candidates"]
+    if logical == "ora-submissions":
+        pairs = ctx.stats.get(logical, {}).get("student_course_pairs", 0)
+        if pairs and not found:
+            return "error", f"{pairs} (student, course) ORA pair(s) in the DB but 0 objects found -- wrong prefix/bucket?"
+    elif logical == "grades":
+        expected = len(ctx.course_ids)
+        dirs = ctx.stats.get(logical, {}).get("course_dirs_found", 0)
+        if expected and not dirs:
+            return "error", f"0 of {expected} tenant course(s) have a grades directory -- wrong bucket/ROOT_PATH?"
+        if dirs < expected:
+            return "warning", f"only {dirs} of {expected} tenant course(s) have a grades directory (courses without reports are normal)"
+    elif logical == "edx-storage":
+        if ctx.course_ids and not found:
+            return "warning", f"0 objects found for a tenant with {len(ctx.course_ids)} course(s) -- confirm the bucket/layout"
+    return None
 
 
 RESOLVERS = {
