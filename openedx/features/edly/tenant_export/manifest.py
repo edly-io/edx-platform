@@ -31,12 +31,17 @@ _EXCLUDED_PREFIX = "excluded"
 class Manifest:
     def __init__(self, path, tenant_slug: str, scope_sha256: str, expected_tables, expected_excluded=()):
         self.path = Path(path)
+        # Phase 2: one shared manifest across dbs -- expected tables (stems,
+        # see services.stem) are persisted and unioned, so a run covering
+        # only one db can't make the whole export read "complete", and
+        # export_tenant_package needs no db list.
         self.expected_tables = set(expected_tables)
         # Tables that must be recorded `excluded_*`; unioned/persisted like expected_tables so a run can
         # never read "complete" while an EDM-listed table is neither dumped nor documented as excluded.
         self.expected_excluded = set(expected_excluded)
         if self.path.exists():
             self.data = json.loads(self.path.read_text())
+            self.expected_tables |= set(self.data.get("expected_tables", []))
             self.expected_excluded |= set(self.data.get("expected_excluded", []))
         else:
             self.data = {
@@ -46,6 +51,7 @@ class Manifest:
                 "tables": {},
                 "status": "incomplete",
             }
+        self.data["expected_tables"] = sorted(self.expected_tables)
         self.data["expected_excluded"] = sorted(self.expected_excluded)
 
     def update_table(self, name: str, **fields) -> None:

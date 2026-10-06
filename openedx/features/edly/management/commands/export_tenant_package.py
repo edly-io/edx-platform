@@ -13,7 +13,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from openedx.features.edly.tenant_export import dbutil, manifest as manifest_mod, tables
+from openedx.features.edly.tenant_export import dbutil, manifest as manifest_mod, services, tables
 
 
 class Command(BaseCommand):
@@ -23,6 +23,11 @@ class Command(BaseCommand):
         parser.add_argument('slug', help='EdlySubOrganization slug identifying the tenant to export.')
         parser.add_argument(
             '--out-dir', required=True, help='Directory produced by export_tenant_mysql/export_tenant_csmh.',
+        )
+        parser.add_argument(
+            '--skip-db', action='append', default=[], choices=services.SERVICE_DBS,
+            help='Service db deliberately NOT exported (repeatable); without it, package is only '
+                 '"complete" once credentials, discovery and ecommerce all ran.',
         )
 
     def handle(self, *args, **options):
@@ -37,7 +42,18 @@ class Command(BaseCommand):
                 f"slug {options['slug']!r} does not match manifest's tenant_slug {data['tenant_slug']!r}"
             ))
 
-        mf = manifest_mod.Manifest(manifest_path, data['tenant_slug'], data['scope_sha256'], tables.EXPECTED_TABLES)
+        skipped = set(options['skip_db'])
+        mf = manifest_mod.Manifest(
+            manifest_path, data['tenant_slug'], data['scope_sha256'],
+            list(tables.EXPECTED_TABLES) + services.expected_service_stems(skipped),
+        )
+        # The manifest unions persisted expectations; an explicit opt-out must also drop those.
+        for db in skipped:
+            mf.expected_tables -= set(services.get_spec(db).expected_stems)
+            mf.expected_excluded -= {services.stem(db, t) for t in services.get_spec(db).excluded}
+        mf.data['expected_tables'] = sorted(mf.expected_tables)
+        mf.data['expected_excluded'] = sorted(mf.expected_excluded)
+        mf.data['skipped_dbs'] = sorted(skipped)
 
         # Re-verify on-disk checksums for every table claimed "complete" --
         # catches post-dump truncation/corruption before calling a run

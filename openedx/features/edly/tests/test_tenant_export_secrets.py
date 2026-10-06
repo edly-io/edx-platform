@@ -87,10 +87,10 @@ class _FakeCursor:
         self._result = []
 
     def execute(self, sql, params=None):
-        if sql.startswith("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS"):
-            self._result = [(c,) for c in self._columns]
+        if sql.startswith("SELECT COLUMN_NAME, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS"):
+            self._result = [(c, "PRI" if c == "id" else "") for c in self._columns]
         elif sql.startswith("SELECT"):
-            last_id = int(sql.rsplit("id > ", 1)[1].split(" ", 1)[0])
+            last_id = int(sql.rsplit("`id` > ", 1)[1].split(" ", 1)[0])
             id_index = self._columns.index("id")
 
             select_clause = sql[len("SELECT "):sql.index(" FROM ")]

@@ -61,7 +61,8 @@ def check_denylist(tables) -> None:
         )
 
 
-def redacted_table_dump(cursor, table: str, where_clause: str, out_path, batch_size: int = 2000) -> int:
+def redacted_table_dump(cursor, table: str, where_clause: str, out_path, batch_size: int = 2000,
+                        secret_cols: dict = None) -> int:
     """Dump `table` without the real value of its secret column(s) ever
     leaving the database: the SELECT itself substitutes each secret column
     for its sentinel literal, so redaction happens before a row ever reaches
@@ -71,9 +72,14 @@ def redacted_table_dump(cursor, table: str, where_clause: str, out_path, batch_s
 
     Schema is expected to already be in `out_path` (via a separate
     `mysqldump --no-data` call -- see dbutil.dump_redacted_table); this only
-    appends data as `INSERT INTO` statements. Keyset-paginated on `id` --
-    every one of the 5 SECRET_COLUMNS tables has a plain auto-increment `id`
-    PK.
+    appends data as `INSERT INTO` statements. Keyset-paginated on the
+    table's single-column PK, read from INFORMATION_SCHEMA (Phase 2: not
+    assumed to be `id` -- e.g. discovery's core_historicalpartner uses
+    `history_id`).
+
+    `secret_cols` ({col: sentinel}) defaults to SECRET_COLUMNS[table]
+    (edxapp); the Phase 2 service specs pass their own. A configured secret
+    column missing from the table raises.
 
     [Resolved -- flagged in the plan as "needs resolving during
     implementation, not a blocker"] The reference implementation rendered
@@ -86,15 +92,26 @@ def redacted_table_dump(cursor, table: str, where_clause: str, out_path, batch_s
     identical semantics, on both MySQLdb and PyMySQL connections. Never
     hand-rolled escaping.
     """
-    secret_cols = SECRET_COLUMNS[table]
+    assert where_clause not in ("", "1=1"), f"refusing unscoped dump for {table}"
+    if secret_cols is None:
+        secret_cols = SECRET_COLUMNS[table]
 
     cursor.execute(
-        "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+        "SELECT COLUMN_NAME, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS "
         "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s ORDER BY ORDINAL_POSITION",
         (table,),
     )
-    columns = [row[0] for row in cursor.fetchall()]
-    id_index = columns.index("id")
+    info = cursor.fetchall()
+    columns = [row[0] for row in info]
+    missing = set(secret_cols) - set(columns)
+    if missing:
+        # Silently skipping a configured secret column would ship the secret.
+        raise RuntimeError(f"{table}: configured secret column(s) {sorted(missing)} not found in table")
+    pks = [row[0] for row in info if row[1] == "PRI"]
+    if len(pks) != 1:
+        raise RuntimeError(f"{table}: need exactly one PK column for keyset pagination, got {pks}")
+    pk = pks[0]
+    id_index = columns.index(pk)
 
     select_list = ", ".join(
         f"{secret_cols[c]} AS `{c}`" if c in secret_cols else f"`{c}`" for c in columns
@@ -112,15 +129,15 @@ def redacted_table_dump(cursor, table: str, where_clause: str, out_path, batch_s
     last_id = 0
     with open(out_path, "a", encoding="utf-8") as out:
         while True:
-            # `id > {int(last_id)}` inlined directly (not a %s bind param) --
+            # `pk > {int(last_id)}` inlined directly (not a %s bind param) --
             # avoids mixing param substitution with a WHERE string that may
             # itself contain literal '%' (SQL LIKE wildcards), which trips
             # the "only format when a second execute() argument is given"
             # behavior shared by PyMySQL and Django's MySQL cursor alike.
             sql = (
                 f"SELECT {select_list} FROM `{table}` "
-                f"WHERE ({where_clause}) AND id > {int(last_id)} "
-                f"ORDER BY id LIMIT {int(batch_size)}"
+                f"WHERE ({where_clause}) AND `{pk}` > {int(last_id)} "
+                f"ORDER BY `{pk}` LIMIT {int(batch_size)}"
             )
             cursor.execute(sql)
             rows = cursor.fetchall()
