@@ -201,14 +201,17 @@ class XblockViewSet(StandardizedErrorMixin, viewsets.ViewSet):
         before @expect_json_in_class_view runs.
         """
         # The conforming route passes a parsed UsageKey; the legacy route
-        # passes the raw string. Coerce to the string the actions expect —
+        # passes the raw string.  The actions expect the string, and
         # ``self.kwargs`` is the dict ``dispatch()`` unpacks into the handler.
-        if isinstance(self.kwargs.get("usage_key_string"), UsageKey):
-            self.kwargs["usage_key_string"] = str(self.kwargs["usage_key_string"])
         usage_key_string = self.kwargs.get("usage_key_string")
         if usage_key_string:
             try:
-                self.course_key = UsageKey.from_string(usage_key_string).course_key
+                if isinstance(usage_key_string, UsageKey):
+                    usage_key = usage_key_string
+                    self.kwargs["usage_key_string"] = str(usage_key)
+                else:
+                    usage_key = UsageKey.from_string(usage_key_string)
+                self.course_key = usage_key.course_key
             except InvalidKeyError:
                 self.course_key = None
         else:
