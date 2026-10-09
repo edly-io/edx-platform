@@ -413,6 +413,7 @@ urlpatterns += [
 # for the deprecation window.
 urlpatterns += [
     path('api/authoring/v1/', include('cms.djangoapps.contentstore.rest_api.v1.authoring_urls')),
+    path('api/authoring/v2/', include('cms.djangoapps.contentstore.rest_api.v2.authoring_urls')),
 ]
 
 # Content tagging
