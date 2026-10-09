@@ -1329,15 +1329,18 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     # Restrict the schema to the Authoring API's endpoints (cms/lib/spectacular.py).
     'PREPROCESSING_HOOKS': ['cms.lib.spectacular.cms_api_filter'],
-    # Mark migrated legacy addresses deprecated and BFF surfaces x-internal.
-    # The enum hook is drf-spectacular's default, restated because setting
-    # this key replaces the default list.
+    # Mark superseded and migrated legacy addresses deprecated, and BFF surfaces
+    # x-internal. The enum hook is drf-spectacular's default, restated because
+    # setting this key replaces the default list.
     'POSTPROCESSING_HOOKS': [
         'drf_spectacular.hooks.postprocess_schema_enums',
+        'cms.lib.spectacular.cms_mark_superseded_paths',
         'cms.lib.spectacular.cms_mark_migrated_paths',
     ],
     # Stripped from each path to derive its tags and operationId, so changing
-    # it renames every operationId. Paths themselves are emitted in full.
+    # it renames every operationId. Paths are published in full, from the
+    # service root, so /api/contentstore and /api/authoring resolve against the
+    # same base URL.
     'SCHEMA_PATH_PREFIX': r'/api/(contentstore|authoring)',
 }
 
