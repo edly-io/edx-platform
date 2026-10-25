@@ -3,6 +3,7 @@
 from django.urls import path
 
 from cms.djangoapps.contentstore.rest_api.v2.views.course_outline import CourseOutlineViewSet
+from cms.djangoapps.contentstore.rest_api.v2.views.rerun_defaults import CourseRerunDefaultsViewSet
 from cms.djangoapps.contentstore.rest_api.v2.views.textbooks import CourseTextbooksViewSet
 from cms.djangoapps.contentstore.rest_api.v2.views.video_settings import CourseVideoSettingsViewSet
 
@@ -23,5 +24,10 @@ urlpatterns = [
         "courses/<course_key:course_key>/outline/",
         CourseOutlineViewSet.as_view({"get": "retrieve"}),
         name="course_outline",
+    ),
+    path(
+        "courses/<course_key:course_key>/rerun_defaults/",
+        CourseRerunDefaultsViewSet.as_view({"get": "retrieve"}),
+        name="course_rerun_defaults",
     ),
 ]
