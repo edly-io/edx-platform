@@ -2,7 +2,7 @@
 Custom permissions for the content store views.
 """
 
-from openedx_authz.constants.permissions import COURSES_VIEW_PAGES_AND_RESOURCES
+from openedx_authz.constants.permissions import COURSES_MANAGE_PAGES_AND_RESOURCES, COURSES_VIEW_PAGES_AND_RESOURCES
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import BasePermission
 
@@ -123,3 +123,24 @@ class CanManageAdvancedSettings(BasePermission):
         if course_key is None:
             return False
         return check_course_advanced_settings_access(request.user, course_key, access_type="write")
+
+
+class CanManagePagesAndResources(BasePermission):
+    """
+    Allow callers who may change the pages and resources of the course in the path.
+
+    Reads the parsed ``course_key`` URL argument. On courses where
+    policy-based authoring permissions are enabled, only that policy is
+    consulted; elsewhere the caller needs Studio write access to the course.
+    """
+
+    def has_permission(self, request, view):
+        course_key = view.kwargs.get("course_key")
+        if course_key is None:
+            return False
+        return user_has_course_permission(
+            request.user,
+            COURSES_MANAGE_PAGES_AND_RESOURCES.identifier,
+            course_key,
+            LegacyAuthoringPermission.WRITE,
+        )
