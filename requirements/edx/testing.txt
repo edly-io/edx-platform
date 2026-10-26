@@ -1221,7 +1221,7 @@ pygments==2.19.2
     # via
     #   -r requirements/edx/coverage.txt
     #   diff-cover
-pyjwt[crypto]==2.10.1
+pyjwt[crypto]==2.15.1
     # via
     #   -r requirements/edx/base.txt
     #   drf-jwt

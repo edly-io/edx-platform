@@ -4,7 +4,7 @@ Tests for token handling
 import unittest
 from time import time
 
-from jwt.exceptions import ExpiredSignatureError, InvalidSignatureError, MissingRequiredClaimError
+from jwt.exceptions import DecodeError, ExpiredSignatureError, InvalidSignatureError, MissingRequiredClaimError
 
 from openedx.core.djangolib.testing.utils import skip_unless_lms
 from openedx.core.lib.jwt import _encode_and_sign, create_jwt, unpack_jwt, unpack_and_verify
@@ -52,7 +52,7 @@ class TestSign(unittest.TestCase):
         expected_token_with_claims = expected_full_token.copy()
         expected_token_with_claims.update(test_claims)
 
-        with self.assertRaises(InvalidSignatureError):
+        with self.assertRaises(DecodeError):
             unpack_and_verify(token)
 
 
@@ -85,7 +85,7 @@ class TestUnpack(unittest.TestCase):
         expected_token_with_claims = expected_full_token.copy()
         expected_token_with_claims.update(test_claims)
 
-        with self.assertRaises(InvalidSignatureError):
+        with self.assertRaises(DecodeError):
             unpack_jwt(token, test_user_id, test_now)
 
     def test_unpack_token_with_invalid_user(self):
