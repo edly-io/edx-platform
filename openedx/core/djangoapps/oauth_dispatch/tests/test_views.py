@@ -244,7 +244,9 @@ class TestAccessTokenView(AccessTokenLoginMixin, mixins.AccessTokenMixin, _Dispa
             'grant_type': grant_type.replace('-', '_'),
         }
         bad_response = self.client.post(self.url, invalid_body)
-        assert bad_response.status_code == 401
+        # oauthlib 4.0 validates the grant request parameters before authenticating the client,
+        # so a request missing both the client credentials and the password grant fields gets 400.
+        assert bad_response.status_code == 400
         expected_calls = [
             call('oauth_token_type', 'no_token_type_supplied'),
             call('oauth_grant_type', 'password'),
