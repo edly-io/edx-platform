@@ -218,6 +218,7 @@ cryptography==46.0.7
     #   pyjwt
     #   pyopenssl
     #   snowflake-connector-python
+    #   social-auth-core
 cssutils==2.11.1
     # via
     #   -r requirements/edx/base.txt
