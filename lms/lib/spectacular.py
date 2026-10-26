@@ -63,6 +63,15 @@ SUPERSEDED_USER_PATHS = (
 # covers derives; that leaves the five operations of that resource carrying the
 # same leading tokens in every document, which is what a client generated from
 # one takes its module from.
+#
+# A stored preference is addressed by the pair that identifies it, and the
+# comma between the two parameters is left behind as a token of its own, so
+# every document derives an id for that read carrying a bare separator where
+# the rest of the resource carries a word. That read is named here in each
+# document through the id that document derives, which leaves the collection
+# read and the member read of the resource under the same leading tokens
+# wherever they are published; neither document has published either name, so
+# nothing a client imports is taken away.
 RENAMED_OPERATION_IDS = {
     ("/api/user/v1/accounts", "GET", "api_user_v1_accounts_list"): "api_user_v1_accounts_retrieve",
     ("/api/user/v1/preferences/{username}/{preference_key}", "GET", "v1_preferences_retrieve"): (
@@ -78,6 +87,16 @@ RENAMED_OPERATION_IDS = {
         "GET",
         "api_user_v2_accounts_preferences_retrieve",
     ): "api_user_v2_accounts_preferences_retrieve_one",
+    (
+        "/api/user/v2/user_preferences/{username},{key}/",
+        "GET",
+        "v2_user_preferences_,_retrieve",
+    ): "v2_user_preferences_retrieve",
+    (
+        "/api/user/v2/user_preferences/{username},{key}/",
+        "GET",
+        "api_user_v2_user_preferences_,_retrieve",
+    ): "api_user_v2_user_preferences_retrieve",
 }
 
 PUBLISHED_PATH_PATTERN = re.compile(r"^/api/enrollment/v\d+/")
