@@ -33,7 +33,12 @@ from common.djangoapps.track import segment
 from lms.djangoapps.verify_student.services import IDVerificationService
 from openedx.core.djangoapps.user_api import accounts
 from openedx.core.djangoapps.user_api.accounts.api import get_account_settings, update_account_settings
-from openedx.core.djangoapps.user_api.accounts.permissions import CanDeactivateUser, CanGetAccountInfo
+from openedx.core.djangoapps.user_api.accounts.permissions import (
+    CanCancelUserRetirement,
+    CanDeactivateUser,
+    CanGetAccountInfo,
+    CanRetireUser,
+)
 from openedx.core.djangoapps.user_api.errors import (
     AccountUpdateError,
     AccountValidationError,
@@ -56,13 +61,17 @@ from openedx.core.djangoapps.user_api.preferences.api import (
 from openedx.core.lib.api.parsers import MergePatchParser
 
 from .errors import CatalogedRequestErrorsMixin, ErrorExtensionsMixin, RetiredAccount
-from .filters import StrictOrderingFilter, UserFilterSet, UserPreferenceFilterSet
+from .filters import RetirementFilterSet, StrictOrderingFilter, UserFilterSet, UserPreferenceFilterSet
 from .paginators import UserApiPagination
 from .permissions import CanSelectAccountsByContact, IsActiveUser, IsAddressedUser, IsStaffOrAbsent
 from .schema import ResponseShapes
 from .selectors import (
     accounts_holding_emails,
     cancellable_retirement_for_email,
+    retirement_of_the_account_named,
+    retirements,
+    retirements_requested_as,
+    unclaimed_partner_reports,
     username_holding_email,
     username_holding_id,
     usernames_among,
@@ -78,6 +87,7 @@ from .serializers import (
     MINIMAL_VIEW,
     PREFERENCE_MINIMAL_FIELDS,
     PREFERENCE_NAME_MAX_LENGTH,
+    RETIREMENT_MINIMAL_FIELDS,
     SHARED_VIEW,
     USER_MINIMAL_FIELDS,
     VERIFICATION_DEFAULT_SORT,
@@ -95,6 +105,15 @@ from .serializers import (
     ErrorResponse,
     NameChangeSerializer,
     RetiredAccountErrorResponse,
+    RetirementBatchOutcomeSerializer,
+    RetirementBatchSerializer,
+    RetirementErasureSerializer,
+    RetirementMinimalSerializer,
+    RetirementPartnerReportQuerySerializer,
+    RetirementPartnerReportRecordSerializer,
+    RetirementProjectionSerializer,
+    RetirementSerializer,
+    RetirementUpdateSerializer,
     TimeZoneQuerySerializer,
     TimeZoneSerializer,
     UserDirectoryMinimalSerializer,
@@ -108,6 +127,17 @@ from .serializers import (
     VerificationStatusSerializer,
     full_view_requested,
     why_a_name_cannot_be_stored,
+)
+from .view_services import (
+    NO_SUCH_RETIREMENT,
+    cancel_retirement,
+    claim_partner_reports,
+    delete_partner_reports,
+    delete_retirements,
+    erase_account_data,
+    move_retirement,
+    record_partner_report,
+    retirement_open_to_action,
 )
 from .view_utils import (
     RESP_UNAUTHENTICATED,
@@ -2002,3 +2032,591 @@ class UnknownAddressView(StandardizedErrorMixin, APIView):
     def initial(self, request, *args, **kwargs):
         """Refuse the address before a handler is chosen, whatever the method."""
         raise NotFound
+
+
+#: Fields the retirement queue sorts on. A retirement's own identifier is not
+#: among them: it is the order the queue is worked in and the order a page
+#: falls back to, but it is a database key rather than something a caller
+#: chooses a working order by.
+RETIREMENT_SORT_FIELDS = ("created", "modified", "original_username", "current_state")
+
+#: The order the queue is worked in, which is the order retirements were
+#: requested in.
+RETIREMENT_DEFAULT_SORT = ("id",)
+
+#: The presets a retirement response answers to.
+RETIREMENT_PRESETS = (MINIMAL_VIEW,)
+
+#: The retirement actions that answer with a retirement, and so read the
+#: parameters that shape one.
+SHAPED_RETIREMENT_ACTIONS = ("list", "retrieve")
+
+_RETIREMENT_PATH_PARAM = path_param(
+    "username",
+    "Name the account being retired was registered under. A retired account is stored under a "
+    "hashed name, and either name addresses the same retirement when one is read; a write "
+    "addresses the registered name alone, spelled exactly as it was registered.",
+    USERNAME_PATTERN,
+)
+_RETIREMENT_VIEW_PARAM = query_param(
+    VIEW_PARAM,
+    "Response preset. `minimal` reduces each retirement to which account it is for and where it "
+    "stands, carrying none of the account owner's own data. Omit it to receive the whole record.",
+    enum=list(RETIREMENT_PRESETS),
+)
+#: The number of days is published from the filter that reads it, so the two
+#: cannot disagree. It is declared here because the kind of value a filter
+#: taking a method of its own reads cannot be worked out from the records.
+_RETIREMENT_COOL_OFF_PARAM = query_param(
+    "cool_off_days",
+    RetirementFilterSet.base_filters["cool_off_days"].extra["help_text"],
+    type=int,
+)
+_RETIREMENT_ORDERING_PARAM = query_param(
+    "ordering",
+    "Fields to sort by, in order of precedence, each optionally prefixed with `-` to sort "
+    "descending. A field that is not listed here is refused. Omit it to receive the retirements "
+    "in the order they were requested, which is the order the pipeline works them in.",
+    many=True,
+    enum=[*RETIREMENT_SORT_FIELDS, *(f"-{field}" for field in RETIREMENT_SORT_FIELDS)],
+    style="form",
+    explode=False,
+)
+_PARTNER_REPORT_PATH_PARAM = path_param(
+    "username",
+    "Name the account was registered under, spelled exactly as it was registered.",
+    USERNAME_PATTERN,
+)
+
+#: A retirement comes back whole, as the fields the ``minimal`` preset keeps,
+#: or as the properties ``fields`` selected.
+_RETIREMENT_SHAPES = ResponseShapes(
+    component_name="RetirementResponse",
+    serializers=[
+        RetirementSerializer,
+        RetirementMinimalSerializer,
+        RetirementProjectionSerializer,
+    ],
+)
+
+_RESP_NO_SUCH_RETIREMENT = OpenApiResponse(
+    ErrorResponse, description="No retirement was requested under that name.",
+)
+_RESP_RETIREMENT_STATE = OpenApiResponse(
+    ErrorResponse,
+    description=(
+        "The retirement does not stand at a step of the pipeline that admits this operation. "
+        "Nothing was changed."
+    ),
+)
+_RESP_BATCH_STATE = OpenApiResponse(
+    ErrorResponse,
+    description=(
+        "One or more of the records named is not in a state this operation acts on. Nothing was "
+        "deleted, and `errors` names each record at fault and why."
+    ),
+)
+_RESP_RETIREMENT_MOVED = OpenApiResponse(description="The retirement now stands at the step asked for.")
+_RESP_RETIREMENT_CANCELLED = OpenApiResponse(
+    description="The retirement request is gone and the account it was made for is usable again.",
+)
+_RESP_DATA_ERASED = OpenApiResponse(description="The data named by the scope has been erased.")
+_RESP_PARTNER_REPORT_QUEUED = OpenApiResponse(
+    description=(
+        "The account is queued for reporting to the organizations it studied with, or was not "
+        "enrolled with any and so needs no report."
+    ),
+)
+
+#: Who may make each request the retirement collection serves. Cancelling a
+#: retirement is the one operation of this collection that is not pipeline
+#: work: it undoes a request rather than carrying it out, so it is open to
+#: whoever handles that for a learner and closed to the pipeline itself. An
+#: action this mapping does not name is refused, so one added later cannot
+#: reach the pipeline's capability by inheriting it.
+RETIREMENT_ACTION_PERMISSIONS = {
+    "list": (CanRetireUser,),
+    "retrieve": (CanRetireUser,),
+    "partial_update": (CanRetireUser,),
+    "erasures": (CanRetireUser,),
+    "destroy": (CanCancelUserRetirement,),
+    "metadata": (CanRetireUser,),
+}
+
+
+@extend_schema(tags=[USER_TAG])
+@extend_schema_view(
+    list=extend_schema(
+        summary="List retirements",
+        description=(
+            "Returns a page of the retirement queue. Supply `state` to keep only the retirements "
+            "standing at one of the pipeline steps it names, `cool_off_days` to keep only those "
+            "requested at least that many days ago, and `created_after` or `created_before` to "
+            "bound when they were requested."
+        ),
+        parameters=[
+            _RETIREMENT_VIEW_PARAM,
+            _FIELDS_PARAM,
+            _RETIREMENT_COOL_OFF_PARAM,
+            _RETIREMENT_ORDERING_PARAM,
+        ],
+        responses={
+            200: _RETIREMENT_SHAPES,
+            400: _RESP_BAD_REQUEST,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NO_SUCH_PAGE,
+        },
+    ),
+    retrieve=extend_schema(
+        summary="Get one retirement",
+        description=(
+            "Returns the retirement of the account this name addresses. A retired account is "
+            "stored under a hashed name, and both that name and the one the account was "
+            "registered under address the same retirement."
+        ),
+        parameters=[_RETIREMENT_PATH_PARAM, _RETIREMENT_VIEW_PARAM, _FIELDS_PARAM],
+        responses={
+            200: _RETIREMENT_SHAPES,
+            400: _RESP_BAD_REQUEST,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NO_SUCH_RETIREMENT,
+        },
+    ),
+    partial_update=extend_schema(
+        summary="Move a retirement to another pipeline step",
+        description=(
+            "Records that this retirement now stands at another step of the pipeline, and "
+            "appends what happened at the step it is leaving to its log. The steps and their "
+            "order are configured by the operator, and a step that is not a later one than the "
+            "current step is refused unless `force` is sent."
+        ),
+        parameters=[_RETIREMENT_PATH_PARAM],
+        request=RetirementUpdateSerializer,
+        responses={
+            204: _RESP_RETIREMENT_MOVED,
+            400: _RESP_UNUSABLE_BODY,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NO_SUCH_RETIREMENT,
+            409: _RESP_RETIREMENT_STATE,
+            415: RESP_UNREADABLE_BODY,
+        },
+    ),
+    destroy=extend_schema(
+        summary="Cancel a retirement",
+        description=(
+            "Deletes this retirement request and returns the account it was made for to the "
+            "address it was registered under, with a password nobody holds, so its owner signs "
+            "in again by asking for a new one. Only a retirement the pipeline has not started "
+            "work on can be cancelled."
+        ),
+        parameters=[_RETIREMENT_PATH_PARAM],
+        responses={
+            204: _RESP_RETIREMENT_CANCELLED,
+            400: _RESP_BAD_REQUEST,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NO_SUCH_RETIREMENT,
+            409: _RESP_RETIREMENT_STATE,
+        },
+    ),
+    erasures=extend_schema(
+        summary="Erase a retiring account's data",
+        description=(
+            "Erases one set of the retiring account's personal data. This cannot be undone, and "
+            "which set is erased is named by `scope` in the body. The retirement is not moved by "
+            "this request: the caller records where it stands."
+        ),
+        parameters=[_RETIREMENT_PATH_PARAM],
+        request=RetirementErasureSerializer,
+        responses={
+            204: _RESP_DATA_ERASED,
+            400: _RESP_UNUSABLE_BODY,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NO_SUCH_RETIREMENT,
+            409: _RESP_RETIREMENT_STATE,
+            415: RESP_UNREADABLE_BODY,
+        },
+    ),
+)
+class RetirementViewSet(
+    StandardizedErrorMixin,
+    CatalogedRequestErrorsMixin,
+    ErrorExtensionsMixin,
+    _ActionAddressMixin,
+    _ResponsePresetMixin,
+    StrictQueryParametersMixin,
+    ScopedQuerysetMixin,
+    viewsets.GenericViewSet,
+):
+    """
+    The accounts being retired, addressed by the name each was registered under.
+
+    A retirement is a record of one account's progress through a pipeline
+    whose steps are configured by the operator and driven from outside this
+    service: the steps here carry out the work and record nothing about where
+    the account stands, and the caller records that separately. No generic
+    write machinery is mixed in for that reason -- every change goes through
+    the pipeline's own model layer, which is what decides whether a step may
+    run.
+
+    Access is layered: the permission classes decide who may call an action at
+    all, the scoping policy decides which retirements such a caller may see,
+    and the filter set narrows those further by the caller's query string.
+    Cancelling a retirement carries a different capability from the rest,
+    because it undoes a request rather than carrying one out.
+
+    How a name is resolved follows the operation. A read accepts either the
+    name the account was registered under or the hashed name it was moved to,
+    because both address the same account. A write accepts the registered name
+    alone and compares it character for character: stored names are compared
+    without regard to case in some deployments, which once let a learner
+    register a retired name again by changing its capitalisation, and a write
+    must not reach the other account of such a pair.
+    """
+
+    permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = RetirementSerializer
+    pagination_class = UserApiPagination
+    queryset = retirements()
+    # Any caller holding the pipeline's capability may read every retirement,
+    # so the policy keeps the queue whole; a narrower policy can replace it
+    # without touching the filtering below.
+    scoping_policy = FullScopePolicy()
+    lookup_field = "username"
+    # The router's default lookup pattern excludes dots, which usernames allow.
+    lookup_value_regex = settings.USERNAME_REGEX_PARTIAL
+    filter_backends = (DjangoFilterBackend, StrictOrderingFilter)
+    filterset_class = RetirementFilterSet
+    ordering_fields = RETIREMENT_SORT_FIELDS
+    ordering = RETIREMENT_DEFAULT_SORT
+    # A sort the caller asks for is completed with the order the queue is
+    # worked in, so that retirements comparing equal keep one relative order
+    # from page to page and none is seen twice or missed.
+    ordering_tiebreak = ("id",)
+    minimal_fields = RETIREMENT_MINIMAL_FIELDS
+    response_presets = RETIREMENT_PRESETS
+    extra_query_params = RESPONSE_SHAPING_PARAMS
+
+    def get_permissions(self):
+        """Return the classes deciding who may make the request being served."""
+        # An action this mapping does not name reaches no capability of this
+        # collection, rather than inheriting the one every other action shares.
+        specific = RETIREMENT_ACTION_PERMISSIONS.get(self.action, (~permissions.AllowAny,))
+        return [permission() for permission in (*self.permission_classes, *specific)]
+
+    def known_query_params(self):
+        """Return the query parameters the action being served reads."""
+        names = super().known_query_params()
+        if self.action != "list":
+            # One retirement is answered whole, so neither the filters that
+            # choose which retirements a page carries nor the parameters that
+            # cut it into pages are read at a member address.
+            names -= set(self.filterset_class.base_filters)
+            names -= {
+                StrictOrderingFilter.ordering_param,
+                self.pagination_class.page_query_param,
+                self.pagination_class.page_size_query_param,
+            }
+        if self.action not in SHAPED_RETIREMENT_ACTIONS:
+            names -= set(RESPONSE_SHAPING_PARAMS)
+        return names
+
+    def list(self, request, *args, **kwargs):
+        """Return a page of the retirement queue, shaped as the caller asked."""
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        serializer = self.get_serializer(page, many=True)
+        return self.shape_page(self.get_paginated_response(serializer.data), request)
+
+    def retrieve(self, request, username):
+        """Return the retirement of the account this name addresses."""
+        retirement = retirement_of_the_account_named(username)
+        if retirement is None:
+            log.info("No retirement is held for an account addressed as %r.", username)
+            raise NotFound(NO_SUCH_RETIREMENT)
+        return Response(self.shape(self.get_serializer(retirement).data, request))
+
+    def partial_update(self, request, username):
+        """Record that this retirement now stands at another step of the pipeline."""
+        changes = RetirementUpdateSerializer(data=request.data)
+        changes.is_valid(raise_exception=True)
+        move_retirement(
+            self._retirement_requested_as(username),
+            changes.validated_data["new_state"],
+            changes.validated_data["response"],
+            changes.validated_data["force"],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def destroy(self, request, username):
+        """Undo this retirement request and return the account to its owner."""
+        cancel_retirement(self._retirement_requested_as(username))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path="erasures", url_name="erasure")
+    def erasures(self, request, username):
+        """Erase one set of the retiring account's personal data."""
+        erasure = RetirementErasureSerializer(data=request.data)
+        erasure.is_valid(raise_exception=True)
+        erase_account_data(retirement_open_to_action(username), erasure.validated_data["scope"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _retirement_requested_as(self, username):
+        """Return the retirement requested under exactly this name, or report none."""
+        retirement = retirements_requested_as([username]).get(username)
+        if retirement is None:
+            log.info("No retirement is requested under the name %r.", username)
+            raise NotFound(NO_SUCH_RETIREMENT)
+        return retirement
+
+
+class _UnclaimedPartnerReportsMixin:
+    """
+    The partner reports waiting to be processed, before they are narrowed to the ones a caller may see.
+
+    A view's scoping policy is applied on top of the selection the classes
+    resolved after it answer with, so the unnarrowed selection is declared
+    here rather than on the view, where it would stand in front of the layer
+    that narrows it and leave the policy with nothing to do.
+    """
+
+    def get_queryset(self):
+        """Return the partner reports nobody has taken for processing."""
+        return unclaimed_partner_reports()
+
+
+_RESP_PARTNER_REPORTS_TAKEN = OpenApiResponse(
+    RetirementPartnerReportRecordSerializer(many=True),
+    description=(
+        "The entries taken by this request, which are exactly the entries it marked as being "
+        "processed. A second request returns the entries added since."
+    ),
+)
+
+
+@extend_schema(tags=[USER_TAG])
+@extend_schema_view(
+    create=extend_schema(
+        summary="Take partner reports for processing",
+        description=(
+            "Returns the queued partner reports nobody has taken yet and marks the ones it "
+            "returns as being processed, so that two callers do not report the same account. "
+            "Nothing releases an entry once it has been taken, which is why this is a write "
+            "rather than a read and why the answer is not cut into pages: a page would hand the "
+            "caller the first entries while taking all of them."
+        ),
+        parameters=[
+            query_param(
+                "limit",
+                "Take at most this many entries. Omit it to take every entry waiting.",
+                type=int,
+            ),
+        ],
+        request=None,
+        responses={
+            200: _RESP_PARTNER_REPORTS_TAKEN,
+            400: _RESP_BAD_REQUEST,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+        },
+    ),
+    update=extend_schema(
+        summary="Queue an account for partner reporting",
+        description=(
+            "Queues the retiring account this name addresses for reporting to the organizations "
+            "running the courses it was enrolled in. An account enrolled with no organization "
+            "needs no report and is not queued. Sending this twice for the same account leaves "
+            "one entry."
+        ),
+        parameters=[_PARTNER_REPORT_PATH_PARAM],
+        request=None,
+        responses={
+            204: _RESP_PARTNER_REPORT_QUEUED,
+            400: _RESP_BAD_REQUEST,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            404: _RESP_NO_SUCH_RETIREMENT,
+            409: _RESP_RETIREMENT_STATE,
+        },
+    ),
+)
+class RetirementPartnerReportViewSet(
+    StandardizedErrorMixin,
+    CatalogedRequestErrorsMixin,
+    ErrorExtensionsMixin,
+    _ActionAddressMixin,
+    StrictQueryParametersMixin,
+    ScopedQuerysetMixin,
+    _UnclaimedPartnerReportsMixin,
+    viewsets.ViewSet,
+):
+    """
+    The accounts whose retirement still has to be reported to the organizations they studied with.
+
+    Taking entries for processing is a write, so the collection is added to by
+    one caller -- the pipeline, as it finishes an account -- and drained by
+    another, which takes a set of entries and marks them. The entries a
+    request answers with are exactly the entries it marks: they are read
+    first and marked by the identifiers that were read, so an entry added
+    while the answer is being built is left for the next caller instead of
+    being marked by one that never saw it. Nothing releases an entry.
+
+    An entry carries the account owner's name and address as they were before
+    retirement, and the short names of the organizations running the courses
+    the account was enrolled in; those enrolments are fetched with the entries
+    so that the cost of the answer does not grow with the number of entries.
+    """
+
+    permission_classes = (permissions.IsAuthenticated, CanRetireUser)
+    serializer_class = RetirementPartnerReportRecordSerializer
+    #: Validates the query string, and names the parameters this view reads.
+    query_serializer_class = RetirementPartnerReportQuerySerializer
+    scoping_policy = FullScopePolicy()
+    lookup_field = "username"
+    # The router's default lookup pattern excludes dots, which usernames allow.
+    lookup_value_regex = settings.USERNAME_REGEX_PARTIAL
+
+    def get_serializer(self, *args, **kwargs):
+        """Build the output serializer; a plain ViewSet has no generic machinery to do it."""
+        return self.serializer_class(*args, **kwargs)
+
+    def known_query_params(self):
+        """Return the query parameters the action being served reads."""
+        names = super().known_query_params()
+        if self.action != "create":
+            # How many entries to take is only meaningful where entries are taken.
+            names -= set(self.query_serializer_class().fields)
+        return names
+
+    def create(self, request):
+        """Take the queued partner reports and return them."""
+        query = self.query_serializer_class(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        reports = claim_partner_reports(self.get_queryset(), query.validated_data.get("limit"))
+        return Response(self.get_serializer(reports, many=True).data)
+
+    def update(self, request, username):
+        """Queue the retiring account this name addresses for partner reporting."""
+        record_partner_report(retirement_open_to_action(username))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+_RESP_BATCH_OUTCOME = OpenApiResponse(
+    RetirementBatchOutcomeSerializer,
+    description=(
+        "What was done about each name given. A name with no record left is reported as such "
+        "rather than refused, so a repeat of a request already carried out is answered."
+    ),
+)
+
+
+@extend_schema(tags=[USER_TAG])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Delete finished retirement records",
+        description=(
+            "Deletes the retirement records of the accounts named, once the pipeline has "
+            "finished with them. The record's own copies of the account's name, address and "
+            "full name are written over before it is deleted, so that a system syncing these "
+            "rows and treating a delete as a soft one is left holding the replacement. A record "
+            "the pipeline has not finished with refuses the whole batch, and nothing is deleted."
+        ),
+        request=RetirementBatchSerializer,
+        responses={
+            200: _RESP_BATCH_OUTCOME,
+            400: _RESP_UNUSABLE_BODY,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            409: _RESP_BATCH_STATE,
+            415: RESP_UNREADABLE_BODY,
+        },
+    ),
+)
+class RetirementCleanupView(
+    StandardizedErrorMixin,
+    CatalogedRequestErrorsMixin,
+    ErrorExtensionsMixin,
+    StrictQueryParametersMixin,
+    APIView,
+):
+    """
+    Deletes a set of finished retirement records.
+
+    This is a plain view rather than part of the retirement collection: it is
+    one operation over a set of records named in its body, with an invariant
+    that covers the whole set, and it has no member address of its own. It is
+    not the collection's own delete either, which undoes a single request that
+    has not been acted on; this one disposes of records the pipeline has
+    finished with, and the two carry different capabilities and act on
+    retirements at opposite ends of the pipeline.
+    """
+
+    permission_classes = (permissions.IsAuthenticated, CanRetireUser)
+    serializer_class = RetirementBatchOutcomeSerializer
+
+    def get_serializer(self, *args, **kwargs):
+        """Build the output serializer; a plain view has no generic machinery to do it."""
+        return self.serializer_class(*args, **kwargs)
+
+    def post(self, request):
+        """Delete the retirement records of the accounts the body names."""
+        batch = RetirementBatchSerializer(data=request.data)
+        batch.is_valid(raise_exception=True)
+        results = delete_retirements(batch.validated_data["usernames"])
+        return Response(self.get_serializer({"results": results}).data)
+
+
+@extend_schema(tags=[USER_TAG])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Delete reported partner report entries",
+        description=(
+            "Deletes the partner report entries of the accounts named, once they have been "
+            "reported on. An entry nobody has taken for processing has not been reported on "
+            "yet, so it refuses the whole batch and nothing is deleted."
+        ),
+        request=RetirementBatchSerializer,
+        responses={
+            200: _RESP_BATCH_OUTCOME,
+            400: _RESP_UNUSABLE_BODY,
+            401: RESP_UNAUTHENTICATED,
+            403: _RESP_FORBIDDEN,
+            409: _RESP_BATCH_STATE,
+            415: RESP_UNREADABLE_BODY,
+        },
+    ),
+)
+class RetirementPartnerReportCleanupView(
+    StandardizedErrorMixin,
+    CatalogedRequestErrorsMixin,
+    ErrorExtensionsMixin,
+    StrictQueryParametersMixin,
+    APIView,
+):
+    """
+    Deletes a set of partner report entries that have been reported on.
+
+    This is a plain view rather than part of the partner report collection,
+    for the same reason as the retirement records' own disposal: one operation
+    over a set of records named in its body, with an invariant that covers the
+    whole set, and no member address of its own. The two disposals are kept
+    apart because they act on different records in different tables, under
+    different conditions.
+    """
+
+    permission_classes = (permissions.IsAuthenticated, CanRetireUser)
+    serializer_class = RetirementBatchOutcomeSerializer
+
+    def get_serializer(self, *args, **kwargs):
+        """Build the output serializer; a plain view has no generic machinery to do it."""
+        return self.serializer_class(*args, **kwargs)
+
+    def post(self, request):
+        """Delete the partner report entries of the accounts the body names."""
+        batch = RetirementBatchSerializer(data=request.data)
+        batch.is_valid(raise_exception=True)
+        results = delete_partner_reports(batch.validated_data["usernames"])
+        return Response(self.get_serializer({"results": results}).data)

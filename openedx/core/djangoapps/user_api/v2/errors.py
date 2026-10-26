@@ -1,6 +1,6 @@
 """Error types this version of the User API classifies for itself."""
 
-from edx_rest_framework_extensions.errors import register_error_type
+from edx_rest_framework_extensions.errors import Conflict, register_error_type
 from rest_framework.exceptions import (
     MethodNotAllowed,
     NotAcceptable,
@@ -43,11 +43,29 @@ class RetiredAccount(NotFound):
         }
 
 
+class RetirementStateConflict(Conflict):
+    """
+    An operation asked of a retirement whose state does not admit it.
+
+    Which operation a retirement admits depends on how far through the
+    pipeline it is, and the order of those steps is configured by the
+    operator rather than fixed here. A refusal names the retirements at fault
+    and why, so a caller acting on several of them at once learns which ones
+    to look at; nothing is changed when one is refused.
+    """
+
+    def __init__(self, detail=None, errors=None):
+        super().__init__(detail)
+        if errors:
+            self.extension_members = {"errors": errors}
+
+
 register_error_type(RefusedMethod, "method-not-allowed", "Method Not Allowed")
 register_error_type(UnsatisfiableAccept, "not-acceptable", "Not Acceptable")
 register_error_type(UnreadableRepresentation, "unsupported-media-type", "Unsupported Media Type")
 register_error_type(MalformedBody, "malformed-body", "Malformed Request Body")
 register_error_type(RetiredAccount, "user/retired-account", "Retired Account")
+register_error_type(RetirementStateConflict, "user/retirement-state-conflict", "Retirement State Conflict")
 
 
 class CatalogedRequestErrorsMixin:
