@@ -151,7 +151,7 @@ celery==5.5.3
     #   enterprise-integrated-channels
     #   event-tracking
     #   openedx-learning
-certifi==2025.10.5
+certifi==2026.10.19
     # via
     #   -r requirements/edx/base.txt
     #   elasticsearch
@@ -483,7 +483,7 @@ django-webpack-loader==3.2.1
     # via
     #   -r requirements/edx/base.txt
     #   edx-proctoring
-djangorestframework==3.16.1
+djangorestframework==3.18.2
     # via
     #   -r requirements/edx/base.txt
     #   django-config-models
@@ -1631,7 +1631,7 @@ uritemplate==4.2.0
     #   -r requirements/edx/base.txt
     #   drf-spectacular
     #   drf-yasg
-urllib3==2.5.0
+urllib3==2.8.0
     # via
     #   -r requirements/edx/base.txt
     #   botocore
