@@ -32,6 +32,9 @@ SUPERSEDED_USER_PATHS = (
     "/api/user/v1/users/{id}/",
     "/api/user/v1/user_prefs/",
     "/api/user/v1/user_prefs/{id}/",
+    "/api/user/v1/preferences/{username}",
+    "/api/user/v1/preferences/{username}/{preference_key}",
+    "/api/user/v1/preferences/email_opt_in/",
     "/api/user/v1/preferences/{pref_key}/users/",
     "/api/user/v1/forum_roles/{name}/users/",
     "/api/user/v1/preferences/time_zones/",
@@ -39,16 +42,42 @@ SUPERSEDED_USER_PATHS = (
 
 # A path parameter leaves no token behind, and the version 1 account collection
 # has no trailing slash to tell it from the member address, so the two tokenize
-# to one operation id and are told apart only by a numeral handed out in
-# registration order. The collection answers with a list of accounts, which the
+# to one operation id and are told apart only by a numeral handed out in the
+# order the addresses sort. The collection answers with a list of accounts, which the
 # generator names for a list, while the document that trims nothing off the
 # front of each path has always published that address under the name derived
 # for a single account -- the name that leaves the member address the numeral it
 # carries there -- so that one is pinned. The key carries the id the generator
 # derives, so an entry applies only to the document that derives it; a key no
 # document derives would never be reached.
+#
+# The two preference reads tokenize to one id for the same reason. The numeral
+# a document hands the second of them says which of the two addresses sorts
+# first rather than what the operation reads, so the read of one preference is
+# named for what it reads and the read of the whole document keeps the name
+# both derive. Of the version 1 pair only the document that trims the area off
+# the front of each path is covered: the one that trims nothing already
+# publishes that read under the numeral, and a name a client imports by is not
+# taken away. Neither document has published either name of the version 2
+# pair, so both are covered there, each through the name the document it
+# covers derives; that leaves the five operations of that resource carrying the
+# same leading tokens in every document, which is what a client generated from
+# one takes its module from.
 RENAMED_OPERATION_IDS = {
     ("/api/user/v1/accounts", "GET", "api_user_v1_accounts_list"): "api_user_v1_accounts_retrieve",
+    ("/api/user/v1/preferences/{username}/{preference_key}", "GET", "v1_preferences_retrieve"): (
+        "v1_preferences_retrieve_one"
+    ),
+    (
+        "/api/user/v2/accounts/{username}/preferences/{key}/",
+        "GET",
+        "v2_accounts_preferences_retrieve",
+    ): "v2_accounts_preferences_retrieve_one",
+    (
+        "/api/user/v2/accounts/{username}/preferences/{key}/",
+        "GET",
+        "api_user_v2_accounts_preferences_retrieve",
+    ): "api_user_v2_accounts_preferences_retrieve_one",
 }
 
 PUBLISHED_PATH_PATTERN = re.compile(r"^/api/enrollment/v\d+/")
@@ -114,6 +143,8 @@ def superseded_bodies():
     # pylint: disable=import-outside-toplevel
     from openedx.core.djangoapps.profile_images.v2.serializers import IMAGE_UPLOAD_REQUEST
     from openedx.core.djangoapps.user_api.v2.serializers import (
+        ACCOUNT_PREFERENCE_CHANGES_SCHEMA,
+        ACCOUNT_PREFERENCES_SCHEMA,
         AccountSerializer,
         AccountUpdateSerializer,
         EmailSearchResultSerializer,
@@ -124,6 +155,12 @@ def superseded_bodies():
     from openedx.core.lib.api.parsers import MergePatchParser
 
     account = {200: AccountSerializer}
+    # One preference is answered and stored as the bare value, which is what
+    # the address replacing it carries as a property of an object.
+    preference_value = {"type": "string"}
+    preferences_changed = {
+        204: OpenApiResponse(description="The preferences now stand as the body asked."),
+    }
     described = {
         ("/api/user/v1/accounts", "GET"): _SupersededBodies(None, {200: AccountSerializer(many=True)}),
         ("/api/user/v1/accounts/{username}", "GET"): _SupersededBodies(None, account),
@@ -150,6 +187,53 @@ def superseded_bodies():
         ),
         ("/api/user/v1/accounts/{username}/verification_status/", "GET"): _SupersededBodies(
             None, {200: VerificationStatusSerializer},
+        ),
+        ("/api/user/v1/preferences/{username}", "GET"): _SupersededBodies(
+            None,
+            {
+                200: OpenApiResponse(
+                    ACCOUNT_PREFERENCES_SCHEMA, description="The preferences this account stores.",
+                ),
+            },
+        ),
+        ("/api/user/v1/preferences/{username}", "PATCH"): _SupersededBodies(
+            {MergePatchParser.media_type: ACCOUNT_PREFERENCE_CHANGES_SCHEMA}, preferences_changed,
+        ),
+        ("/api/user/v1/preferences/{username}/{preference_key}", "GET"): _SupersededBodies(
+            None, {200: preference_value},
+        ),
+        ("/api/user/v1/preferences/{username}/{preference_key}", "PUT"): _SupersededBodies(
+            {"application/json": preference_value}, preferences_changed,
+        ),
+        ("/api/user/v1/preferences/{username}/{preference_key}", "DELETE"): _SupersededBodies(
+            None, {204: OpenApiResponse(description="The account stores no value under that name.")},
+        ),
+        # The handler reads the choice from the submitted form rather than from
+        # a body of its own, and reads each value as the text a form carries.
+        ("/api/user/v1/preferences/email_opt_in/", "POST"): _SupersededBodies(
+            {
+                "application/x-www-form-urlencoded": {
+                    "type": "object",
+                    "properties": {
+                        "course_id": {
+                            "type": "string",
+                            "description": (
+                                "Course the organization runs, which is how the organization the "
+                                "choice applies to is identified."
+                            ),
+                        },
+                        "email_opt_in": {
+                            "type": "string",
+                            "description": (
+                                "`True` if this user wants messages from that organization. Any "
+                                "other value is read as not wanting them."
+                            ),
+                        },
+                    },
+                    "required": ["course_id", "email_opt_in"],
+                },
+            },
+            {200: OpenApiResponse(description="The choice was recorded.")},
         ),
     }
     # Parameter names are spelled differently at different points of
@@ -195,14 +279,14 @@ class LmsAutoSchema(AutoSchema):
     marking a body the operation cannot be called without as one it needs.
 
     The slashless Enrollment v2 address tokenizes to the id of its conforming
-    twin, so the two would be told apart only by a numeral suffix handed out
-    in registration order, which says nothing about the operation and moves
-    when the routes move; it is suffixed ``_legacy`` instead, leaving the
-    conforming address the clean id, and the address listed above keeps the
-    name it is already published under. Every other address keeps the id and
-    the tag the generator derives for it, because a client generated from a
-    document takes a module from each operationId and groups it by tag, so
-    renaming either drops what a consumer already imports.
+    twin, so the two would be told apart only by a numeral suffix, which says
+    which of the two addresses sorts first rather than anything about the
+    operation; it is suffixed ``_legacy`` instead, leaving the conforming
+    address the clean id, and the address listed above keeps the name it is
+    already published under. Every address ``RENAMED_OPERATION_IDS`` does not
+    name keeps the id and the tag the generator derives for it, because a
+    client generated from a document takes a module from each operationId and
+    groups it by tag, so renaming either drops what a consumer already imports.
     """
 
     def get_operation_id(self):
