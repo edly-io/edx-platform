@@ -944,7 +944,7 @@ pydantic==2.12.3
     # via camel-converter
 pydantic-core==2.41.4
     # via pydantic
-pyjwt[crypto]==2.10.1
+pyjwt[crypto]==2.15.1
     # via
     #   -r requirements/edx/kernel.in
     #   drf-jwt
