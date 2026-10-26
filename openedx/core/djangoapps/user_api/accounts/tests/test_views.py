@@ -1180,15 +1180,15 @@ class TestAccountsAPI(FilteredQueryCountMixin, CacheIsolationTestCase, UserAPITe
         ),
         (
             ["not_a_JSON_object"],
-            [{'non_field_errors': ['Invalid data. Expected a dictionary, but got unicode.']}]
+            {0: {'non_field_errors': ['Invalid data. Expected a dictionary, but got unicode.']}}
         ),
         (
             [{}],
-            [{'code': ['This field is required.']}]
+            {0: {'code': ['This field is required.']}}
         ),
         (
             [{"code": "invalid_language_code"}],
-            [{'code': ['"invalid_language_code" is not a valid choice.']}]
+            {0: {'code': ['"invalid_language_code" is not a valid choice.']}}
         ),
         (
             [{"code": "kw"}, {"code": "el"}, {"code": "kw"}],

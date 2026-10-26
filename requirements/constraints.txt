@@ -69,15 +69,17 @@ openedx-learning==0.30.2
 openai<=0.28.1
 
 # Date: 2026-06-04
-# Cap openedx-forum to 0.4.1 on the Ulmo release line:
+# Cap openedx-forum to the 0.4.1 line on the Ulmo release line:
 #   * 0.4.1 contains the fix for the "pinned" NULL sort bug
 #     (https://github.com/openedx/forum/pull/270 — discussion threads were not
 #     ordering correctly when sorted by "recent first"). See user report:
 #     https://discuss.openedx.org/t/discuss-forum-messages-order-not-organized-as-expected-in-teak/18665
 #   * 0.4.2 drops Python 3.11 support.
 #   * 0.4.3 removes the MongoDB backend, which Ulmo deployments may still rely on.
+#   * 0.4.1.post1 is a security release on the 0.4.1 line
+#     (https://github.com/openedx/forum/security/advisories/GHSA-c6fp-f54c-6cv4).
 # Remove this cap on master / post-Ulmo release lines.
-openedx-forum<=0.4.1
+openedx-forum<0.4.2
 
 # Date: 2024-04-26
 # path==16.12.0 breaks the unit test collections check
@@ -138,12 +140,11 @@ xmlsec==1.3.14
 django-debug-toolbar<6.0.0
 
 # Date 2025-10-07
-# Cryptography 46.0.0 conflicts with system dependencies needed for snowflake-connector-python
-# snowflake-connector-python comes as a dependency of edx-enterprise so it can not be directly pinned here.
-# See issue https://github.com/openedx/edx-platform/issues/37417 for details on this.
-# This can be unpinned once snowflake-connector-python==4.0.0 is available (contains the fix).
-# pact-python==3.0.0 also removes cffi dependency and is causing the upgrade build to fail
-# This should also be removed together with cryptography constraint.
+# pact-python==3.0.0 removes the cffi dependency and is causing the upgrade build to fail.
 # Issue: https://github.com/openedx/edx-platform/issues/37435
-cryptography<46.0.0
 pact-python<3.0.0
+
+# Date 2026-10-26
+# The cryptography<46.0.0 cap is removed. It existed because cryptography 46.0.0 conflicted with system
+# dependencies of snowflake-connector-python (https://github.com/openedx/edx-platform/issues/37417), which is
+# fixed in snowflake-connector-python 4.0.0 (installed). social-auth-core 5.0 requires cryptography>=46.0.7.
