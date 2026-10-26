@@ -17,6 +17,7 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 from edx_rest_framework_extensions.mixins import StandardizedErrorMixin
 from edx_rest_framework_extensions.paginators import IterablePaginationMixin
@@ -58,7 +59,6 @@ from openedx.core.djangoapps.user_api.preferences.api import (
     update_email_opt_in,
     update_user_preferences,
 )
-from openedx.core.djangolib.default_auth_classes import DefaultJwtAuthentication
 from openedx.core.lib.api.parsers import MergePatchParser
 
 from .errors import CatalogedRequestErrorsMixin, ErrorExtensionsMixin, RetiredAccount
@@ -911,10 +911,11 @@ class AccountViewSet(
 
     # Account settings are reached from the site's own pages by users who have
     # not confirmed their email address yet, and the platform default refuses
-    # a session belonging to such an account. Only that one class is replaced:
-    # the token class stays the one the platform configures, which is what
-    # records a request as having been authenticated the default way.
-    authentication_classes = (DefaultJwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    # a session belonging to such an account. Only the session class differs in
+    # what it admits: a token is read by the library class the platform's own
+    # pair is built on, named here because a view declaring its own classes is
+    # not one that pair serves.
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
     permission_classes = (
         permissions.IsAuthenticated,
         CanGetAccountInfo,
@@ -1667,10 +1668,10 @@ class AccountPreferenceViewSet(
     # The language a user picked is written from every page of the site, and
     # the settings page these preferences are kept on is reached by users who
     # have not confirmed their email address yet, whom the platform default
-    # refuses. Only that one class is replaced: the token class stays the one
-    # the platform configures, which is what records a request as having been
-    # authenticated the default way.
-    authentication_classes = (DefaultJwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    # refuses. Only the session class differs in what it admits: a token is
+    # read by the library class the platform's own pair is built on, named here
+    # because a view declaring its own classes is not one that pair serves.
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
     permission_classes = _PREFERENCE_WRITE_PERMISSIONS
     serializer_class = AccountPreferenceSerializer
 
@@ -1959,10 +1960,11 @@ class EmailOptInViewSet(
 
     # The choice is made while enrolling, which a user reaches before they have
     # confirmed their email address, and the platform default refuses a session
-    # belonging to such an account. Only that one class is replaced: the token
-    # class stays the one the platform configures, which is what records a
-    # request as having been authenticated the default way.
-    authentication_classes = (DefaultJwtAuthentication, SessionAuthenticationAllowInactiveUser)
+    # belonging to such an account. Only the session class differs in what it
+    # admits: a token is read by the library class the platform's own pair is
+    # built on, named here because a view declaring its own classes is not one
+    # that pair serves.
+    authentication_classes = (JwtAuthentication, SessionAuthenticationAllowInactiveUser)
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = EmailOptInSerializer
 
