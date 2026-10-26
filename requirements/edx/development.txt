@@ -1347,7 +1347,7 @@ numpy==1.26.4
     #   openedx-calc
     #   scipy
     #   shapely
-oauthlib==3.3.1
+oauthlib==4.0.0
     # via
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
