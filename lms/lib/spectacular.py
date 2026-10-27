@@ -5,6 +5,8 @@ from collections import namedtuple
 from functools import cache
 
 from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.plumbing import force_instance
+from drf_spectacular.settings import patched_settings
 from drf_spectacular.utils import OpenApiResponse
 from rest_framework.settings import api_settings
 
@@ -151,6 +153,12 @@ PUBLISHED_USER_VIEW_MODULES = (
 # operations would move them in every client generated from it.
 USER_PATH_PREFIX = "/api/user/"
 USER_TAG = "user"
+
+# A serializer carries this attribute, set to true, where the body it describes
+# is read whole: every field it requires is needed however the body is sent,
+# and a method whose bodies are read as a set of changes to a stored
+# representation does not make them optional.
+WHOLE_BODY_ATTRIBUTE = "reads_the_whole_body"
 
 _PATH_PARAMETER = re.compile(r"\{([\w-]+)\}")
 _VERSION_TAG = re.compile(r"v\d+")
@@ -442,6 +450,22 @@ def superseded_bodies():
     }
 
 
+def _names_what_it_needs(shape):
+    """
+    Say whether a body written out as a shape names something it cannot be sent without.
+
+    A shape is published as it is written rather than built from a
+    serializer's fields, so nothing has judged whether the operation can be
+    called with no body at all. One that requires a member, or that is a list
+    whose members require one, cannot be satisfied by an absent body.
+    """
+    if not isinstance(shape, dict):
+        return False
+    if shape.get("required"):
+        return True
+    return _names_what_it_needs(shape.get("items"))
+
+
 def _is_legacy_path(path):
     """Conforming routes always end in a slash, so a slashless v2 path is a legacy address."""
     return path.startswith(LEGACY_V2_PREFIX) and not path.endswith("/")
@@ -474,7 +498,8 @@ class LmsAutoSchema(AutoSchema):
     """
     Keep colliding addresses distinct, group each operation under its own area,
     and name the bodies of the addresses this schema publishes as superseded,
-    marking a body the operation cannot be called without as one it needs.
+    marking a body the operation cannot be called without as one it needs and
+    publishing a body read whole as the whole shape the operation reads.
 
     The slashless Enrollment v2 address tokenizes to the id of its conforming
     twin, so the two would be told apart only by a numeral suffix, which says
@@ -510,17 +535,40 @@ class LmsAutoSchema(AutoSchema):
 
         An operation that names the media types it reads loses that mark as
         soon as one of them is the bare body of a file, which carries no field
-        that can be called required. The forms are alternatives rather than
-        parts of one request, so a body that is required in any of them is a
-        body the operation cannot be called without.
+        that can be called required, or as soon as one of them is named as a
+        shape rather than by a serializer, which is published as it is written
+        and so is read for what it says it needs. The forms are alternatives
+        rather than parts of one request, so a body that is required in any of
+        them is a body the operation cannot be called without.
         """
         body = super()._get_request_body(direction)
         shapes = self.get_request_serializer()
         if not body or body.get("required") or not isinstance(shapes, dict):
             return body
-        if any(self._get_request_for_media_type(shape, direction)[1] for shape in shapes.values()):
+        if any(self._shape_is_needed(shape, direction) for shape in shapes.values()):
             body["required"] = True
         return body
+
+    def _shape_is_needed(self, shape, direction):
+        """Say whether a body sent in one media type is one the operation cannot be called without."""
+        return _names_what_it_needs(shape) or self._get_request_for_media_type(shape, direction)[1]
+
+    def _get_request_for_media_type(self, serializer, direction="request"):
+        """
+        Keep a body the operation reads whole whole, under a method read as a change set.
+
+        A ``PATCH`` body usually carries the changes to make to a stored
+        representation, which leaves every field in it optional and publishes
+        the shape under a name of its own. A body that is an instruction
+        instead -- read whole by the operation, which refuses it when a field
+        the instruction cannot be carried out without is missing -- is not
+        that, and publishing it as a change set would promise a caller a
+        request the operation refuses.
+        """
+        if self.method == "PATCH" and getattr(force_instance(serializer), WHOLE_BODY_ATTRIBUTE, False):
+            with patched_settings({"COMPONENT_SPLIT_PATCH": False}):
+                return super()._get_request_for_media_type(serializer, direction)
+        return super()._get_request_for_media_type(serializer, direction)
 
     def get_request_serializer(self):
         """Return the body this operation reads, named here for the addresses this one supersedes."""

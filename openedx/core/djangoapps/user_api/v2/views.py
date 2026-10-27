@@ -2141,6 +2141,14 @@ _RESP_RETIREMENT_CANCELLED = OpenApiResponse(
     description="The retirement request is gone and the account it was made for is usable again.",
 )
 _RESP_DATA_ERASED = OpenApiResponse(description="The data named by the scope has been erased.")
+_RESP_ERASURE_FAILED = OpenApiResponse(
+    ErrorResponse,
+    description=(
+        "A step of the erasure did not finish. Part of the data named by the scope may already "
+        "be gone, and the request may be sent again: each step clears what it clears whether or "
+        "not it has run before."
+    ),
+)
 _RESP_PARTNER_REPORT_QUEUED = OpenApiResponse(
     description=(
         "The account is queued for reporting to the organizations it studied with, or was not "
@@ -2259,6 +2267,7 @@ RETIREMENT_ACTION_PERMISSIONS = {
             404: _RESP_NO_SUCH_RETIREMENT,
             409: _RESP_RETIREMENT_STATE,
             415: RESP_UNREADABLE_BODY,
+            500: _RESP_ERASURE_FAILED,
         },
     ),
 )
