@@ -11,6 +11,7 @@ from django.urls import reverse
 from drf_spectacular.generators import SchemaGenerator
 from drf_spectacular.plumbing import get_override
 from drf_spectacular.settings import patched_settings
+from rest_framework import serializers
 from rest_framework.test import APIClient
 from waffle.testutils import override_switch
 
@@ -41,6 +42,7 @@ from openedx.core.djangoapps.user_api.v2.serializers import (
     AccountPreferenceChangesField,
     AccountPreferenceDocumentField,
     AccountQuerySerializer,
+    RetirementBatchSerializer,
     TimeZoneQuerySerializer,
     VerificationQuerySerializer,
 )
@@ -171,7 +173,10 @@ PAGINATION_MEMBERS = {"count", "num_pages", "current_page", "start", "next", "pr
 #: Where this version is mounted in the service's URL configuration.
 VERSION_TWO_MOUNT = "api/user/v2/"
 
-#: The components this version contributes to the document.
+#: The components this version contributes to the document. The two names
+#: ending in ``Enum`` describe sets of choices and are configured in the
+#: service's settings rather than derived from the fields carrying them, so
+#: that another field of the same name cannot move them.
 VERSION_TWO_COMPONENTS = (
     "Account",
     "AccountExtendedField",
@@ -827,6 +832,59 @@ def test_this_version_only_adds_to_the_service_wide_document():
     assert "user_api.User" in components
     assert {"UserDirectory", "UserPreferenceRecord", "TimeZone"} <= set(components)
     assert "CountryTimeZone" in components
+
+
+#: The sets of choices this version publishes as a model of their own, with
+#: the name each is published under and the values it offers.
+PINNED_CHOICE_SETS = {
+    "ScopeEnum": list(ERASURE_SCOPES),
+    "OutcomeEnum": list(BATCH_OUTCOMES),
+}
+
+#: A second field of each of those names, with the value it would offer and
+#: the name it would be published under: a set of choices sharing a field name
+#: with another is named after the body carrying it.
+CROWDED_CHOICE_SETS = {
+    "scope": ("somewhere_else", "RetirementBatchScopeEnum"),
+    "outcome": ("something_else", "RetirementBatchOutcomeEnum"),
+}
+
+
+@pytest.mark.django_db
+@skip_unless_lms
+def test_each_published_set_of_choices_keeps_its_name_when_another_field_shares_the_name():
+    """
+    A set of choices is published as a model named for the field that carries it.
+
+    That name holds only while one field of the whole service carries it: a
+    second field of the same name offering different values renames both
+    models after the bodies they sit in, so the name a client already
+    generates a class from disappears. Both documents are therefore read with
+    such a second field in place, and each set has to still be published
+    under its own name, with the values it offers.
+    """
+    intruders = {
+        name: serializers.ChoiceField(choices=[(value, f"Another set of choices, under {name}.")])
+        for name, (value, _published_as) in CROWDED_CHOICE_SETS.items()
+    }
+    with mock.patch.dict(RetirementBatchSerializer._declared_fields, intruders):  # pylint: disable=protected-access
+        crowded = {
+            "this version": SchemaGenerator().get_schema(request=None, public=True),
+            "service-wide": service_wide_schema(),
+        }
+    for which, document in crowded.items():
+        components = document["components"]["schemas"]
+        published = {
+            name: components[name]["enum"] for name in PINNED_CHOICE_SETS if name in components
+        }
+        assert published == PINNED_CHOICE_SETS, which
+        # The second field really was published, so the collision the names
+        # are held against did happen in this document.
+        for field, (value, crowded_name) in CROWDED_CHOICE_SETS.items():
+            assert components["RetirementBatch"]["properties"][field] == {
+                "$ref": f"#/components/schemas/{crowded_name}",
+            }, (which, field)
+            assert components[crowded_name]["enum"] == [value], (which, field)
 
 
 @skip_unless_lms
