@@ -212,7 +212,9 @@ RESPONSE_SHAPING_PARAMS = (VIEW_PARAM, FIELDS_PARAM)
 _FIELDS_PARAM = query_param(
     FIELDS_PARAM,
     "Comma-separated list of top-level field names to keep in each returned object. "
-    "A name the response cannot carry is refused.",
+    "A name the response cannot carry is refused. Selection reaches the top level only: "
+    "a name written as a path, such as `user.email`, is read as `user`, and the whole of "
+    "that property is returned.",
 )
 #: The presets each list answers to, published as the parameter's enum and
 #: accepted by the view from the same declaration.
@@ -2364,10 +2366,7 @@ class RetirementViewSet(
     How a name is resolved follows the operation. A read accepts either the
     name the account was registered under or the hashed name it was moved to,
     because both address the same account. A write accepts the registered name
-    alone and compares it character for character: stored names are compared
-    without regard to case in some deployments, which once let a learner
-    register a retired name again by changing its capitalisation, and a write
-    must not reach the other account of such a pair.
+    alone, matched exactly, so that it reaches one account and no other.
     """
 
     serializer_class = RetirementSerializer

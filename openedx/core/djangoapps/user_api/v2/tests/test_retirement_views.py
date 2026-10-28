@@ -70,7 +70,10 @@ from openedx.core.djangoapps.user_api.models import (
 from openedx.core.djangoapps.user_api.v2 import view_services
 from openedx.core.djangoapps.user_api.v2.errors import AmbiguousAccountName, RetirementStateConflict
 from openedx.core.djangoapps.user_api.v2.paginators import UserApiPagination
-from openedx.core.djangoapps.user_api.v2.serializers import RETIREMENT_MINIMAL_FIELDS
+from openedx.core.djangoapps.user_api.v2.serializers import (
+    RETIREMENT_MINIMAL_FIELDS,
+    RetirementAccountSerializer,
+)
 from openedx.core.djangoapps.user_api.v2.views import (
     RETIREMENT_ACTION_PERMISSIONS,
     RetirementCleanupViewSet,
@@ -1019,6 +1022,15 @@ class RetirementDetailTests(_AccessMatrixMixin, RetirementApiTestCase):
         self.login("worker")
         response = self.client.get(self.url, {"fields": "current_state"})
         assert response.data == {"current_state": "LOCKING_ACCOUNT"}
+
+    def test_a_property_asked_for_as_a_path_answers_the_whole_of_its_first_part(self):
+        """Selection reaches the top level only, which is what the parameter's description says."""
+        self.login("worker")
+        response = self.client.get(self.url, {"fields": "user.email"})
+        assert set(response.data) == {"user"}
+        assert set(response.data["user"]) == set(
+            RetirementAccountSerializer().fields,
+        ), "the whole embedded account comes back, not the one property asked for"
 
     def test_the_parameters_that_cut_a_page_are_not_read_at_a_member_address(self):
         self.login("worker")
@@ -2830,10 +2842,11 @@ class FormEncodedBodyTests(RetirementApiTestCase):
         assert self.subject.username == "subject"
 
     def test_a_form_body_is_refused_when_moving_a_retirement(self):
+        """The body names a step this deployment runs, so only its media type can refuse it."""
         self.login("worker")
         self.assert_the_body_was_unreadable(
             self.client.patch(
-                self.detail_url, "new_state=RETIRING_LMS_COMPLETE&response=done",
+                self.detail_url, "new_state=LMS_COMPLETE&response=done",
                 content_type=self.FORM,
             ),
         )
