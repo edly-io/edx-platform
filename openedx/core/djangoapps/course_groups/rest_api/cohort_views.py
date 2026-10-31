@@ -29,6 +29,7 @@ from openedx.core.djangoapps.course_groups.cohorts import get_legacy_discussion_
 from openedx.core.djangoapps.course_groups.constants import USERNAME_LOOKUP_REGEX
 from openedx.core.djangoapps.course_groups.models import (
     CohortMembership,
+    CourseCohort,
     CourseCohortsSettings,
     CourseUserGroup,
     CourseUserGroupPartitionGroup,
@@ -298,6 +299,9 @@ class CohortViewSet(
                 cohort.save()
 
             if data.get("assignment_type") is not None:
+                if not hasattr(cohort, "cohort"):
+                    # A cohort from before CourseCohort existed, which has read as manual until now.
+                    CourseCohort.objects.create(course_user_group=cohort, assignment_type=CourseCohort.MANUAL)
                 try:
                     cohorts.set_assignment_type(cohort, data["assignment_type"])
                 except ValueError as exc:

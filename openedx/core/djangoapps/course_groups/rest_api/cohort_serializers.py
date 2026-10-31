@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from openedx.core.djangoapps.course_groups import cohorts
+from openedx.core.djangoapps.course_groups.models import CourseCohort
 
 User = get_user_model()
 
@@ -151,6 +152,19 @@ class CohortSettingsSerializer(serializers.Serializer):
     )
 
 
+def assignment_type_of(cohort):
+    """
+    Return the cohort's assignment type.
+
+    Cohorts created before ``CourseCohort`` existed have no row there until a
+    settings migration backfills one, and the platform then records them as
+    manual; they are manual here too.
+    """
+    if hasattr(cohort, "cohort"):
+        return cohorts.get_assignment_type(cohort)
+    return CourseCohort.MANUAL
+
+
 def represent_cohort(cohort, course_key):
     """
     Build the serializable representation of a cohort.
@@ -159,7 +173,7 @@ def represent_cohort(cohort, course_key):
     return {
         "id": cohort.id,
         "name": cohort.name,
-        "assignment_type": cohorts.get_assignment_type(cohort),
+        "assignment_type": assignment_type_of(cohort),
         "user_count": cohort.users.filter(
             courseenrollment__course_id=course_key,
             courseenrollment__is_active=1,

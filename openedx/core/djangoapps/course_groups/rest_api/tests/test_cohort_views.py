@@ -65,6 +65,16 @@ def create_cohort(course_key, name, assignment_type=CourseCohort.MANUAL):
     ).course_user_group
 
 
+def create_legacy_cohort(course_key, name):
+    """
+    Create a cohort as courses from before ``CourseCohort`` existed hold them.
+
+    Such a row has no ``CourseCohort`` until ``migrate_cohort_settings`` backfills
+    one, which the v2 read paths never call.
+    """
+    return CourseUserGroup.objects.create(course_id=course_key, name=name, group_type=CourseUserGroup.COHORT)
+
+
 def grant_forum_role(user, course_key, role_name):
     """Give ``user`` the named discussion role in the course."""
     role, _ = Role.objects.get_or_create(name=role_name, course_id=course_key)
@@ -473,6 +483,25 @@ class TestCohortV2List(CohortV2TestCase):
         assert self.names(ordering="id") == ["Alpha", "Zulu", "Mike"]
         assert self.names(ordering="-id") == ["Mike", "Zulu", "Alpha"]
 
+    def test_cohort_without_an_assignment_row_is_manual(self):
+        """
+        A cohort from before CourseCohort existed is listed and read as manual.
+
+        v1 reaches such a row through get_course_cohorts, which backfills the
+        missing CourseCohort as manual on the way; the v2 reads write nothing
+        and report the same type.
+        """
+        legacy = create_legacy_cohort(self.course_key, "Legacy")
+        listed = self.client.get(self.list_url())
+        assert listed.status_code == status.HTTP_200_OK
+        assert [(row["name"], row["assignment_type"]) for row in listed.data["results"]] == [
+            ("Alpha", "manual"), ("Legacy", "manual"), ("Mike", "manual"), ("Zulu", "manual"),
+        ]
+        read = self.client.get(self.detail_url(legacy.id))
+        assert read.status_code == status.HTTP_200_OK
+        assert read.data["assignment_type"] == "manual"
+        assert not CourseCohort.objects.filter(course_user_group=legacy).exists()
+
     def test_unsupported_ordering_field_is_rejected(self):
         """An ordering field outside the allow-list is a 400."""
         response = self.client.get(self.list_url(), {"ordering": "secret"})
@@ -593,6 +622,22 @@ class TestCohortV2Update(CohortV2TestCase):
         random_cohort.refresh_from_db()
         assert random_cohort.name == "Random"
         assert CourseCohort.objects.get(course_user_group=random_cohort).assignment_type == CourseCohort.RANDOM
+
+    def test_assignment_type_of_a_cohort_without_an_assignment_row(self):
+        """
+        Setting the assignment type of a cohort from before CourseCohort existed
+        stores the row the type lives on; a rename alone does not.
+        """
+        legacy = create_legacy_cohort(self.course_key, "Legacy")
+        renamed = self.client.patch(self.detail_url(legacy.id), {"name": "Still legacy"}, format="json")
+        assert renamed.status_code == status.HTTP_200_OK
+        assert renamed.data["assignment_type"] == "manual"
+        assert not CourseCohort.objects.filter(course_user_group=legacy).exists()
+
+        response = self.client.patch(self.detail_url(legacy.id), {"assignment_type": "random"}, format="json")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["assignment_type"] == "random"
+        assert CourseCohort.objects.get(course_user_group=legacy).assignment_type == CourseCohort.RANDOM
 
     def test_duplicate_name_is_rejected(self):
         """Renaming onto another cohort's name is a 400 and changes nothing."""
