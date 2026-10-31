@@ -358,10 +358,15 @@ class TestCohortV2Access(CohortV2TestCase):
         declared = [cls.__name__ for cls in CohortViewSet.authentication_classes]
         assert declared == ["JwtAuthentication", "SessionAuthenticationAllowInactiveUser"]
 
-    def test_malformed_course_key_is_a_not_found_envelope(self):
-        """A key that does not parse is a 404 envelope, not a server error."""
+    def test_a_path_segment_that_is_not_a_course_key_is_not_found(self):
+        """
+        A segment without the shape of a course key matches no route, so it is
+        the site's 404 rather than a server error. A key with the shape that
+        still does not parse is refused by the views; see
+        TestCohortV2PermissionClasses.
+        """
         response = self.client.get("/api/cohorts/v2/courses/not-a-key/cohorts/")
-        assert_error_envelope(response, expected_status=404, expected_type_slug="not-found")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 class TestCohortV2PermissionClasses(CohortV2TestCase):
@@ -679,7 +684,7 @@ class TestCohortV2Update(CohortV2TestCase):
         assert patch({"user_partition_id": 50, "group_id": 2}) == (50, 2)
         assert stored() == [(second_pk, 50, 2)]
         assert patch({"group_id": None}) == (None, None)
-        assert stored() == []
+        assert not stored()
         assert patch({"group_id": None}) == (None, None)
 
     def test_group_id_without_partition_changes_nothing(self):
@@ -755,7 +760,7 @@ class TestCohortV2Members(CohortV2TestCase):
         """Removing a member deletes the membership."""
         response = self.client.delete(self.member_url(self.member.username))
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert list(self.cohort.users.all()) == []
+        assert not self.cohort.users.exists()
 
     def test_remove_non_member_is_rejected(self):
         """Removing a learner who is not in the cohort is a 400."""
