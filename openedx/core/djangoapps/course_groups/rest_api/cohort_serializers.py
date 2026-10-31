@@ -38,8 +38,19 @@ class CohortSerializer(serializers.Serializer):
     group_id = serializers.IntegerField(
         required=False,
         allow_null=True,
-        help_text="Identifier of the content group within the configuration. Send null to unlink.",
+        help_text=(
+            "Identifier of the content group within the configuration. Send null to unlink. "
+            "Requires user_partition_id when not null."
+        ),
     )
+
+    def validate(self, attrs):
+        """Require the configuration alongside a content group, before anything is written."""
+        if attrs.get("group_id") is not None and attrs.get("user_partition_id") is None:
+            raise serializers.ValidationError(
+                {"user_partition_id": ["Required when group_id is supplied."]}
+            )
+        return attrs
 
 
 class CohortUpdateSerializer(CohortSerializer):
@@ -50,15 +61,20 @@ class CohortUpdateSerializer(CohortSerializer):
     unlinks the content group association.
     """
 
-    name = serializers.CharField(max_length=255, required=False)
-    assignment_type = serializers.ChoiceField(choices=ASSIGNMENT_TYPE_CHOICES, required=False)
+    name = serializers.CharField(max_length=255, required=False, help_text="New display name of the cohort.")
+    assignment_type = serializers.ChoiceField(
+        choices=ASSIGNMENT_TYPE_CHOICES,
+        required=False,
+        help_text="How learners are placed into this cohort.",
+    )
 
     def validate(self, attrs):
+        """Refuse an empty update, then apply the content-group rule."""
         if not attrs:
             raise serializers.ValidationError(
                 "Supply at least one of name, assignment_type or group_id."
             )
-        return attrs
+        return super().validate(attrs)
 
 
 class CohortMemberSerializer(serializers.ModelSerializer):
@@ -66,7 +82,7 @@ class CohortMemberSerializer(serializers.ModelSerializer):
     Representation of a learner who belongs to a cohort.
     """
 
-    name = serializers.SerializerMethodField()
+    name = serializers.SerializerMethodField(help_text="The learner's full name.")
 
     class Meta:
         model = User
@@ -94,12 +110,30 @@ class CohortMembershipResultSerializer(serializers.Serializer):
     Outcome of an add-learners request, partitioned by what happened to each entry.
     """
 
-    added = serializers.ListField(child=serializers.DictField())
-    changed = serializers.ListField(child=serializers.DictField())
-    present = serializers.ListField(child=serializers.CharField())
-    unknown = serializers.ListField(child=serializers.CharField())
-    preassigned = serializers.ListField(child=serializers.CharField())
-    invalid = serializers.ListField(child=serializers.CharField())
+    added = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Learners placed in this cohort who were in no cohort before: username and email.",
+    )
+    changed = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Learners moved here from another cohort: username, email and previous_cohort.",
+    )
+    present = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Entries already in this cohort.",
+    )
+    unknown = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Entries matching no user.",
+    )
+    preassigned = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Email addresses with no account yet, assigned to this cohort when they register.",
+    )
+    invalid = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Entries that are not valid email addresses.",
+    )
 
 
 class CohortSettingsSerializer(serializers.Serializer):
@@ -107,7 +141,11 @@ class CohortSettingsSerializer(serializers.Serializer):
     Course-level cohort configuration.
     """
 
-    id = serializers.IntegerField(read_only=True, allow_null=True)
+    id = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Identifier of the stored settings, or null when the course has none stored yet.",
+    )
     is_cohorted = serializers.BooleanField(
         help_text="Whether cohorts are enabled for this course.",
     )

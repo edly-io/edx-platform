@@ -1,18 +1,19 @@
 """
-REST API views for course cohorts, v2.
-
-Consolidates the three v1 function-and-APIView surfaces (cohort list/detail,
-cohort membership and course cohort settings) into DRF ViewSets registered
-through a router.
+Views for the v2 cohorts REST API.
 """
+import logging
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from django.http import Http404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from edx_rest_framework_extensions.auth.session.authentication import (
     SessionAuthenticationAllowInactiveUser,
 )
+from edx_rest_framework_extensions.errors import ErrorResponseSerializer
 from edx_rest_framework_extensions.mixins import StandardizedErrorMixin
 from edx_rest_framework_extensions.paginators import DefaultPagination, IterablePaginationMixin
 from opaque_keys import InvalidKeyError
@@ -32,7 +33,10 @@ from openedx.core.djangoapps.course_groups.models import (
     CourseUserGroup,
     CourseUserGroupPartitionGroup,
 )
-from openedx.core.djangoapps.course_groups.rest_api.cohort_permissions import CanManageCohorts
+from openedx.core.djangoapps.course_groups.rest_api.cohort_permissions import (
+    CanReadCohortsAsDiscussionModerator,
+    IsCohortCourseAdmin,
+)
 from openedx.core.djangoapps.course_groups.rest_api.cohort_serializers import (
     CohortMemberSerializer,
     CohortMembershipRequestSerializer,
@@ -45,21 +49,18 @@ from openedx.core.djangoapps.course_groups.rest_api.cohort_serializers import (
 from openedx.core.lib.courses import get_course_by_id
 
 User = get_user_model()
+log = logging.getLogger(__name__)
+
+DUPLICATE_NAME_MESSAGE = "A cohort with that name already exists in this course."
+LAST_RANDOM_COHORT_MESSAGE = "There must be one cohort to which students can automatically be assigned."
 
 
 class CohortAPIAccessMixin:
     """
-    Authentication and authorization shared by every v2 cohort endpoint.
+    Authentication and path handling shared by every v2 cohort endpoint.
 
-    JWT is the standard scheme for user-authenticated requests. Session
-    authentication keeps the Studio and instructor dashboard front ends
-    working, and the inactive-user variant is retained deliberately: the v1
-    surface accepted inactive users over session, and narrowing that here
-    would lock out callers that work today.
-
-    Authorization lives entirely in the permission class. The handlers do not
-    repeat it, which is what the v1 views did by calling get_course_with_access
-    again inside each method.
+    The course key in the path is parsed once, before the permission check,
+    and is available to the handlers as ``self.course_key``.
     """
 
     # Session auth keeps the Studio and instructor dashboard front ends working,
@@ -70,7 +71,6 @@ class CohortAPIAccessMixin:
         JwtAuthentication,
         SessionAuthenticationAllowInactiveUser,
     )
-    permission_classes = (permissions.IsAuthenticated, CanManageCohorts)
 
     def initial(self, request, *args, **kwargs):
         """
@@ -80,46 +80,34 @@ class CohortAPIAccessMixin:
         checked inside the handlers, after authorization, so that a 404 cannot
         be used to probe for courses.
         """
-        course_key_string = kwargs.get("course_key_string")
-        if course_key_string is not None:
-            try:
-                CourseKey.from_string(course_key_string)
-            except InvalidKeyError as exc:
-                raise NotFound(f"{course_key_string} is not a valid course key.") from exc
+        try:
+            self.course_key = CourseKey.from_string(kwargs.get("course_key", ""))
+        except InvalidKeyError as exc:
+            raise NotFound("The course key in the path is not valid.") from exc
         super().initial(request, *args, **kwargs)
 
-
-class CourseScopedMixin:
-    """
-    Resolves the course key that every cohort resource is addressed under.
-    """
-
-    @property
-    def course_key(self):
-        """Return the course key taken from the request path."""
-        return CourseKey.from_string(self.kwargs["course_key_string"])
-
     def ensure_course_exists(self):
-        """
-        Raise a 404 when the addressed course does not exist.
-
-        Listing cohorts by course key alone would otherwise return an empty
-        collection for a course that is not there.
-        """
-        get_course_by_id(self.course_key)
+        """Raise a 404 when the addressed course does not exist."""
+        try:
+            get_course_by_id(self.course_key)
+        except Http404 as exc:
+            raise NotFound("No such course.") from exc
 
     def get_cohort_or_404(self):
         """Return the cohort named in the path, or raise a 404."""
         try:
             return cohorts.get_cohort_by_id(self.course_key, self.kwargs["cohort_id"])
         except CourseUserGroup.DoesNotExist as exc:
-            raise NotFound(
-                f"No cohort {self.kwargs['cohort_id']} in {self.kwargs['course_key_string']}."
-            ) from exc
+            raise NotFound("No such cohort in this course.") from exc
+
+
+def _error(description):
+    """Document an error response as the standard error envelope."""
+    return OpenApiResponse(response=ErrorResponseSerializer, description=description)
 
 
 COURSE_KEY_PARAMETER = OpenApiParameter(
-    name="course_key_string",
+    name="course_key",
     type=OpenApiTypes.STR,
     location=OpenApiParameter.PATH,
     description="Course key, for example course-v1:edX+DemoX+Demo_Course.",
@@ -136,8 +124,10 @@ USERNAME_PARAMETER = OpenApiParameter(
     location=OpenApiParameter.PATH,
     description="Username of the learner to remove.",
 )
-FORBIDDEN_RESPONSE = OpenApiResponse(description="Caller may not manage cohorts in this course.")
-COHORT_NOT_FOUND_RESPONSE = OpenApiResponse(description="No such course or cohort.")
+UNAUTHENTICATED_RESPONSE = _error("Authentication credentials were not provided or are not valid.")
+FORBIDDEN_RESPONSE = _error("The caller may not perform this action on the cohorts of this course.")
+COURSE_NOT_FOUND_RESPONSE = _error("No such course.")
+COHORT_NOT_FOUND_RESPONSE = _error("No such course, or no such cohort in it.")
 
 COHORT_ORDERING_FIELDS = ("name", "id")
 DEFAULT_COHORT_ORDERING = "name"
@@ -146,155 +136,187 @@ DEFAULT_COHORT_ORDERING = "name"
 @extend_schema_view(
     list=extend_schema(
         summary="List the cohorts of a course",
+        description=(
+            "Course staff and instructors may call this, and so may the course's discussion "
+            "administrators, moderators and community TAs."
+        ),
         parameters=[
             COURSE_KEY_PARAMETER,
             OpenApiParameter(
                 name="ordering",
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description="Field to order by; prefix with '-' to reverse. One of: name, id.",
+                description="Field to order by; prefix with '-' to reverse. One of: name, id. Defaults to name.",
             ),
         ],
         responses={
             200: CohortSerializer(many=True),
-            400: OpenApiResponse(description="Unsupported ordering field."),
+            400: _error("Unsupported ordering field."),
+            401: UNAUTHENTICATED_RESPONSE,
             403: FORBIDDEN_RESPONSE,
-            404: COHORT_NOT_FOUND_RESPONSE,
+            404: COURSE_NOT_FOUND_RESPONSE,
         },
     ),
     retrieve=extend_schema(
         summary="Read one cohort",
+        description=(
+            "Course staff and instructors may call this, and so may the course's discussion "
+            "administrators, moderators and community TAs."
+        ),
         parameters=[COURSE_KEY_PARAMETER, COHORT_ID_PARAMETER],
-        responses={200: CohortSerializer, 403: FORBIDDEN_RESPONSE, 404: COHORT_NOT_FOUND_RESPONSE},
-    ),
-    create=extend_schema(
-        summary="Create a cohort",
-        parameters=[COURSE_KEY_PARAMETER],
-        request=CohortSerializer,
         responses={
-            201: CohortSerializer,
-            400: OpenApiResponse(description="Invalid payload, or the cohort name is taken."),
+            200: CohortSerializer,
+            401: UNAUTHENTICATED_RESPONSE,
             403: FORBIDDEN_RESPONSE,
             404: COHORT_NOT_FOUND_RESPONSE,
         },
     ),
+    create=extend_schema(
+        summary="Create a cohort",
+        description="Course staff and instructors only.",
+        parameters=[COURSE_KEY_PARAMETER],
+        request=CohortSerializer,
+        responses={
+            201: CohortSerializer,
+            400: _error("Invalid payload, or the cohort name is taken. Nothing is created."),
+            401: UNAUTHENTICATED_RESPONSE,
+            403: FORBIDDEN_RESPONSE,
+            404: COURSE_NOT_FOUND_RESPONSE,
+        },
+    ),
     partial_update=extend_schema(
         summary="Update a cohort",
+        description="Course staff and instructors only.",
         parameters=[COURSE_KEY_PARAMETER, COHORT_ID_PARAMETER],
         request=CohortUpdateSerializer,
         responses={
             200: CohortSerializer,
-            400: OpenApiResponse(description="Invalid payload, or the cohort name is taken."),
+            400: _error("Invalid payload, the cohort name is taken, or the change would leave the course "
+                        "without a random cohort. Nothing is changed."),
+            401: UNAUTHENTICATED_RESPONSE,
             403: FORBIDDEN_RESPONSE,
             404: COHORT_NOT_FOUND_RESPONSE,
         },
     ),
 )
 @extend_schema(tags=["openedx-platform-sdk"])
-# permission_classes is declared on CohortAPIAccessMixin.
 class CohortViewSet(
     CohortAPIAccessMixin,
-    CourseScopedMixin,
     StandardizedErrorMixin,
     IterablePaginationMixin,
     viewsets.ViewSet,
 ):
     """
     List, create, read and update the cohorts of a course.
+
+    Discussion administrators, moderators and community TAs may list and read
+    cohorts; every write needs course staff access.
     """
 
+    permission_classes = (
+        permissions.IsAuthenticated,
+        IsCohortCourseAdmin | CanReadCohortsAsDiscussionModerator,
+    )
     serializer_class = CohortSerializer
     pagination_class = DefaultPagination
     lookup_url_kwarg = "cohort_id"
 
-    def list(self, request, course_key_string):
+    def list(self, request, **kwargs):
         """Return the cohorts of this course."""
         self.ensure_course_exists()
-        course_key = self.course_key
-        records = cohorts.get_course_cohorts(
-            course_id=course_key,
-            ordering=self._ordering_direction(request),
-        )
+        records = CourseUserGroup.objects.filter(
+            course_id=self.course_key,
+            group_type=CourseUserGroup.COHORT,
+        ).select_related("cohort").order_by(*self._ordering(request))
         return self.paginate_iterable(
             request,
             records,
-            serialize=lambda page: [represent_cohort(c, course_key) for c in page],
+            serialize=lambda page: [represent_cohort(c, self.course_key) for c in page],
         )
 
-    def _ordering_direction(self, request):
+    @staticmethod
+    def _ordering(request):
         """
-        Translate the standard ordering parameter into a sort direction.
+        Translate the standard ordering parameter into ``order_by`` arguments.
 
         The parameter names a field, optionally prefixed with '-' to reverse
-        it, which is the convention the rest of the platform's list endpoints
-        follow. Only the cohort name is orderable, so the field is validated
-        and the direction handed to the cohort helper.
+        it. The cohort id breaks ties so that pages are stable.
         """
-        requested = request.query_params.get("ordering", DEFAULT_COHORT_ORDERING).strip()
-        descending = requested.startswith("-")
-        field = requested.lstrip("-") or DEFAULT_COHORT_ORDERING
+        requested = request.query_params.get("ordering", "").strip() or DEFAULT_COHORT_ORDERING
+        field = requested[1:] if requested.startswith("-") else requested
         if field not in COHORT_ORDERING_FIELDS:
             raise ValidationError(
-                {"ordering": f"Cannot order by '{field}'. Valid fields: {', '.join(COHORT_ORDERING_FIELDS)}."}
+                {"ordering": [f"Unsupported ordering field. Valid fields: {', '.join(COHORT_ORDERING_FIELDS)}."]}
             )
-        return "desc" if descending else "asc"
+        return (requested,) if field == "id" else (requested, "id")
 
-    def retrieve(self, request, course_key_string, cohort_id):
+    def retrieve(self, request, **kwargs):
         """Return a single cohort."""
         cohort = self.get_cohort_or_404()
         return Response(represent_cohort(cohort, self.course_key))
 
-    def create(self, request, course_key_string):
-        """Create a cohort in this course."""
+    def create(self, request, **kwargs):
+        """
+        Create a cohort in this course.
+
+        The payload is validated in full, content-group pairing included, before
+        anything is written, and the cohort and its content-group link are
+        created together or not at all.
+        """
+        self.ensure_course_exists()
         serializer = CohortSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        course_key = self.course_key
 
-        if cohorts.is_cohort_exists(course_key, data["name"]):
-            raise ValidationError(
-                    {"name": "A cohort with that name already exists in this course."}
-                )
+        if cohorts.is_cohort_exists(self.course_key, data["name"]):
+            raise ValidationError({"name": [DUPLICATE_NAME_MESSAGE]})
 
-        cohort = cohorts.add_cohort(course_key, data["name"], data["assignment_type"])
-        if data.get("group_id") is not None or data.get("user_partition_id") is not None:
-            self._apply_content_group(cohort, data)
-        return Response(represent_cohort(cohort, course_key), status=status.HTTP_201_CREATED)
+        with transaction.atomic():
+            cohort = cohorts.add_cohort(self.course_key, data["name"], data["assignment_type"])
+            if data.get("group_id") is not None:
+                self._apply_content_group(cohort, data)
+        return Response(represent_cohort(cohort, self.course_key), status=status.HTTP_201_CREATED)
 
-    def partial_update(self, request, course_key_string, cohort_id):
-        """Update a cohort's name, assignment type or content group."""
+    def partial_update(self, request, **kwargs):
+        """
+        Update a cohort's name, assignment type or content group.
+
+        The changes are applied together or not at all, so a refused assignment
+        type leaves a rename in the same request unsaved.
+        """
         serializer = CohortUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        course_key = self.course_key
         cohort = self.get_cohort_or_404()
 
-        name = data.get("name")
-        if name is not None and name != cohort.name:
-            if cohorts.is_cohort_exists(course_key, name):
-                raise ValidationError(
-                    {"name": "A cohort with that name already exists in this course."}
-                )
-            cohort.name = name
-            cohort.save()
+        with transaction.atomic():
+            name = data.get("name")
+            if name is not None and name != cohort.name:
+                if cohorts.is_cohort_exists(self.course_key, name):
+                    raise ValidationError({"name": [DUPLICATE_NAME_MESSAGE]})
+                cohort.name = name
+                cohort.save()
 
-        if data.get("assignment_type") is not None:
-            try:
-                cohorts.set_assignment_type(cohort, data["assignment_type"])
-            except ValueError as exc:
-                raise ValidationError({"assignment_type": str(exc)}) from exc
+            if data.get("assignment_type") is not None:
+                try:
+                    cohorts.set_assignment_type(cohort, data["assignment_type"])
+                except ValueError as exc:
+                    log.info("Refused assignment type change for cohort %s: %s", cohort.id, exc)
+                    raise ValidationError({"assignment_type": [LAST_RANDOM_COHORT_MESSAGE]}) from exc
 
-        if "group_id" in request.data:
-            self._apply_content_group(cohort, data)
+            if "group_id" in data:
+                self._apply_content_group(cohort, data)
 
-        return Response(represent_cohort(cohort, course_key))
+        return Response(represent_cohort(cohort, self.course_key))
 
-    def _apply_content_group(self, cohort, data):
+    @staticmethod
+    def _apply_content_group(cohort, data):
         """
-        Link or unlink the cohort's content group association.
+        Link or unlink the cohort's content group.
 
-        A ``group_id`` of None unlinks any existing association, which is
-        distinct from the caller omitting the field entirely.
+        A ``group_id`` of None unlinks any existing link, which is distinct from
+        the caller omitting the field. The serializer has already required
+        ``user_partition_id`` alongside a non-null ``group_id``.
         """
         group_id = data.get("group_id")
         partition_id = data.get("user_partition_id")
@@ -305,11 +327,7 @@ class CohortViewSet(
                 CourseUserGroupPartitionGroup.objects.filter(course_user_group=cohort).delete()
             return
 
-        if partition_id is None:
-            raise ValidationError(
-                {"user_partition_id": "Required when group_id is supplied."}
-            )
-        if group_id != existing_group_id or partition_id != existing_partition_id:
+        if (group_id, partition_id) != (existing_group_id, existing_partition_id):
             CourseUserGroupPartitionGroup.objects.filter(course_user_group=cohort).delete()
             CourseUserGroupPartitionGroup(
                 course_user_group=cohort,
@@ -321,60 +339,71 @@ class CohortViewSet(
 @extend_schema_view(
     list=extend_schema(
         summary="List the learners in a cohort",
+        description="Course staff and instructors only.",
         parameters=[COURSE_KEY_PARAMETER, COHORT_ID_PARAMETER],
-        responses={200: CohortMemberSerializer(many=True), 403: FORBIDDEN_RESPONSE,
-                   404: COHORT_NOT_FOUND_RESPONSE},
+        responses={
+            200: CohortMemberSerializer(many=True),
+            401: UNAUTHENTICATED_RESPONSE,
+            403: FORBIDDEN_RESPONSE,
+            404: COHORT_NOT_FOUND_RESPONSE,
+        },
     ),
     create=extend_schema(
         summary="Add learners to a cohort",
+        description="Course staff and instructors only.",
         parameters=[COURSE_KEY_PARAMETER, COHORT_ID_PARAMETER],
         request=CohortMembershipRequestSerializer,
         responses={
             200: CohortMembershipResultSerializer,
-            400: OpenApiResponse(description="No usernames supplied."),
+            400: _error("No usernames supplied."),
+            401: UNAUTHENTICATED_RESPONSE,
             403: FORBIDDEN_RESPONSE,
             404: COHORT_NOT_FOUND_RESPONSE,
         },
     ),
     destroy=extend_schema(
         summary="Remove a learner from a cohort",
+        description="Course staff and instructors only.",
         parameters=[COURSE_KEY_PARAMETER, COHORT_ID_PARAMETER, USERNAME_PARAMETER],
         responses={
             204: OpenApiResponse(description="Learner removed."),
-            400: OpenApiResponse(description="Learner is not a member of this cohort."),
+            400: _error("Learner is not a member of this cohort."),
+            401: UNAUTHENTICATED_RESPONSE,
             403: FORBIDDEN_RESPONSE,
-            404: OpenApiResponse(description="No such course, cohort or learner."),
+            404: _error("No such course, cohort or learner."),
         },
     ),
 )
 @extend_schema(tags=["openedx-platform-sdk"])
-# permission_classes is declared on CohortAPIAccessMixin.
 class CohortMemberViewSet(
     CohortAPIAccessMixin,
-    CourseScopedMixin,
     StandardizedErrorMixin,
     IterablePaginationMixin,
     viewsets.ViewSet,
 ):
     """
     List the learners in a cohort, add learners to it and remove one from it.
+
+    Restricted to course staff in every method: the member list carries
+    learners' usernames, email addresses and full names.
     """
 
+    permission_classes = (permissions.IsAuthenticated, IsCohortCourseAdmin)
     serializer_class = CohortMemberSerializer
     pagination_class = DefaultPagination
     lookup_url_kwarg = "username"
     lookup_value_regex = USERNAME_LOOKUP_REGEX
 
-    def list(self, request, course_key_string, cohort_id):
-        """Return the learners in this cohort."""
+    def list(self, request, **kwargs):
+        """Return the learners in this cohort, in a stable order."""
         cohort = self.get_cohort_or_404()
         return self.paginate_iterable(
             request,
-            cohort.users.all(),
+            cohort.users.order_by("id"),
             serialize=lambda page: CohortMemberSerializer(page, many=True).data,
         )
 
-    def create(self, request, course_key_string, cohort_id):
+    def create(self, request, **kwargs):
         """Add the named learners to this cohort."""
         cohort = self.get_cohort_or_404()
         serializer = CohortMembershipRequestSerializer(data=request.data)
@@ -404,61 +433,67 @@ class CohortMemberViewSet(
                     result["added"].append({"username": user.username, "email": user.email})
         return Response(result)
 
-    def destroy(self, request, course_key_string, cohort_id, username):
+    def destroy(self, request, username, **kwargs):
         """Remove one learner from this cohort."""
         cohort = self.get_cohort_or_404()
         try:
             cohort_api.remove_user_from_cohort(self.course_key, username, cohort.id)
         except User.DoesNotExist as exc:
-            raise NotFound(f"No user named {username}.") from exc
+            raise NotFound("No such learner.") from exc
         except CohortMembership.DoesNotExist as exc:
-            raise ValidationError(
-                {"username": f"{username} is not a member of this cohort."}
-            ) from exc
+            raise ValidationError({"username": ["The learner is not a member of this cohort."]}) from exc
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema_view(
     get=extend_schema(
         summary="Read the cohort configuration of a course",
+        description="Course staff and instructors only.",
         parameters=[COURSE_KEY_PARAMETER],
-        responses={200: CohortSettingsSerializer, 403: FORBIDDEN_RESPONSE,
-                   404: OpenApiResponse(description="No such course.")},
+        responses={
+            200: CohortSettingsSerializer,
+            401: UNAUTHENTICATED_RESPONSE,
+            403: FORBIDDEN_RESPONSE,
+            404: COURSE_NOT_FOUND_RESPONSE,
+        },
     ),
     put=extend_schema(
         summary="Enable or disable cohorts for a course",
+        description="Course staff and instructors only.",
         parameters=[COURSE_KEY_PARAMETER],
         request=CohortSettingsSerializer,
-        responses={200: CohortSettingsSerializer,
-                   400: OpenApiResponse(description="Invalid payload."),
-                   403: FORBIDDEN_RESPONSE,
-                   404: OpenApiResponse(description="No such course.")},
+        responses={
+            200: CohortSettingsSerializer,
+            400: _error("Invalid payload."),
+            401: UNAUTHENTICATED_RESPONSE,
+            403: FORBIDDEN_RESPONSE,
+            404: COURSE_NOT_FOUND_RESPONSE,
+        },
     ),
 )
 @extend_schema(tags=["openedx-platform-sdk"])
-# permission_classes is declared on CohortAPIAccessMixin.
 class CohortSettingsView(CohortAPIAccessMixin, StandardizedErrorMixin, APIView):
     """
     Read and update whether a course uses cohorts.
+
+    Restricted to course staff in both methods.
     """
 
+    permission_classes = (permissions.IsAuthenticated, IsCohortCourseAdmin)
     serializer_class = CohortSettingsSerializer
 
-    def get(self, request, course_key_string):
+    def get(self, request, **kwargs):
         """Return the course's cohort configuration."""
-        course_key = CourseKey.from_string(course_key_string)
-        return Response(self._representation(course_key))
+        self.ensure_course_exists()
+        return Response(self._representation(self.course_key))
 
-    def put(self, request, course_key_string):
+    def put(self, request, **kwargs):
         """Enable or disable cohorts for the course."""
-        course_key = CourseKey.from_string(course_key_string)
+        self.ensure_course_exists()
         serializer = CohortSettingsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            cohorts.set_course_cohorted(course_key, serializer.validated_data["is_cohorted"])
-        except ValueError as exc:
-            raise ValidationError({"is_cohorted": str(exc)}) from exc
-        return Response(self._representation(course_key))
+        cohorts.set_course_cohorted(self.course_key, serializer.validated_data["is_cohorted"])
+        return Response(self._representation(self.course_key))
 
     @staticmethod
     def _representation(course_key):
