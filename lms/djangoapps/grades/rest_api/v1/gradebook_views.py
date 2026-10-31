@@ -324,7 +324,7 @@ class CourseGradingView(BaseCourseView):
 
     * ``GET /api/grade/v2/courses/{course_key}/grading_policy/``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
     @course_author_access_required
     def get(self, request, course_key):
@@ -498,7 +498,7 @@ class GradebookView(GradeViewMixin, PaginatedAPIView):
     * ``GET /api/grade/v2/courses/{course_key}/gradebook_entries/``
     * ``GET /api/grade/v2/courses/{course_key}/gradebook_entries/{username}/``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
 
     pagination_class = CourseEnrollmentPagination
@@ -884,7 +884,7 @@ class GradebookBulkUpdateView(GradeViewMixin, PaginatedAPIView):
 
     * ``POST /api/grade/v2/courses/{course_key}/subsection_grade_overrides/``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
 
     @verify_course_exists("Requested grade for unknown course {course}")
@@ -1125,7 +1125,7 @@ class SubsectionGradeView(GradeViewMixin, APIView):
     * ``GET /api/grade/v2/subsection_grades/{username},{usage_key}/``
     * ``GET /api/grade/v2/subsection_grades/{username},{usage_key}/override_history_records/``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
 
     def get(self, request, subsection_id):

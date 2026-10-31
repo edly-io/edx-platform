@@ -110,7 +110,7 @@ class CourseGradesView(GradeViewMixin, PaginatedAPIView):
     * ``GET /api/grade/v2/course_grades/?course_key={course_key}``
     * ``GET /api/grade/v2/course_grades/{username},{course_key}/``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
     authentication_classes = (
         JwtAuthentication,
@@ -196,7 +196,7 @@ class CourseGradingPolicy(GradeViewMixin, ListAPIView):
 
     * ``GET /api/grade/v2/courses/{course_key}/grading_policy/?view=minimal``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
     allow_empty = False
 
@@ -250,7 +250,7 @@ class SectionGradesBreakdown(GradeViewMixin, PaginatedAPIView):
 
     * ``GET /api/grade/v2/course_grades/?view=full``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
     authentication_classes = (
         JwtAuthentication,
@@ -397,7 +397,7 @@ class SubmissionHistoryView(GradeViewMixin, PaginatedAPIView):
 
     * ``GET /api/grade/v2/courses/{course_key}/submission_histories/``
 
-    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/DEPR_TBD
+    This version is deprecated and will be removed; see https://github.com/openedx/openedx-platform/issues/39128
     """
     authentication_classes = (
         JwtAuthentication,
