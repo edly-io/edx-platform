@@ -1338,6 +1338,12 @@ SPECTACULAR_SETTINGS = {
         'cms.lib.spectacular.cms_mark_migrated_paths',
         'openedx.core.apidocs.untag_deprecated_operations',
     ],
+    # Enum components named here keep their name when another serializer
+    # publishes a field of the same name with different choices; otherwise
+    # drf-spectacular renames both and the generated clients change.
+    'ENUM_NAME_OVERRIDES': {
+        'CourseOptimizerStatusEnum': 'cms.djangoapps.contentstore.rest_api.v1.course_optimizer_service.RUN_STATES',
+    },
     # Stripped from each path to derive its tags and operationId, so changing
     # it renames every operationId. Paths are published in full, from the
     # service root, so /api/contentstore and /api/authoring resolve against the

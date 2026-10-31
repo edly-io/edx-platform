@@ -195,6 +195,15 @@ class SpectacularSettingsTest(TestCase):
             source = self._source(module)
             assert "'drf_spectacular.hooks.postprocess_schema_enums'," in source, module
 
+    def test_the_enum_names_are_pinned_in_every_environment(self):
+        """Every settings module that publishes the schema gives the shared enums the same names."""
+        entry = (
+            "'CourseOptimizerStatusEnum': "
+            "'cms.djangoapps.contentstore.rest_api.v1.course_optimizer_service.RUN_STATES',"
+        )
+        for module in ("cms/envs/common.py", *self.SETTINGS_MODULES):
+            assert entry in self._source(module), module
+
     def test_no_prefix_is_trimmed_so_paths_are_emitted_in_full(self):
         for module in self.SETTINGS_MODULES:
             assert "SCHEMA_PATH_PREFIX_TRIM" not in self._source(module), module
