@@ -652,7 +652,11 @@ def login_user(request, api_version="v1"):  # pylint: disable=too-many-statement
 
         if is_2fa_enabled_for_user(request):
             generate_and_send_otp(possibly_authenticated_user)
-            request.session.flush()
+            if third_party_auth_requested:
+                # Keep the running SSO pipeline so finish_auth_url can resume it.
+                request.session.cycle_key()
+            else:
+                request.session.flush()
             request.session[SESSION_KEY_USER_ID] = possibly_authenticated_user.id
             request.session[SESSION_KEY_EXPIRES] = time.time() + SESSION_EXPIRY_SECONDS
             if finish_auth_url:
