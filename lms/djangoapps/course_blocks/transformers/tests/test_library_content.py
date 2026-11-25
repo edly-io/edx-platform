@@ -204,6 +204,8 @@ class ContentLibraryTransformerTestCase(CourseStructureTestCase):
 
         trans_keys = set(trans_block_structure.get_block_keys())
         assert self.get_block_key_set(self.blocks, 'course', 'library_content1').issubset(trans_keys)
+        library_key = self.get_block_key_set(self.blocks, 'library_content1').pop()
+        assert len(trans_block_structure.get_children(library_key)) == self.blocks['library_content1'].max_count
 
 
 @ddt
@@ -339,6 +341,42 @@ class ContentLibraryOrderTransformerTestCase(CourseStructureTestCase):
             expected_children = ['vertical_vertical3', 'vertical_vertical2', 'vertical_vertical4']
             assert expected_children == [child.block_id for child in children], \
                 f"Expected 'selected' equality failed in iteration {i}."
+
+    @mock.patch('lms.djangoapps.course_blocks.transformers.library_content.get_student_module_as_dict')
+    def test_unknown_block_type_does_not_raise(self, mocked):
+        """
+        Blocks whose type has no installed XBlock are skipped instead of raising,
+        and the order of the selected children is still applied.
+        """
+        mocked.return_value = {
+            'selected': [
+                ['vertical', 'vertical_vertical3'],
+                ['vertical', 'vertical_vertical2'],
+                ['vertical', 'vertical_vertical4'],
+            ]
+        }
+        original_load_class = XBlock.load_class
+
+        def load_class_missing_html(identifier, *args, **kwargs):
+            if identifier == 'html':
+                raise PluginMissingError(identifier)
+            return original_load_class(identifier, *args, **kwargs)
+
+        with mock.patch(
+            'lms.djangoapps.course_blocks.transformers.library_content.XBlock',
+            load_class=load_class_missing_html,
+        ):
+            trans_block_structure = get_course_blocks(
+                self.user,
+                self.course.location,
+                self.transformers,
+            )
+
+        library_key = self.get_block_key_set(self.blocks, 'library_content1').pop()
+        children = trans_block_structure.get_children(library_key)
+        assert [child.block_id for child in children] == [
+            'vertical_vertical3', 'vertical_vertical2', 'vertical_vertical4'
+        ]
 
     @mock.patch('lms.djangoapps.course_blocks.transformers.library_content.get_student_module_as_dict')
     def test_content_library_randomize_selected_blocks_mismatch(self, mocked):
