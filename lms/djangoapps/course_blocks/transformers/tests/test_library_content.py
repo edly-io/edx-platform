@@ -5,6 +5,8 @@ Tests for ContentLibraryTransformer.
 from unittest import mock
 
 from ddt import data, ddt
+from xblock.core import XBlock
+from xblock.plugin import PluginMissingError
 
 import openedx.core.djangoapps.content.block_structure.api as bs_api
 from common.djangoapps.student.tests.factories import CourseEnrollmentFactory
@@ -176,6 +178,32 @@ class ContentLibraryTransformerTestCase(CourseStructureTestCase):
                                                                                          f'{block_type}1',
                                                                                          selected_vertical,
                                                                                          selected_child), f"Expected 'selected' equality failed in iteration {i}."  # pylint: disable=line-too-long
+
+    def test_unknown_block_type_does_not_raise(self):
+        """
+        Blocks whose type has no installed XBlock are skipped instead of raising.
+        """
+        original_load_class = XBlock.load_class
+
+        def load_class_missing_html(identifier, *args, **kwargs):
+            if identifier == 'html':
+                raise PluginMissingError(identifier)
+            return original_load_class(identifier, *args, **kwargs)
+
+        with mock.patch(
+            'lms.djangoapps.course_blocks.transformers.library_content.XBlock',
+            load_class=load_class_missing_html,
+        ):
+            bs_api.update_course_in_cache(self.course.id)
+            clear_course_from_cache(self.course.id)
+            trans_block_structure = get_course_blocks(
+                self.user,
+                self.course.location,
+                self.transformers,
+            )
+
+        trans_keys = set(trans_block_structure.get_block_keys())
+        assert self.get_block_key_set(self.blocks, 'course', 'library_content1').issubset(trans_keys)
 
 
 @ddt

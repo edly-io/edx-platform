@@ -11,6 +11,7 @@ import logging
 
 from eventtracking import tracker
 from xblock.core import XBlock
+from xblock.plugin import PluginMissingError
 
 from common.djangoapps.track import contexts
 from lms.djangoapps.courseware.models import StudentModule
@@ -24,6 +25,16 @@ from xmodule.modulestore.django import modulestore  # lint-amnesty, pylint: disa
 from ..utils import get_student_module_as_dict
 
 logger = logging.getLogger(__name__)
+
+
+def _get_item_bank_class(block_type):
+    try:
+        block_class = XBlock.load_class(block_type)
+    except PluginMissingError:
+        return None
+    if issubclass(block_class, ItemBankMixin):
+        return block_class
+    return None
 
 
 class ContentLibraryTransformer(FilteringTransformerMixin, BlockStructureTransformer):
@@ -71,7 +82,7 @@ class ContentLibraryTransformer(FilteringTransformerMixin, BlockStructureTransfo
         # For each block check if block uses ItemBankMixin (e.g., library_content, itembank).
         # If so add block analytics summary for each of its children.
         for block_key in block_structure.topological_traversal(
-                filter_func=lambda block_key: issubclass(XBlock.load_class(block_key.block_type), ItemBankMixin),
+                filter_func=lambda block_key: _get_item_bank_class(block_key.block_type) is not None,
                 yield_descendants_of_unyielded=True,
         ):
             xblock = block_structure.get_xblock(block_key)
@@ -83,9 +94,7 @@ class ContentLibraryTransformer(FilteringTransformerMixin, BlockStructureTransfo
         all_library_children = set()
         all_selected_children = set()
         for block_key in block_structure:
-            block_class = XBlock.load_class(block_key.block_type)
-
-            if block_class is None or not issubclass(block_class, ItemBankMixin):
+            if _get_item_bank_class(block_key.block_type) is None:
                 continue
             library_children = block_structure.get_children(block_key)
             if library_children:
@@ -240,8 +249,7 @@ class ContentLibraryOrderTransformer(BlockStructureTransformer):
         to match the order of the selections made and stored in the XBlock 'selected' field.
         """
         for block_key in block_structure:
-            block_class = XBlock.load_class(block_key.block_type)
-            if block_class is None or not issubclass(block_class, ItemBankMixin):
+            if _get_item_bank_class(block_key.block_type) is None:
                 continue
 
             library_children = block_structure.get_children(block_key)
