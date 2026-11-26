@@ -71,6 +71,9 @@
 
         anchors = $el.find("." + anchorsElClass);
 
+        // jQuery 3 finishes animations on the next frame even with $.fx.off; jump to the end.
+        $el.find(".longform").finish();
+
         if (state === "closed") {
           expect($el.find(".longform")).toBeHidden();
           expect($el).not.toHaveClass("open");

@@ -157,9 +157,9 @@
                 var view;
                 view = new PromptView.Confirmation(this.options).show();
                 expect(this.inFocusSpy).toHaveBeenCalled();
-                $('.action-secondary').first().simulate(
-                    'keydown',
-                    {keyCode: $.simulate.keyCode.TAB}
+                // jQuery 3.7+ reads event.which from the browser event; simulated events don't set it.
+                $('.action-secondary').first().trigger(
+                    $.Event('keydown', {which: $.simulate.keyCode.TAB, keyCode: $.simulate.keyCode.TAB})
                 );
 
                 jasmine.waitUntil(function() {
@@ -170,10 +170,9 @@
                 var view;
                 view = new PromptView.Confirmation(this.options).show();
                 expect(this.inFocusSpy).toHaveBeenCalled();
-                $('.action-primary').first().simulate(
-                    'keydown',
-                    {keyCode: $.simulate.keyCode.TAB, shiftKey: true}
-                );
+                $('.action-primary').first().trigger($.Event('keydown', {
+                    which: $.simulate.keyCode.TAB, keyCode: $.simulate.keyCode.TAB, shiftKey: true
+                }));
                 jasmine.waitUntil(function() {
                     return isFocused(view.$('.action-secondary'));
                 }).always(done);

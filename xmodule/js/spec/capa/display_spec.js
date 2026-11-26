@@ -445,9 +445,9 @@ data-url='/problem/quiz/'> \
         $("#input_example_1").replaceWith(radioButtonProblemHtml);
         this.problem.submitAnswersAndSubmitButton(true);
         this.submitDisabled(true);
-        $("#input_1_1_1").attr("checked", true).trigger("click");
+        $("#input_1_1_1").prop("checked", true).triggerHandler("click");
         this.submitDisabled(false);
-        $("#input_1_1_1").attr("checked", false).trigger("click");
+        $("#input_1_1_1").prop("checked", false).triggerHandler("click");
         this.submitDisabled(true);
       });
 
@@ -474,11 +474,11 @@ data-url='/problem/quiz/'> \
         $(radioButtonProblemHtml).insertAfter("#input_example_1");
         this.problem.submitAnswersAndSubmitButton(true);
         this.submitDisabled(true);
-        $("#input_1_1_1").attr("checked", true).trigger("click");
+        $("#input_1_1_1").prop("checked", true).triggerHandler("click");
         this.submitDisabled(true);
         $("#input_example_1").val("111").trigger("input");
         this.submitDisabled(false);
-        $("#input_1_1_1").attr("checked", false).trigger("click");
+        $("#input_1_1_1").prop("checked", false).triggerHandler("click");
         this.submitDisabled(true);
       });
 
@@ -604,7 +604,7 @@ data-url='/problem/quiz/'> \
   describe("show problem with column in id", function () {
     beforeEach(function () {
       this.problem = new Problem($(".xblock-student_view"));
-      this.problem.el.prepend('<div id="answer_1_1:11" /><div id="answer_1_2:12" />');
+      this.problem.el.prepend('<div id="answer_1_1:11"></div><div id="answer_1_2:12"></div>');
     });
 
     it("log the problem_show event", function () {
@@ -637,7 +637,7 @@ data-url='/problem/quiz/'> \
   describe("show", function () {
     beforeEach(function () {
       this.problem = new Problem($(".xblock-student_view"));
-      this.problem.el.prepend('<div id="answer_1_1" /><div id="answer_1_2" />');
+      this.problem.el.prepend('<div id="answer_1_1"></div><div id="answer_1_2"></div>');
     });
 
     describe("when the answer has not yet shown", function () {
@@ -1038,7 +1038,7 @@ data-url='/problem/quiz/'> \
     beforeEach(function () {
       this.problem = new Problem($(".xblock-student_view"));
       this.problem.el.html(`\
-<textarea class="CodeMirror" />
+<textarea class="CodeMirror"></textarea>
 <input id="input_1_1" name="input_1_1" class="schematic" value="one" />
 <input id="input_1_2" name="input_1_2" value="two" />
 <input id="input_bogus_3" name="input_bogus_3" value="three" />\

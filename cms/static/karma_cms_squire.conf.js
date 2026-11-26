@@ -16,8 +16,8 @@ var options = {
     libraryFiles: [],
 
     libraryFilesToInclude: [
-        {pattern: 'common/js/vendor/jquery.js', included: true},
-        {pattern: 'common/js/vendor/jquery-migrate.js', included: true}
+        // jquery-migrate is loaded through RequireJS by cms/js/spec/main*.js: version 3 calls define().
+        {pattern: 'common/js/vendor/jquery.js', included: true}
     ],
 
     // Make sure the patterns in sourceFiles and specFiles do not match the same file.

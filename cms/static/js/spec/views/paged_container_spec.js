@@ -517,14 +517,15 @@ function($, _, AjaxHelpers, URI, XBlockInfo, PagedContainer, PagingHeader, Pagin
                 testSendsAjax(true);
                 testSendsAjax(false);
 
-                it('should trigger render on success', function() {
+                it('should trigger render on success', function(done) {
                     spyOn(pagingContainer, 'render');
                     var requests = AjaxHelpers.requests(this);
 
-                    pagingContainer.togglePreviews();
+                    pagingContainer.togglePreviews().always(function() {
+                        expect(pagingContainer.render).toHaveBeenCalled();
+                        done();
+                    });
                     AjaxHelpers.respondWithJson(requests, {showChildrenPreviews: true});
-
-                    expect(pagingContainer.render).toHaveBeenCalled();
                 });
 
                 it('should not trigger render on failure', function() {

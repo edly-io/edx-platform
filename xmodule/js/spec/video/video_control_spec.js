@@ -204,12 +204,13 @@
                         duration: 60
                     });
 
-                    jasmine.waitUntil(function() {
+                    // Return the inner wait so the spec doesn't finish (and tear down the player) before it.
+                    return jasmine.waitUntil(function() {
                         var expectedValue = $('.video-controls').find('.vidtime');
                         return expectedValue.text().indexOf('0:05 / 0:10') !== -1; // Expecting 15 seconds - 10 seconds = 5 seconds
                     }).then(function() {
                         expect($('.video-controls').find('.vidtime')).toHaveText('0:05 / 0:10');
-                    }).always(done);
+                    });
                 }).always(done);
             });
 

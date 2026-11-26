@@ -529,9 +529,10 @@
                 jasmine.clock().install();
                 state = jasmine.initializePlayer();
                 jasmine.clock().tick(50);
+                // Not .then(done): jQuery 3 runs .then callbacks with setTimeout, which the mock clock holds back.
                 jasmine.waitUntil(function() {
                     return state.videoCaption.rendered;
-                }).then(done);
+                }).always(done);
 
                 // Why we can't use spyOn(): https://github.com/jasmine/jasmine/issues/826
                 originalClearTimeout = window.clearTimeout;
@@ -1035,7 +1036,8 @@
                     var realHeight = parseInt(
                             $('.subtitles').css('maxHeight'), 10
                         ),
-                        shouldBeHeight = $('.video-wrapper').height();
+                        // jQuery 3 returns fractional sizes; maxHeight is read back as an integer.
+                        shouldBeHeight = parseInt($('.video-wrapper').height(), 10);
 
                     // Because of some problems with rounding on different
                     // environments: Linux * Mac * FF * Chrome

@@ -95,26 +95,31 @@ function($, URI, AjaxHelpers, PagingCollection, PagingView, PagingHeader) {
                     expect(pagingView.collection.getPageNumber()).toBe(2);
                 });
 
-                it('should not change page after a server error', function() {
+                it('should not change page after a server error', function(done) {
                     var requests = AjaxHelpers.requests(this);
                     pagingView.setPage(1);
                     respondWithMockItems(requests);
                     pagingView.setPage(2);
                     requests[1].respond(500);
 
-                    /* PagingCollection sets the currentPage to the old page in case of failure */
-                    expect(pagingView.collection.getPageNumber()).toBe(1);
+                    /* PagingCollection sets the currentPage to the old page in case of failure,
+                       in a Deferred callback, which jQuery 3 runs asynchronously. */
+                    jasmine.waitUntil(function() {
+                        return pagingView.collection.getPageNumber() === 1;
+                    }).always(done);
                 });
             });
 
             describe('nextPage', function() {
-                it('does not move forward after a server error', function() {
+                it('does not move forward after a server error', function(done) {
                     var requests = AjaxHelpers.requests(this);
                     pagingView.setPage(1);
                     respondWithMockItems(requests);
                     pagingView.nextPage();
                     requests[1].respond(500);
-                    expect(pagingView.collection.getPageNumber()).toBe(1);
+                    jasmine.waitUntil(function() {
+                        return pagingView.collection.getPageNumber() === 1;
+                    }).always(done);
                 });
 
                 it('can move to the next page', function() {
@@ -155,13 +160,15 @@ function($, URI, AjaxHelpers, PagingCollection, PagingView, PagingHeader) {
                     AjaxHelpers.expectNoRequests(requests);
                 });
 
-                it('does not move back after a server error', function() {
+                it('does not move back after a server error', function(done) {
                     var requests = AjaxHelpers.requests(this);
                     pagingView.setPage(2);
                     respondWithMockItems(requests);
                     pagingView.previousPage();
                     requests[1].respond(500);
-                    expect(pagingView.collection.getPageNumber()).toBe(2);
+                    jasmine.waitUntil(function() {
+                        return pagingView.collection.getPageNumber() === 2;
+                    }).always(done);
                 });
             });
 
@@ -221,14 +228,17 @@ function($, URI, AjaxHelpers, PagingCollection, PagingView, PagingHeader) {
                     pagingHeader.render();
                 });
 
-                it('does not move forward if a server error occurs', function() {
+                it('does not move forward if a server error occurs', function(done) {
                     var requests = AjaxHelpers.requests(this);
                     pagingView.setPage(1);
                     respondWithMockItems(requests);
                     pagingHeader.$('.next-page-link').click();
                     requests[1].respond(500);
-                    expect(pagingView.collection.state.currentPage).toBe(0);
-                    expect(pagingView.collection.getPageNumber()).toBe(1);
+                    jasmine.waitUntil(function() {
+                        return pagingView.collection.state.currentPage === 0;
+                    }).then(function() {
+                        expect(pagingView.collection.getPageNumber()).toBe(1);
+                    }).always(done);
                 });
 
                 it('can move to the next page', function() {
@@ -269,13 +279,15 @@ function($, URI, AjaxHelpers, PagingCollection, PagingView, PagingHeader) {
                     pagingHeader.render();
                 });
 
-                it('does not move back if a server error occurs', function() {
+                it('does not move back if a server error occurs', function(done) {
                     var requests = AjaxHelpers.requests(this);
                     pagingView.setPage(2);
                     respondWithMockItems(requests);
                     pagingHeader.$('.previous-page-link').click();
                     requests[1].respond(500);
-                    expect(pagingView.collection.getPageNumber()).toBe(2);
+                    jasmine.waitUntil(function() {
+                        return pagingView.collection.getPageNumber() === 2;
+                    }).always(done);
                 });
 
                 it('can go back a page', function() {
