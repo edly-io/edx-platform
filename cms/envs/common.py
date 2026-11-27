@@ -569,7 +569,7 @@ base_vendor_js = [
     'js/src/logger.js',
     'common/js/vendor/jquery.js',
     'common/js/vendor/jquery-migrate.js',
-    'js/src/jquery_browser_shim.js',
+    'js/src/jquery_migrate_shims.js',
     'js/vendor/jquery.cookie.js',
     'js/vendor/url.min.js',
     'common/js/vendor/underscore.js',
