@@ -159,7 +159,7 @@ define([
             expectFooter({currentPage: 1, totalPages: 2, isHidden: false});
         });
 
-        it('sets focus for screen readers', function() {
+        it('sets focus for screen readers', function(done) {
             var requests = AjaxHelpers.requests(this);
             spyOn($.fn, 'focus');
             testView.$(nextPageButtonCss).click();
@@ -169,7 +169,10 @@ define([
                 page: 2,
                 results: generateItems(1)
             });
-            expect(testView.$('.sr-is-focusable').focus).toHaveBeenCalled();
+            // 'page_changed' fires from a Deferred callback, which jQuery 3 runs asynchronously.
+            jasmine.waitUntil(function() {
+                return $.fn.focus.calls.any();
+            }).always(done);
         });
 
         it('does not change on server error', function() {

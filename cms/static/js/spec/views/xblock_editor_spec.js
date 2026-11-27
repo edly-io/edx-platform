@@ -49,7 +49,7 @@ describe('XBlockEditorView', function() {
                 resources: []
             });
 
-            expect(editor.$el.select('.xblock-header')).toBeTruthy();
+            expect(editor.$el.find('.xblock-header')).toBeTruthy();
             expect(editor.getMode()).toEqual('settings');
         });
     });
@@ -75,7 +75,7 @@ describe('XBlockEditorView', function() {
                 resources: []
             });
 
-            expect(editor.$el.select('.xblock-header')).toBeTruthy();
+            expect(editor.$el.find('.xblock-header')).toBeTruthy();
             expect(editor.getMode()).toEqual('editor');
         });
 
@@ -108,7 +108,7 @@ describe('XBlockEditorView', function() {
                 resources: []
             });
 
-            expect(editor.$el.select('.xblock-header')).toBeTruthy();
+            expect(editor.$el.find('.xblock-header')).toBeTruthy();
             expect(editor.getMode()).toEqual('settings');
         });
     });

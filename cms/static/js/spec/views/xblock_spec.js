@@ -27,7 +27,7 @@ function($, URI, AjaxHelpers, ViewUtils, XBlockView, XBlockInfo) {
                 resources: []
             });
 
-            expect(xblockView.$el.select('.xblock-header')).toBeTruthy();
+            expect(xblockView.$el.find('.xblock-header')).toBeTruthy();
         });
 
         describe('XBlock rendering', function() {
@@ -48,7 +48,7 @@ function($, URI, AjaxHelpers, ViewUtils, XBlockView, XBlockInfo) {
                     html: mockXBlockHtml,
                     resources: resources
                 });
-                expect(xblockView.$el.select('.xblock-header')).toBeTruthy();
+                expect(xblockView.$el.find('.xblock-header')).toBeTruthy();
                 return promise;
             };
 

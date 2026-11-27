@@ -3,10 +3,10 @@ describe("$.immediateDescendents", function() {
     setFixtures(`\
 <div>
   <div class='xblock' id='child'>
-    <div class='xblock' id='nested'/>
+    <div class='xblock' id='nested'></div>
   </div>
   <div>
-    <div class='xblock' id='grandchild'/>
+    <div class='xblock' id='grandchild'></div>
   </div>
 </div>\
 `

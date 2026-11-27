@@ -130,11 +130,6 @@ function(
 
         IframeUtils.iframeBinding();
 
-        // disable ajax caching in IE so that backbone fetches work
-        if ($.browser.msie) {
-            $.ajaxSetup({cache: false});
-        }
-
         // Initiate the edx tool kit dropdown menu
         if ($('.js-header-user-menu').length) {
             dropdownMenuView = new DropdownMenuView({

@@ -280,6 +280,8 @@
     }
 
     specHelpers = [
+        // jquery-migrate 3 is an AMD module: it has to be loaded by RequireJS (see karma_cms*.conf.js).
+        'jquery-migrate',
         'common/js/spec_helpers/jasmine-extensions',
         'common/js/spec_helpers/jasmine-stealth',
         'common/js/spec_helpers/jasmine-waituntil'

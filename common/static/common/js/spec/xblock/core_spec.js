@@ -11,7 +11,7 @@
                 + '       data-runtime-class="TestRuntime"\n'
                 + '       data-init="initFnA"\n'
                 + '       data-name="a-name"\n'
-                + '  />\n'
+                + '  ></div>\n'
                 + '  <div>\n'
                 + '    <div class="xblock"\n'
                 + '         id="vZ"\n'
@@ -19,10 +19,10 @@
                 + '         data-runtime-class="TestRuntime"\n'
                 + '         data-init="initFnZ"\n'
                 + '         data-request-token="req-token-z"\n'
-                + '    />\n'
+                + '    ></div>\n'
                 + '  </div>\n'
-                + '  <div class="xblock" id="missing-version" data-init="initFnA" data-name="no-version"/>\n'
-                + '  <div class="xblock" id="missing-init" data-runtime-version="A" data-name="no-init"/>\n'
+                + '  <div class="xblock" id="missing-version" data-init="initFnA" data-name="no-version"></div>\n'
+                + '  <div class="xblock" id="missing-init" data-runtime-version="A" data-name="no-init"></div>\n'
                 + '</div>');
         });
         describe('initializeBlock', function() {
